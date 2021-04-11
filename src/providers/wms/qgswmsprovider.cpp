@@ -2020,7 +2020,8 @@ int QgsWmsProvider::capabilities() const
   // See https://github.com/qgis/QGIS/issues/34813
   if ( mSettings.mTiled && !( mSettings.mXyz && dataSourceUri().contains( QStringLiteral( "openstreetmap.org" ) ) ) )
   {
-    capability |= Capability::Prefetch;
+    // March 2021: *never* prefetch tile based layers, see: https://github.com/qgis/QGIS/pull/41953
+    // capability |= Capability::Prefetch;
   }
 
   QgsDebugMsgLevel( QStringLiteral( "capability = %1" ).arg( capability ), 2 );
@@ -2167,7 +2168,7 @@ QString QgsWmsProvider::layerMetadata( QgsWmsLayerProperty &layer )
   }
 
   // Layer Coordinate Reference Systems
-  for ( int j = 0; j < std::min( layer.crs.size(), 10 ); j++ )
+  for ( int j = 0; j < std::min( static_cast< int >( layer.crs.size() ), 10 ); j++ )
   {
     metadata += QStringLiteral( "<tr><td>" ) %
                 tr( "Available in CRS" ) %
@@ -3275,7 +3276,9 @@ QgsRasterIdentifyResult QgsWmsProvider::identify( const QgsPointXY &point, QgsRa
         dom.setContent( gmlByteArray ); // gets XML encoding
         gmlByteArray.clear();
         QTextStream stream( &gmlByteArray );
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         stream.setCodec( QTextCodec::codecForName( "UTF-8" ) );
+#endif
         dom.save( stream, 4, QDomNode::EncodingFromTextStream );
 
         QgsDebugMsgLevel( "GML UTF-8 (first 2000 bytes):\n" + gmlByteArray.left( 2000 ), 2 );
@@ -4603,7 +4606,13 @@ void QgsWmsLegendDownloadHandler::startUrl( const QUrl &url )
 
   mReply = mNetworkAccessManager.get( request );
   mSettings.authorization().setAuthorizationReply( mReply );
+
+#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
   connect( mReply, static_cast < void ( QNetworkReply::* )( QNetworkReply::NetworkError ) >( &QNetworkReply::error ), this, &QgsWmsLegendDownloadHandler::errored );
+#else
+  connect( mReply, &QNetworkReply::errorOccurred, this, &QgsWmsLegendDownloadHandler::errored );
+#endif
+
   connect( mReply, &QNetworkReply::finished, this, &QgsWmsLegendDownloadHandler::finished );
   connect( mReply, &QNetworkReply::downloadProgress, this, &QgsWmsLegendDownloadHandler::progressed );
 }

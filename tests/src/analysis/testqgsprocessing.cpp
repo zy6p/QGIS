@@ -3445,6 +3445,7 @@ void TestQgsProcessing::parameterGeometry()
   QVERIFY( def->checkValueIsAcceptable( QgsReferencedPointXY( QgsPointXY( 1, 2 ), QgsCoordinateReferenceSystem( "EPSG:4326" ) ) ) );
   QVERIFY( def->checkValueIsAcceptable( QgsRectangle( 10, 10, 20, 20 ) ) );
   QVERIFY( def->checkValueIsAcceptable( QgsReferencedRectangle( QgsRectangle( 10, 10, 20, 20 ), QgsCoordinateReferenceSystem( "EPSG:4326" ) ) ) );
+  QVERIFY( def->checkValueIsAcceptable( QString( "MultiPoint((10 10), (20 20))" ) ) );
 
   // string representing a geometry
   QVariantMap params;
@@ -3612,9 +3613,32 @@ void TestQgsProcessing::parameterGeometry()
   QCOMPARE( fromMap2.flags(), def->flags() );
   QCOMPARE( fromMap2.defaultValue(), def->defaultValue() );
   QCOMPARE( fromMap2.geometryTypes(), def->geometryTypes() );
+  QCOMPARE( fromMap2.allowMultipart(), def->allowMultipart() );
   def.reset( dynamic_cast< QgsProcessingParameterGeometry *>( QgsProcessingParameters::parameterFromVariantMap( map2 ) ) );
   QVERIFY( dynamic_cast< QgsProcessingParameterGeometry *>( def.get() ) );
 
+  // not multipart
+  def.reset( new QgsProcessingParameterGeometry( "not_multipart", QString(), QString( "Point(-1 3)" ), false, {}, false ) );
+  QVERIFY( !def->allowMultipart() );
+  QVERIFY( !def->checkValueIsAcceptable( QString( "MultiPoint((10 10), (20 20))" ) ) );
+  QVERIFY( !def->checkValueIsAcceptable( QgsGeometry::fromWkt( QStringLiteral( "MultiPoint((10 10), (20 20))" ) ) ) );
+  QVERIFY( def->checkValueIsAcceptable( QgsGeometry::fromPointXY( QgsPointXY( 1, 2 ) ) ) );
+
+  pythonCode = def->asPythonString();
+  QCOMPARE( pythonCode, QStringLiteral( "QgsProcessingParameterGeometry('not_multipart', '', allowMultipart=False, defaultValue='Point(-1 3)')" ) );
+
+  QVariantMap map3 = def->toVariantMap();
+  QgsProcessingParameterGeometry fromMap3( "x" );
+  QVERIFY( fromMap3.fromVariantMap( map3 ) );
+  QCOMPARE( fromMap3.allowMultipart(), false );
+
+  std::unique_ptr< QgsProcessingParameterGeometry > cloned( dynamic_cast< QgsProcessingParameterGeometry *>( def->clone() ) );
+  QCOMPARE( cloned->name(), def->name() );
+  QCOMPARE( cloned->description(), def->description() );
+  QCOMPARE( cloned->flags(), def->flags() );
+  QCOMPARE( cloned->defaultValue(), def->defaultValue() );
+  QCOMPARE( cloned->geometryTypes(), def->geometryTypes() );
+  QCOMPARE( cloned->allowMultipart(), def->allowMultipart() );
 
 }
 
@@ -4915,6 +4939,11 @@ void TestQgsProcessing::parameterEnum()
   QCOMPARE( def->valueAsPythonString( QVariant(), context ), QStringLiteral( "None" ) );
   QCOMPARE( def->valueAsPythonString( QVariantList() << 1 << 2, context ), QStringLiteral( "[1,2]" ) );
   QCOMPARE( def->valueAsPythonString( QStringLiteral( "1,2" ), context ), QStringLiteral( "[1,2]" ) );
+
+  QCOMPARE( def->valueAsPythonComment( QVariant(), context ), QString() );
+  QCOMPARE( def->valueAsPythonComment( 2, context ), QStringLiteral( "C" ) );
+  QCOMPARE( def->valueAsPythonComment( QVariantList() << 1 << 2, context ), QStringLiteral( "B,C" ) );
+  QCOMPARE( def->valueAsPythonComment( QStringLiteral( "1,2" ), context ), QStringLiteral( "B,C" ) );
 
   pythonCode = def->asPythonString();
   QCOMPARE( pythonCode, QStringLiteral( "QgsProcessingParameterEnum('non_optional', '', options=['A','B','C'], allowMultiple=True, usesStaticStrings=False, defaultValue=5)" ) );
@@ -10305,9 +10334,9 @@ void TestQgsProcessing::modelExecution()
                               "    alg_params = {\n"
                               "      'DISSOLVE': False,\n"
                               "      'DISTANCE': parameters['DIST'],\n"
-                              "      'END_CAP_STYLE': 1,\n"
+                              "      'END_CAP_STYLE': 1,  # Flat\n"
                               "      'INPUT': parameters['SOURCE_LAYER'],\n"
-                              "      'JOIN_STYLE': 2,\n"
+                              "      'JOIN_STYLE': 2,  # Bevel\n"
                               "      'SEGMENTS': QgsExpression('@myvar*2').evaluate(),\n"
                               "      'OUTPUT': parameters['MyModelOutput']\n"
                               "    }\n"

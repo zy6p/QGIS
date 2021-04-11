@@ -639,6 +639,7 @@ set(QGIS_CORE_SRCS
   pointcloud/qgspointcloudextentrenderer.cpp
   pointcloud/qgspointcloudrequest.cpp
   pointcloud/qgspointcloudblock.cpp
+  pointcloud/qgspointcloudblockrequest.cpp
   pointcloud/qgspointcloudlayer.cpp
   pointcloud/qgspointcloudlayerelevationproperties.cpp
   pointcloud/qgspointcloudlayerrenderer.cpp
@@ -1345,6 +1346,7 @@ set(QGIS_CORE_HDRS
   pointcloud/qgspointcloudextentrenderer.h
   pointcloud/qgspointcloudrequest.h
   pointcloud/qgspointcloudblock.h
+  pointcloud/qgspointcloudblockrequest.h
   pointcloud/qgspointcloudlayer.h
   pointcloud/qgspointcloudlayerelevationproperties.h
   pointcloud/qgspointcloudlayerrenderer.h
@@ -1551,6 +1553,7 @@ set(QGIS_CORE_HDRS
   textrenderer/qgstextformat.h
   textrenderer/qgstextfragment.h
   textrenderer/qgstextmasksettings.h
+  textrenderer/qgstextmetrics.h
   textrenderer/qgstextrenderer.h
   textrenderer/qgstextrendererutils.h
   textrenderer/qgstextshadowsettings.h
@@ -1644,9 +1647,7 @@ endif()
 protobuf_generate_cpp(VECTOR_TILE_PROTO_SRCS VECTOR_TILE_PROTO_HDRS vectortile/vector_tile.proto)
 set(QGIS_CORE_SRCS ${QGIS_CORE_SRCS} ${VECTOR_TILE_PROTO_SRCS})
 set(QGIS_CORE_HDRS ${QGIS_CORE_HDRS} ${VECTOR_TILE_PROTO_HDRS})
-if (MSVC)
-  set_source_files_properties(${VECTOR_TILE_PROTO_SRCS} vectortile/qgsvectortilemvtdecoder.cpp vectortile/qgsvectortilemvtencoder.cpp vectortile/qgsvectortilewriter.cpp PROPERTIES COMPILE_DEFINITIONS PROTOBUF_USE_DLLS)
-else()
+if (NOT MSVC)
   # automatically generated file produces warnings (unused-parameter, unused-variable, misleading-indentation)
   set_source_files_properties(${VECTOR_TILE_PROTO_SRCS} PROPERTIES COMPILE_FLAGS -w)
 endif()
@@ -1701,12 +1702,14 @@ if (WITH_EPT)
       providers/ept/qgseptprovider.cpp
       pointcloud/qgseptdecoder.cpp
       pointcloud/qgseptpointcloudindex.cpp
+      pointcloud/qgsremoteeptpointcloudindex.cpp
   )
   set(QGIS_CORE_HDRS ${QGIS_CORE_HDRS}
       providers/ept/qgseptdataitems.h
       providers/ept/qgseptprovider.h
       pointcloud/qgseptdecoder.h
       pointcloud/qgseptpointcloudindex.h
+      pointcloud/qgsremoteeptpointcloudindex.h
   )
 endif()
 
