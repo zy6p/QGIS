@@ -1667,6 +1667,10 @@ void QgsVectorLayer::setDataSourcePrivate( const QString &dataSource, const QStr
 
     bool defaultLoadedFlag = false;
 
+    // defer style changed signal until we've set the renderer, labeling, everything.
+    // we don't want multiple signals!
+    ScopedIntIncrementor styleChangedSignalBlocker( &mBlockStyleChangedSignal );
+
     if ( loadDefaultStyleFlag && isSpatial() && mDataProvider->capabilities() & QgsVectorDataProvider::CreateRenderer )
     {
       // first try to create a renderer directly from the data provider
@@ -1708,6 +1712,9 @@ void QgsVectorLayer::setDataSourcePrivate( const QString &dataSource, const QStr
         setLabelsEnabled( true );
       }
     }
+
+    styleChangedSignalBlocker.release();
+    emitStyleChanged();
   }
 }
 
@@ -2444,6 +2451,10 @@ bool QgsVectorLayer::readStyle( const QDomNode &node, QString &errorMessage,
   // with broken sources
   if ( isSpatial() || mWkbType == QgsWkbTypes::Unknown )
   {
+    // defer style changed signal until we've set the renderer, labeling, everything.
+    // we don't want multiple signals!
+    ScopedIntIncrementor styleChangedSignalBlocker( &mBlockStyleChangedSignal );
+
     // try renderer v2 first
     if ( categories.testFlag( Symbology ) )
     {
@@ -2631,6 +2642,9 @@ bool QgsVectorLayer::readStyle( const QDomNode &node, QString &errorMessage,
       }
     }
     // end diagram
+
+    styleChangedSignalBlocker.release();
+    emitStyleChanged();
   }
   return result;
 }
@@ -2924,10 +2938,17 @@ bool QgsVectorLayer::readSld( const QDomNode &node, QString &errorMessage )
     if ( !r )
       return false;
 
+    // defer style changed signal until we've set the renderer, labeling, everything.
+    // we don't want multiple signals!
+    ScopedIntIncrementor styleChangedSignalBlocker( &mBlockStyleChangedSignal );
+
     setRenderer( r );
 
     // labeling
     readSldLabeling( node );
+
+    styleChangedSignalBlocker.release();
+    emitStyleChanged();
   }
   return true;
 }
@@ -3715,7 +3736,7 @@ void QgsVectorLayer::setRenderer( QgsFeatureRenderer *r )
     mSymbolFeatureIdMap.clear();
 
     emit rendererChanged();
-    emit styleChanged();
+    emitStyleChanged();
   }
 }
 
@@ -4435,7 +4456,7 @@ void QgsVectorLayer::setFeatureBlendMode( QPainter::CompositionMode featureBlend
 
   mFeatureBlendMode = featureBlendMode;
   emit featureBlendModeChanged( featureBlendMode );
-  emit styleChanged();
+  emitStyleChanged();
 }
 
 QPainter::CompositionMode QgsVectorLayer::featureBlendMode() const
@@ -5116,24 +5137,8 @@ QString QgsVectorLayer::htmlMetadata() const
       myMetadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Geometry" ) + QStringLiteral( "</td><td>" ) + typeString + QStringLiteral( "</td></tr>\n" );
     }
 
-    // EPSG
-    myMetadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "CRS" ) + QStringLiteral( "</td><td>" );
-    if ( crs().isValid() )
-    {
-      myMetadata += crs().userFriendlyIdentifier( QgsCoordinateReferenceSystem::FullString ) + QStringLiteral( " - " );
-      if ( crs().isGeographic() )
-        myMetadata += tr( "Geographic" );
-      else
-        myMetadata += tr( "Projected" );
-    }
-    myMetadata += QLatin1String( "</td></tr>\n" );
-
     // Extent
     myMetadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Extent" ) + QStringLiteral( "</td><td>" ) + extent().toString() + QStringLiteral( "</td></tr>\n" );
-
-    // unit
-    myMetadata += QStringLiteral( "<tr><td class=\"highlight\">" ) + tr( "Unit" ) + QStringLiteral( "</td><td>" ) + QgsUnitTypes::toString( crs().mapUnits() ) + QStringLiteral( "</td></tr>\n" );
-
   }
 
   // feature count
@@ -5146,6 +5151,12 @@ QString QgsVectorLayer::htmlMetadata() const
 
   // End Provider section
   myMetadata += QLatin1String( "</table>\n<br><br>" );
+
+  if ( isSpatial() )
+  {
+    // CRS
+    myMetadata += crsHtmlMetadata();
+  }
 
   // identification section
   myMetadata += QStringLiteral( "<h1>" ) + tr( "Identification" ) + QStringLiteral( "</h1>\n<hr>\n" );

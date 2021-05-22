@@ -25,13 +25,21 @@ Stores metadata about one symbol layer class.
 #include "qgssymbollayerregistry.h"
 %End
   public:
-    QgsSymbolLayerAbstractMetadata( const QString &name, const QString &visibleName, QgsSymbol::SymbolType type );
+
+    QgsSymbolLayerAbstractMetadata( const QString &name, const QString &visibleName, Qgis::SymbolType type );
+%Docstring
+Constructor for QgsSymbolLayerAbstractMetadata.
+
+:param name: internal symbol layer name (unique identifier)
+:param visibleName: user visible, translated name for symbol layer
+:param type: associated symbol type
+%End
 
     virtual ~QgsSymbolLayerAbstractMetadata();
 
     QString name() const;
     QString visibleName() const;
-    QgsSymbol::SymbolType type() const;
+    Qgis::SymbolType type() const;
 
     virtual QgsSymbolLayer *createSymbolLayer( const QVariantMap &map ) = 0 /Factory/;
 %Docstring
@@ -133,12 +141,12 @@ and converting absolute paths to relative paths when saving.
 .. versionadded:: 3.0
 %End
 
-    QStringList symbolLayersForType( QgsSymbol::SymbolType type );
+    QStringList symbolLayersForType( Qgis::SymbolType type );
 %Docstring
 Returns a list of available symbol layers for a specified symbol type
 %End
 
-    static QgsSymbolLayer *defaultSymbolLayer( QgsSymbol::SymbolType type ) /Factory/;
+    static QgsSymbolLayer *defaultSymbolLayer( Qgis::SymbolType type ) /Factory/;
 %Docstring
 create a new instance of symbol layer for specified symbol type with default settings
 %End

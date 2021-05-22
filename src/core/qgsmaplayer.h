@@ -39,6 +39,7 @@
 #include "qgsmaplayerstyle.h"
 #include "qgsreadwritecontext.h"
 #include "qgsdataprovider.h"
+#include "qgis.h"
 
 class QgsAbstract3DRenderer;
 class QgsDataProvider;
@@ -62,22 +63,6 @@ class QPainter;
 
 /**
  * \ingroup core
- * \brief Types of layers that can be added to a map
- * \since QGIS 3.8
- */
-enum class QgsMapLayerType SIP_MONKEYPATCH_SCOPEENUM_UNNEST( QgsMapLayer, LayerType ) : int
-  {
-  VectorLayer,
-  RasterLayer,
-  PluginLayer,
-  MeshLayer,      //!< Added in 3.2
-  VectorTileLayer, //!< Added in 3.14
-  AnnotationLayer, //!< Contains freeform, georeferenced annotations. Added in QGIS 3.16
-  PointCloudLayer, //!< Added in 3.18
-};
-
-/**
- * \ingroup core
  * \brief Base class for all map layer types.
  * This is the base class for all map layer types (vector, raster).
  */
@@ -95,7 +80,7 @@ class CORE_EXPORT QgsMapLayer : public QObject
 
 #ifdef SIP_RUN
     SIP_CONVERT_TO_SUBCLASS_CODE
-    QgsMapLayer * layer = qobject_cast<QgsMapLayer *>( sipCpp );
+    QgsMapLayer *layer = qobject_cast<QgsMapLayer *>( sipCpp );
 
     sipType = 0;
 
@@ -1444,6 +1429,10 @@ class CORE_EXPORT QgsMapLayer : public QObject
      * Signal emitted whenever a change affects the layer's style. Ie this may be triggered
      * by renderer changes, label style changes, or other style changes such as blend
      * mode or layer opacity changes.
+     *
+     * \warning This signal should never be manually emitted. Instead call the emitStyleChanged() method
+     * to ensure that the signal is only emitted when appropriate.
+     *
      * \see rendererChanged()
      * \since QGIS 2.16
     */
@@ -1738,6 +1727,26 @@ class CORE_EXPORT QgsMapLayer : public QObject
      * \since QGIS 3.18
      */
     double mLayerOpacity = 1.0;
+
+    /**
+     * If non-zero, the styleChanged signal should not be emitted.
+     *
+     * \since QGIS 3.20
+     */
+    int mBlockStyleChangedSignal = 0;
+
+#ifndef SIP_RUN
+
+    /**
+     * Returns a HTML fragment containing the layer's CRS metadata, for use
+     * in the htmlMetadata() method.
+     *
+     * \note Not available in Python bindings.
+     *
+     * \since QGIS 3.20
+     */
+    QString crsHtmlMetadata() const;
+#endif
 
   private:
 

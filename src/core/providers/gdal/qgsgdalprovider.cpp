@@ -28,7 +28,6 @@
 #include "qgsapplication.h"
 #include "qgsauthmanager.h"
 #include "qgscoordinatetransform.h"
-#include "qgsdataitem.h"
 #include "qgsdataitemprovider.h"
 #include "qgsdatasourceuri.h"
 #include "qgsgdaldataitems.h"
@@ -44,11 +43,11 @@
 #include "qgssettings.h"
 #include "qgsogrutils.h"
 #include "qgsruntimeprofiler.h"
+#include "qgszipitem.h"
 
 #include <QImage>
 #include <QColor>
 #include <QProcess>
-#include <QMessageBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>

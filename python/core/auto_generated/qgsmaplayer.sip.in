@@ -14,17 +14,6 @@
 
 
 
-enum class QgsMapLayerType
-  {
-  VectorLayer,
-  RasterLayer,
-  PluginLayer,
-  MeshLayer,
-  VectorTileLayer,
-  AnnotationLayer,
-  PointCloudLayer,
-};
-
 class QgsMapLayer : QObject
 {
 %Docstring(signature="appended")
@@ -36,7 +25,7 @@ This is the base class for all map layer types (vector, raster).
 #include "qgsmaplayer.h"
 %End
 %ConvertToSubClassCode
-    QgsMapLayer * layer = qobject_cast<QgsMapLayer *>( sipCpp );
+    QgsMapLayer *layer = qobject_cast<QgsMapLayer *>( sipCpp );
 
     sipType = 0;
 
@@ -1622,6 +1611,11 @@ Signal emitted whenever a change affects the layer's style. Ie this may be trigg
 by renderer changes, label style changes, or other style changes such as blend
 mode or layer opacity changes.
 
+.. warning::
+
+   This signal should never be manually emitted. Instead call the :py:func:`~QgsMapLayer.emitStyleChanged` method
+   to ensure that the signal is only emitted when appropriate.
+
 .. seealso:: :py:func:`rendererChanged`
 
 .. versionadded:: 2.16
@@ -1874,6 +1868,8 @@ this method is now deprecated and always return ``False``, because circular depe
 
 .. deprecated:: QGIS 3.10
 %End
+
+
 
 
 

@@ -522,6 +522,14 @@ QgsOptions::QgsOptions( QWidget *parent, Qt::WindowFlags fl, const QList<QgsOpti
       break;
   }
 
+  const double crsAccuracyWarningThreshold = mSettings->value( QStringLiteral( "/projections/crsAccuracyWarningThreshold" ), 0.0, QgsSettings::App ).toDouble();
+  mCrsAccuracySpin->setMinimumWidth( QFontMetrics( font() ).horizontalAdvance( '0' ) * 20 );
+  mCrsAccuracySpin->setClearValue( 0.0, tr( "Always show" ) );
+  mCrsAccuracySpin->setValue( crsAccuracyWarningThreshold );
+
+  const bool crsAccuracyIndicator = mSettings->value( QStringLiteral( "/projections/crsAccuracyIndicator" ), false, QgsSettings::App ).toBool();
+  mCrsAccuracyIndicatorCheck->setChecked( crsAccuracyIndicator );
+
   mShowDatumTransformDialogCheckBox->setChecked( mSettings->value( QStringLiteral( "/projections/promptWhenMultipleTransformsExist" ), false, QgsSettings::App ).toBool() );
 
   // Datum transforms
@@ -1700,6 +1708,8 @@ void QgsOptions::saveOptions()
   mSettings->setValue( QStringLiteral( "/projections/defaultProjectCrs" ), leProjectGlobalCrs->crs().authid(), QgsSettings::App );
   mSettings->setEnumValue( QStringLiteral( "/projections/newProjectCrsBehavior" ), radProjectUseCrsOfFirstLayer->isChecked() ? QgsGui::UseCrsOfFirstLayerAdded : QgsGui::UsePresetCrs, QgsSettings::App );
   mSettings->setValue( QStringLiteral( "/projections/promptWhenMultipleTransformsExist" ), mShowDatumTransformDialogCheckBox->isChecked(), QgsSettings::App );
+  mSettings->setValue( QStringLiteral( "/projections/crsAccuracyWarningThreshold" ), mCrsAccuracySpin->value(), QgsSettings::App );
+  mSettings->setValue( QStringLiteral( "/projections/crsAccuracyIndicator" ), mCrsAccuracyIndicatorCheck->isChecked(), QgsSettings::App );
 
   //measurement settings
   mSettings->setValue( QStringLiteral( "measure/planimetric" ), mPlanimetricMeasurementsComboBox->isChecked(), QgsSettings::Core );

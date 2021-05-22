@@ -48,6 +48,7 @@ set(QGIS_APP_SRCS
   qgslayertreeviewindicatorprovider.cpp
   qgslayertreeviewembeddedindicator.cpp
   qgslayertreeviewfilterindicator.cpp
+  qgslayertreeviewlowaccuracyindicator.cpp
   qgslayertreeviewmemoryindicator.cpp
   qgslayertreeviewnocrsindicator.cpp
   qgslayertreeviewnonremovableindicator.cpp
@@ -150,6 +151,7 @@ set(QGIS_APP_SRCS
   qgsundowidget.cpp
   qgsmapthemes.cpp
   qgshandlebadlayers.cpp
+  qgsmaptooladdabstract.cpp
   qgsmaptooladdcircularstring.cpp
   qgsmaptoolcircularstringcurvepoint.cpp
   qgsmaptoolcircularstringradius.cpp
@@ -226,14 +228,19 @@ set(QGIS_APP_SRCS
   pluginmanager/qgspluginsortfilterproxymodel.cpp
   pluginmanager/qgspluginitemdelegate.cpp
 
-  qgsnewspatialitelayerdialog.cpp
-
   qgssettingstree.cpp
   qgsvariantdelegate.cpp
   qgscrashhandler.cpp
 
   mesh/qgsmeshcalculatordialog.cpp
 )
+
+if (WITH_SPATIALITE)
+  set(QGIS_APP_SRCS
+    ${QGIS_APP_SRCS}
+    qgsnewspatialitelayerdialog.cpp
+  )
+endif()
 
 if (WITH_GEOREFERENCER)
   set(QGIS_APP_SRCS
@@ -518,6 +525,7 @@ target_link_libraries(qgis_app
 target_compile_definitions(qgis_app PRIVATE "-DQT_NO_FOREACH")
 
 if (WITH_BINDINGS)
+  add_definitions(-DWITH_BINDINGS)
   target_link_libraries(qgis_app qgispython)
 endif()
 

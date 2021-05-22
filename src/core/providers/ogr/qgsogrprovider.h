@@ -23,9 +23,9 @@ email                : sherman at mrcc.com
 #include "qgsrectangle.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorfilewriter.h"
-#include "qgsvectorlayerexporter.h"
 #include "qgsprovidermetadata.h"
 #include "qgis_sip.h"
+#include "qgis.h"
 
 ///@cond PRIVATE
 #define SIP_NO_FILE
@@ -69,7 +69,7 @@ class QgsOgrProvider final: public QgsVectorDataProvider
   public:
 
     //! Convert a vector layer to a vector file
-    static QgsVectorLayerExporter::ExportError createEmptyLayer(
+    static Qgis::VectorExportResult createEmptyLayer(
       const QString &uri,
       const QgsFields &fields,
       QgsWkbTypes::Type wkbType,
@@ -309,7 +309,7 @@ class QgsOgrProvider final: public QgsVectorDataProvider
     //! Whether the next call to featureCount() should refresh the feature count
     mutable bool mRefreshFeatureCount = true;
 
-    mutable long mFeaturesCounted = QgsVectorDataProvider::Uncounted;
+    mutable long mFeaturesCounted = static_cast< long >( Qgis::FeatureCountState::Uncounted );
 
     mutable QStringList mSubLayerList;
 
@@ -801,7 +801,7 @@ class QgsOgrProviderMetadata final: public QgsProviderMetadata
     QString filters( FilterType type ) override;
     ProviderCapabilities providerCapabilities() const override;
     bool uriIsBlocklisted( const QString &uri ) const override;
-    QgsVectorLayerExporter::ExportError createEmptyLayer(
+    Qgis::VectorExportResult createEmptyLayer(
       const QString &uri,
       const QgsFields &fields,
       QgsWkbTypes::Type wkbType,

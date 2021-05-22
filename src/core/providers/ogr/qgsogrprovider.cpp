@@ -29,7 +29,6 @@ email                : sherman at mrcc.com
 #include "qgsapplication.h"
 #include "qgsauthmanager.h"
 #include "qgscplhttpfetchoverrider.h"
-#include "qgsdataitem.h"
 #include "qgsdataprovider.h"
 #include "qgsfeature.h"
 #include "qgsfields.h"
@@ -50,6 +49,8 @@ email                : sherman at mrcc.com
 #include "qgis.h"
 #include "qgsembeddedsymbolrenderer.h"
 #include "qgsmetadatautils.h"
+#include "qgssymbol.h"
+#include "qgszipitem.h"
 
 #define CPL_SUPRESS_CPLUSPLUS  //#spellok
 #include <gdal.h>         // to collect version information
@@ -259,8 +260,8 @@ void QgsOgrProvider::repack()
 
   }
 
-  if ( mFeaturesCounted != QgsVectorDataProvider::Uncounted &&
-       mFeaturesCounted != QgsVectorDataProvider::UnknownCount )
+  if ( mFeaturesCounted != static_cast< long >( Qgis::FeatureCountState::Uncounted ) &&
+       mFeaturesCounted != static_cast< long >( Qgis::FeatureCountState::UnknownCount ) )
   {
     long oldcount = mFeaturesCounted;
     recalculateFeatureCount();
@@ -270,7 +271,7 @@ void QgsOgrProvider::repack()
 }
 
 
-QgsVectorLayerExporter::ExportError QgsOgrProviderMetadata::createEmptyLayer( const QString &uri,
+Qgis::VectorExportResult QgsOgrProviderMetadata::createEmptyLayer( const QString &uri,
     const QgsFields &fields,
     QgsWkbTypes::Type wkbType,
     const QgsCoordinateReferenceSystem &srs,
@@ -342,7 +343,7 @@ static QString AnalyzeURI( QString const &uri,
   return fullPath;
 }
 
-QgsVectorLayerExporter::ExportError QgsOgrProvider::createEmptyLayer( const QString &uri,
+Qgis::VectorExportResult QgsOgrProvider::createEmptyLayer( const QString &uri,
     const QgsFields &fields,
     QgsWkbTypes::Type wkbType,
     const QgsCoordinateReferenceSystem &srs,
@@ -396,7 +397,7 @@ QgsVectorLayerExporter::ExportError QgsOgrProvider::createEmptyLayer( const QStr
             if ( errorMessage )
               *errorMessage += QObject::tr( "Layer %2 of %1 exists and overwrite flag is false." )
                                .arg( uri, layerName );
-            return QgsVectorLayerExporter::ErrCreateDataSource;
+            return Qgis::VectorExportResult::ErrorCreatingDataSource;
           }
         }
       }
@@ -412,7 +413,7 @@ QgsVectorLayerExporter::ExportError QgsOgrProvider::createEmptyLayer( const QStr
       if ( errorMessage )
         *errorMessage += QObject::tr( "Unable to create the datasource. %1 exists and overwrite flag is false." )
                          .arg( uri );
-      return QgsVectorLayerExporter::ErrCreateDataSource;
+      return Qgis::VectorExportResult::ErrorCreatingDataSource;
     }
   }
 
@@ -435,7 +436,7 @@ QgsVectorLayerExporter::ExportError QgsOgrProvider::createEmptyLayer( const QStr
     if ( errorMessage )
       *errorMessage += writer->errorMessage();
 
-    return static_cast<QgsVectorLayerExporter::ExportError>( error );
+    return static_cast<Qgis::VectorExportResult>( error );
   }
 
   QMap<int, int> attrIdxMap = writer->attrIdxToOgrIdx();
@@ -483,7 +484,7 @@ QgsVectorLayerExporter::ExportError QgsOgrProvider::createEmptyLayer( const QStr
 
   QgsOgrProviderUtils::invalidateCachedLastModifiedDate( uri );
 
-  return QgsVectorLayerExporter::NoError;
+  return Qgis::VectorExportResult::Success;
 }
 
 QgsOgrProvider::QgsOgrProvider( QString const &uri, const ProviderOptions &options, QgsDataProvider::ReadFlags flags )
@@ -1432,10 +1433,10 @@ void QgsOgrProvider::loadMetadata()
     OGRLayerH layer = mOgrOrigLayer->getHandleAndMutex( mutex );
     QMutexLocker locker( mutex );
 
-    const QString identifier = GDALGetMetadataItem( layer, "IDENTIFIER", nullptr );
+    const QString identifier = GDALGetMetadataItem( layer, "IDENTIFIER", "" );
     if ( !identifier.isEmpty() )
       mLayerMetadata.setTitle( identifier ); // see geopackage specs -- "'identifier' is analogous to 'title'"
-    const QString abstract = GDALGetMetadataItem( layer, "DESCRIPTION", nullptr );
+    const QString abstract = GDALGetMetadataItem( layer, "DESCRIPTION", "" );
     if ( !abstract.isEmpty() )
       mLayerMetadata.setAbstract( abstract );
 
@@ -1842,7 +1843,7 @@ long QgsOgrProvider::featureCount() const
 {
   if ( ( mReadFlags & QgsDataProvider::SkipFeatureCount ) != 0 )
   {
-    return QgsVectorDataProvider::UnknownCount;
+    return static_cast< long >( Qgis::FeatureCountState::UnknownCount );
   }
   if ( mRefreshFeatureCount )
   {
@@ -1980,7 +1981,7 @@ bool QgsOgrProvider::addFeaturePrivate( QgsFeature &f, Flags flags, QgsFeatureId
     {
       OGR_F_UnsetField( feature.get(), ogrAttributeId );
     }
-    else if ( attrVal.isNull() || ( type != OFTString && ( ( attrVal.type() != QVariant::List && attrVal.toString().isEmpty() ) || ( attrVal.type() == QVariant::List && attrVal.toList().empty() ) ) ) )
+    else if ( attrVal.isNull() || ( type != OFTString && ( ( attrVal.type() != QVariant::List && attrVal.toString().isEmpty() && attrVal.type() != QVariant::StringList && attrVal.toStringList().isEmpty() ) || ( attrVal.type() == QVariant::List && attrVal.toList().empty() ) ) ) )
     {
 // Starting with GDAL 2.2, there are 2 concepts: unset fields and null fields
 // whereas previously there was only unset fields. For a GeoJSON output,
@@ -2075,12 +2076,13 @@ bool QgsOgrProvider::addFeaturePrivate( QgsFeature &f, Flags flags, QgsFeatureId
             int pos = 0;
             for ( const QString &string : list )
             {
-              lst[pos] = textEncoding()->fromUnicode( string ).data();
+              lst[pos] = CPLStrdup( textEncoding()->fromUnicode( string ).data() );
               pos++;
             }
           }
           lst[count] = nullptr;
           OGR_F_SetFieldStringList( feature.get(), ogrAttributeId, lst );
+          CSLDestroy( lst );
           break;
         }
 
@@ -2237,8 +2239,8 @@ bool QgsOgrProvider::addFeatures( QgsFeatureList &flist, Flags flags )
     returnvalue = false;
   }
 
-  if ( mFeaturesCounted != QgsVectorDataProvider::Uncounted &&
-       mFeaturesCounted != QgsVectorDataProvider::UnknownCount )
+  if ( mFeaturesCounted != static_cast< long >( Qgis::FeatureCountState::Uncounted ) &&
+       mFeaturesCounted != static_cast< long >( Qgis::FeatureCountState::UnknownCount ) )
   {
     if ( returnvalue )
       mFeaturesCounted += flist.size();
@@ -2583,7 +2585,7 @@ bool QgsOgrProvider::_setSubsetString( const QString &theSQL, bool updateFeature
   if ( !mOgrOrigLayer )
     return false;
 
-  if ( theSQL == mSubsetString && mFeaturesCounted != QgsVectorDataProvider::Uncounted )
+  if ( theSQL == mSubsetString && mFeaturesCounted != static_cast< long >( Qgis::FeatureCountState::Uncounted ) )
     return true;
 
   const bool subsetStringHasChanged { theSQL != mSubsetString };
@@ -2778,8 +2780,7 @@ bool QgsOgrProvider::changeAttributeValues( const QgsChangedAttributesMap &attr_
       }
 
       OGRFieldType type = OGR_Fld_GetType( fd );
-
-      if ( it2->isNull() || ( type != OFTString && ( ( it2->type() != QVariant::List && it2->toString().isEmpty() ) || ( it2->type() == QVariant::List && it2->toList().empty() ) ) ) )
+      if ( it2->isNull() || ( type != OFTString && ( ( it2->type() != QVariant::List && it2->type() != QVariant::StringList && it2->toString().isEmpty() ) || ( it2->type() == QVariant::List && it2->toList().empty() ) || ( it2->type() == QVariant::StringList && it2->toStringList().empty() ) ) ) )
       {
 // Starting with GDAL 2.2, there are 2 concepts: unset fields and null fields
 // whereas previously there was only unset fields. For a GeoJSON output,
@@ -2796,7 +2797,6 @@ bool QgsOgrProvider::changeAttributeValues( const QgsChangedAttributesMap &attr_
       }
       else
       {
-
         switch ( type )
         {
           case OFTInteger:
@@ -2862,12 +2862,13 @@ bool QgsOgrProvider::changeAttributeValues( const QgsChangedAttributesMap &attr_
               int pos = 0;
               for ( const QString &string : list )
               {
-                lst[pos] = textEncoding()->fromUnicode( string ).data();
+                lst[pos] = CPLStrdup( textEncoding()->fromUnicode( string ).data() );
                 pos++;
               }
             }
             lst[count] = nullptr;
             OGR_F_SetFieldStringList( of.get(), f, lst );
+            CSLDestroy( lst );
             break;
           }
 
@@ -2993,6 +2994,7 @@ bool QgsOgrProvider::changeGeometryValues( const QgsGeometryMap &geometry_map )
     if ( !theOGRFeature )
     {
       pushError( tr( "OGR error changing geometry: feature %1 not found" ).arg( it.key() ) );
+      returnvalue = false;
       continue;
     }
 
@@ -3015,13 +3017,14 @@ bool QgsOgrProvider::changeGeometryValues( const QgsGeometryMap &geometry_map )
       {
         pushError( tr( "OGR error creating geometry for feature %1: %2" ).arg( it.key() ).arg( CPLGetLastErrorMsg() ) );
         OGR_G_DestroyGeometry( newGeometry );
-        newGeometry = nullptr;
+        returnvalue = false;
         continue;
       }
 
       if ( !newGeometry )
       {
         pushError( tr( "OGR error in feature %1: geometry is null" ).arg( it.key() ) );
+        returnvalue = false;
         continue;
       }
 
@@ -3035,6 +3038,7 @@ bool QgsOgrProvider::changeGeometryValues( const QgsGeometryMap &geometry_map )
       // Shouldn't happen normally. If it happens, ownership of the geometry
       // may be not really well defined, so better not destroy it, but just
       // the feature.
+      returnvalue = false;
       continue;
     }
 
@@ -3200,8 +3204,8 @@ bool QgsOgrProvider::deleteFeatures( const QgsFeatureIds &id )
   }
   else
   {
-    if ( mFeaturesCounted != QgsVectorDataProvider::Uncounted &&
-         mFeaturesCounted != QgsVectorDataProvider::UnknownCount )
+    if ( mFeaturesCounted != static_cast< long >( Qgis::FeatureCountState::Uncounted ) &&
+         mFeaturesCounted != static_cast< long >( Qgis::FeatureCountState::UnknownCount ) )
     {
       if ( returnvalue )
         mFeaturesCounted -= id.size();
@@ -4748,6 +4752,45 @@ GDALDatasetH QgsOgrProviderUtils::GDALOpenWrapper( const char *pszPath, bool bUp
   if ( phDriver )
     *phDriver = hDrv;
 
+  if ( bUpdate && bIsGpkg && strcmp( GDALGetDriverShortName( hDrv ), "GPKG" ) == 0 )
+  {
+    // Explicitly enable foreign key enforcement (for new transactions)
+    GDALDatasetExecuteSQL( hDS, "PRAGMA foreign_keys = ON", nullptr, nullptr );
+
+#if GDAL_VERSION_NUM < GDAL_COMPUTE_VERSION(3, 3, 1)
+    // Fix wrong gpkg_metadata_reference_column_name_update trigger that was
+    // generated by GDAL < 2.4.0
+    OGRLayerH hSqlLyr = GDALDatasetExecuteSQL(
+                          hDS,
+                          "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND "
+                          "NAME ='gpkg_metadata_reference_column_name_update' AND "
+                          "sql LIKE '%column_nameIS%'",
+                          nullptr, nullptr );
+    if ( hSqlLyr )
+    {
+      QString triggerSql;
+      gdal::ogr_feature_unique_ptr hFeat( OGR_L_GetNextFeature( hSqlLyr ) );
+      if ( hFeat )
+      {
+        triggerSql = OGR_F_GetFieldAsString( hFeat.get(), 0 );
+      }
+      GDALDatasetReleaseResultSet( hDS, hSqlLyr );
+
+      if ( !triggerSql.isEmpty() )
+      {
+        GDALDatasetExecuteSQL(
+          hDS, "DROP TRIGGER gpkg_metadata_reference_column_name_update",
+          nullptr, nullptr );
+        GDALDatasetExecuteSQL(
+          hDS,
+          triggerSql.replace( QLatin1String( "column_nameIS" ),
+                              QLatin1String( "column_name IS" ) ).toUtf8().toStdString().c_str(),
+          nullptr, nullptr );
+      }
+    }
+#endif
+  }
+
   return hDS;
 }
 
@@ -5002,7 +5045,7 @@ void QgsOgrProvider::recalculateFeatureCount() const
 {
   if ( !mOgrLayer )
   {
-    mFeaturesCounted = QgsVectorDataProvider::Uncounted;
+    mFeaturesCounted = static_cast< long >( Qgis::FeatureCountState::Uncounted );
     return;
   }
 
@@ -5020,7 +5063,7 @@ void QgsOgrProvider::recalculateFeatureCount() const
     mFeaturesCounted = mOgrLayer->GetApproxFeatureCount();
     if ( mFeaturesCounted == -1 )
     {
-      mFeaturesCounted = QgsVectorDataProvider::UnknownCount;
+      mFeaturesCounted = static_cast< long >( Qgis::FeatureCountState::UnknownCount );
     }
   }
   else
@@ -5366,7 +5409,7 @@ void QgsOgrProvider::close()
 
 void QgsOgrProvider::reloadProviderData()
 {
-  mFeaturesCounted = QgsVectorDataProvider::Uncounted;
+  mFeaturesCounted = static_cast< long >( Qgis::FeatureCountState::Uncounted );
   bool wasValid = mValid;
   QgsOgrConnPool::instance()->invalidateConnections( QgsOgrProviderUtils::connectionPoolId( dataSourceUri( true ), mShareSameDatasetAmongLayers ) );
   close();
