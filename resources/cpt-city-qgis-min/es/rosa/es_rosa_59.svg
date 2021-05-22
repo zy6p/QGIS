@@ -1,18 +1,1 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="300px" height="45px" viewBox="0 0 300 45">
-  <g>
-    <defs>
-      <linearGradient id="ES Rosa 59" gradientUnits="objectBoundingBox" spreadMethod="pad" x1="0%" x2="100%" y1="0%" y2="0%">
-        <stop offset="0.00%" stop-color="rgb(11,0,1)" stop-opacity="1.0000"/>
-        <stop offset="14.99%" stop-color="rgb(41,5,14)" stop-opacity="1.0000"/>
-        <stop offset="50.00%" stop-color="rgb(61,15,38)" stop-opacity="1.0000"/>
-        <stop offset="100.00%" stop-color="rgb(162,114,207)" stop-opacity="1.0000"/>
-      </linearGradient>
-    </defs>
-    <rect fill="url(#ES Rosa 59)" x="4" y="4" width="292" height="37" stroke="black" stroke-width="1"/>
-  </g>
-  <metadata>
-    <creator name="cptutils" version="1.46"/>
-    <created date="Wed Aug 15 23:38:37 2012"/>
-  </metadata>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="45" version="1.1" viewBox="0 0 300 45"><g><defs><linearGradient id="ES Rosa 59" x1="0%" x2="100%" y1="0%" y2="0%" gradientUnits="objectBoundingBox" spreadMethod="pad"><stop offset="0%" stop-color="#0B0001" stop-opacity="1"/><stop offset="14.99%" stop-color="#29050E" stop-opacity="1"/><stop offset="50%" stop-color="#3D0F26" stop-opacity="1"/><stop offset="100%" stop-color="#A272CF" stop-opacity="1"/></linearGradient></defs><rect width="292" height="37" x="4" y="4" fill="url(#ES Rosa 59)" stroke="#000" stroke-width="1"/></g><metadata><creator name="cptutils" version="1.46"/><created date="Wed Aug 15 23:38:37 2012"/></metadata></svg>
