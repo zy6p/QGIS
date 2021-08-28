@@ -62,7 +62,6 @@ class CORE_EXPORT QgsMapRendererStagedRenderJob : public QgsMapRendererAbstractC
     QgsMapRendererStagedRenderJob( const QgsMapSettings &settings, Flags flags = Flags() );
     ~QgsMapRendererStagedRenderJob() override;
 
-    void start() override;
     void cancel() override;
     void cancelWithoutBlocking() override;
     void waitForFinished() override;
@@ -116,11 +115,13 @@ class CORE_EXPORT QgsMapRendererStagedRenderJob : public QgsMapRendererAbstractC
 
   private:
 
+    void startPrivate() override;
+
     std::unique_ptr< QgsLabelingEngine > mLabelingEngineV2;
 
-    LayerRenderJobs mLayerJobs;
+    std::vector< LayerRenderJob > mLayerJobs;
     LabelRenderJob mLabelJob;
-    LayerRenderJobs::iterator mJobIt;
+    std::vector< LayerRenderJob >::iterator mJobIt;
 
     bool mNextIsLabel = false;
     bool mExportedLabels = false;

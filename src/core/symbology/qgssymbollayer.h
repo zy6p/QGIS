@@ -20,6 +20,10 @@
 
 #include "qgis_core.h"
 #include "qgis.h"
+#include "qgsfields.h"
+#include "qgspropertycollection.h"
+#include "qgssymbolrendercontext.h"
+
 #include <QColor>
 #include <QMap>
 #include <QPointF>
@@ -27,11 +31,6 @@
 #include <QDomDocument>
 #include <QDomElement>
 #include <QPainterPath>
-
-#include "qgsfields.h"
-#include "qgspropertycollection.h"
-#include "qgssymbolrendercontext.h"
-#include "qgssymbollayerreference.h"
 
 class QPainter;
 class QSize;
@@ -41,6 +40,7 @@ class QgsDxfExport;
 class QgsExpression;
 class QgsRenderContext;
 class QgsPaintEffect;
+class QgsSymbolLayerReference;
 
 #ifndef SIP_RUN
 typedef QMap<QString, QString> QgsStringMap;
@@ -548,7 +548,7 @@ class CORE_EXPORT QgsSymbolLayer
      * This is a list of symbol layers of other layers that should be occluded.
      * \since QGIS 3.12
      */
-    virtual QgsSymbolLayerReferenceList masks() const;
+    virtual QList<QgsSymbolLayerReference> masks() const;
 
   protected:
 

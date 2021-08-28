@@ -33,6 +33,7 @@
 #include <QSqlDriver>
 #include <QDomElement>
 #include <QDomDocument>
+#include <QRegularExpression>
 
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
 #include <QRandomGenerator>
@@ -842,7 +843,7 @@ bool QgsAuthManager::registerCoreAuthMethods()
   const QStringList methods = QgsAuthMethodRegistry::instance()->authMethodList();
   for ( const auto &authMethodKey : methods )
   {
-    mAuthMethods.insert( authMethodKey, QgsAuthMethodRegistry::instance()->authMethod( authMethodKey ).release() );
+    mAuthMethods.insert( authMethodKey, QgsAuthMethodRegistry::instance()->createAuthMethod( authMethodKey ) );
   }
 
   return !mAuthMethods.isEmpty();
@@ -917,8 +918,8 @@ bool QgsAuthManager::configIdUnique( const QString &id ) const
 
 bool QgsAuthManager::hasConfigId( const QString &txt ) const
 {
-  QRegExp rx( AUTH_CFG_REGEX );
-  return rx.indexIn( txt ) != -1;
+  const thread_local QRegularExpression authCfgRegExp( AUTH_CFG_REGEX );
+  return txt.indexOf( authCfgRegExp ) != -1;
 }
 
 QgsAuthMethodConfigsMap QgsAuthManager::availableAuthMethodConfigs( const QString &dataprovider )
@@ -1036,6 +1037,18 @@ QgsAuthMethod *QgsAuthManager::authMethod( const QString &authMethodKey )
   return mAuthMethods.value( authMethodKey );
 }
 
+const QgsAuthMethodMetadata *QgsAuthManager::authMethodMetadata( const QString &authMethodKey )
+{
+  if ( !mAuthMethods.contains( authMethodKey ) )
+  {
+    QgsDebugMsg( QStringLiteral( "No auth method registered for auth method key: %1" ).arg( authMethodKey ) );
+    return nullptr;
+  }
+
+  return QgsAuthMethodRegistry::instance()->authMethodMetadata( authMethodKey );
+}
+
+
 QgsAuthMethodsMap QgsAuthManager::authMethodsMap( const QString &dataprovider )
 {
   if ( dataprovider.isEmpty() )
@@ -1058,10 +1071,16 @@ QgsAuthMethodsMap QgsAuthManager::authMethodsMap( const QString &dataprovider )
   return filteredmap;
 }
 
+#ifdef HAVE_GUI
 QWidget *QgsAuthManager::authMethodEditWidget( const QString &authMethodKey, QWidget *parent )
 {
-  return QgsAuthMethodRegistry::instance()->editWidget( authMethodKey, parent );
+  QgsAuthMethod *method = authMethod( authMethodKey );
+  if ( method )
+    return method->editWidget( parent );
+  else
+    return nullptr;
 }
+#endif
 
 QgsAuthMethod::Expansions QgsAuthManager::supportedAuthMethodExpansions( const QString &authcfg )
 {
@@ -2419,8 +2438,8 @@ bool QgsAuthManager::updateIgnoredSslErrorsCacheFromConfig( const QgsAuthConfigS
 bool QgsAuthManager::updateIgnoredSslErrorsCache( const QString &shahostport, const QList<QSslError> &errors )
 {
   QMutexLocker locker( mMutex.get() );
-  QRegExp rx( "\\S+:\\S+:\\d+" );
-  if ( !rx.exactMatch( shahostport ) )
+  const thread_local QRegularExpression rx( QRegularExpression::anchoredPattern( "\\S+:\\S+:\\d+" ) );
+  if ( !rx.match( shahostport ).hasMatch() )
   {
     QgsDebugMsg( "Passed shahostport does not match \\S+:\\S+:\\d+, "
                  "e.g. 74a4ef5ea94512a43769b744cda0ca5049a72491:www.example.com:443" );

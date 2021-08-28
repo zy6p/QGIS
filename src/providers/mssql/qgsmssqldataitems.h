@@ -65,6 +65,7 @@ class QgsMssqlConnectionItem : public QgsDataCollectionItem
     QVector<QgsDataItem *> createChildren() override;
     bool equal( const QgsDataItem *other ) override;
 
+    using QgsDataCollectionItem::handleDrop;
     bool handleDrop( const QMimeData *data, const QString &toSchema );
 
     QString connInfo() const { return mConnInfo; }
@@ -123,7 +124,7 @@ class QgsMssqlLayerItem : public QgsLayerItem
     Q_OBJECT
 
   public:
-    QgsMssqlLayerItem( QgsDataItem *parent, const QString &name, const QString &path, QgsLayerItem::LayerType layerType, const QgsMssqlLayerProperty &layerProperties );
+    QgsMssqlLayerItem( QgsDataItem *parent, const QString &name, const QString &path, Qgis::BrowserLayerType layerType, const QgsMssqlLayerProperty &layerProperties );
 
     QString createUri();
 

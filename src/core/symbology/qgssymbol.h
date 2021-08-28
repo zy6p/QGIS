@@ -127,7 +127,9 @@ class CORE_EXPORT QgsSymbol
 #else
 
     /**
-     * Returns the symbol layer at the specified index. An IndexError will be raised if no layer with the specified index exists.
+     * Returns the symbol layer at the specified index.
+     *
+     * \throws IndexError if no layer with the specified index exists.
      *
      * \see symbolLayers
      * \see symbolLayerCount
@@ -174,10 +176,12 @@ class CORE_EXPORT QgsSymbol
     % End
 
     /**
-    * Returns the symbol layer at the specified ``index``. An IndexError will be raised if no layer with the specified ``index`` exists.
+    * Returns the symbol layer at the specified ``index``.
     *
     * Indexes can be less than 0, in which case they correspond to layers from the end of the symbol. E.g. an index of -1
     * corresponds to the last layer in the symbol.
+    *
+    * \throws IndexError if no layer with the specified ``index`` exists.
     *
     * \since QGIS 3.10
     */
@@ -200,10 +204,12 @@ class CORE_EXPORT QgsSymbol
     % End
 
     /**
-     * Deletes the layer at the specified ``index``. A layer at the ``index`` must already exist or an IndexError will be raised.
+     * Deletes the layer at the specified ``index``.
      *
      * Indexes can be less than 0, in which case they correspond to layers from the end of the symbol. E.g. an index of -1
      * corresponds to the last layer in the symbol.
+     *
+     * \throws IndexError if no layer at the specified ``index`` exists
      *
      * \since QGIS 3.10
      */
@@ -354,7 +360,12 @@ class CORE_EXPORT QgsSymbol
      * \see asImage()
      * \see drawPreviewIcon()
      */
-    QImage bigSymbolPreviewImage( QgsExpressionContext *expressionContext = nullptr, Qgis::SymbolPreviewFlags flags = Qgis::SymbolPreviewFlag::FlagIncludeCrosshairsForMarkerSymbols );
+    QImage bigSymbolPreviewImage( QgsExpressionContext *expressionContext = nullptr, Qgis::SymbolPreviewFlags flags = Qgis::SymbolPreviewFlag::FlagIncludeCrosshairsForMarkerSymbols ) SIP_PYNAME( bigSymbolPreviewImageV2 );
+
+    /**
+     * \deprecated use bigSymbolPreviewImageV2 instead.
+     */
+    Q_DECL_DEPRECATED QImage bigSymbolPreviewImage( QgsExpressionContext *expressionContext = nullptr, int flags = static_cast< int >( Qgis::SymbolPreviewFlag::FlagIncludeCrosshairsForMarkerSymbols ) ) SIP_DEPRECATED;
 
     /**
      * Returns a string dump of the symbol's properties.
@@ -446,6 +457,22 @@ class CORE_EXPORT QgsSymbol
      * \see setRenderHints()
      */
     Qgis::SymbolRenderHints renderHints() const { return mRenderHints; }
+
+    /**
+     * Sets \a flags for the symbol.
+     *
+     * \see flags()
+     * \since QGIS 3.320
+     */
+    void setFlags( Qgis::SymbolFlags flags ) { mSymbolFlags = flags; }
+
+    /**
+     * Returns flags for the symbol.
+     *
+     * \see setFlags()
+     * \since QGIS 3.20
+     */
+    Qgis::SymbolFlags flags() const { return mSymbolFlags; }
 
     /**
      * Sets whether features drawn by the symbol should be clipped to the render context's
@@ -562,7 +589,7 @@ class CORE_EXPORT QgsSymbol
      * Render a feature. Before calling this the startRender() method should be called to initialize
      * the rendering process. After rendering all features stopRender() must be called.
      */
-    void renderFeature( const QgsFeature &feature, QgsRenderContext &context, int layer = -1, bool selected = false, bool drawVertexMarker = false, int currentVertexMarkerType = 0, double currentVertexMarkerSize = 0.0 ) SIP_THROW( QgsCsException );
+    void renderFeature( const QgsFeature &feature, QgsRenderContext &context, int layer = -1, bool selected = false, bool drawVertexMarker = false, Qgis::VertexMarkerType currentVertexMarkerType = Qgis::VertexMarkerType::SemiTransparentCircle, double currentVertexMarkerSize = 0.0 ) SIP_THROW( QgsCsException );
 
     /**
      * Returns the symbol render context. Only valid between startRender and stopRender calls.
@@ -671,7 +698,7 @@ class CORE_EXPORT QgsSymbol
      * Render editing vertex marker at specified point
      * \since QGIS 2.16
      */
-    void renderVertexMarker( QPointF pt, QgsRenderContext &context, int currentVertexMarkerType, double currentVertexMarkerSize );
+    void renderVertexMarker( QPointF pt, QgsRenderContext &context, Qgis::VertexMarkerType currentVertexMarkerType, double currentVertexMarkerSize );
 
     Qgis::SymbolType mType;
     QgsSymbolLayerList mLayers;
@@ -680,6 +707,14 @@ class CORE_EXPORT QgsSymbol
     qreal mOpacity = 1.0;
 
     Qgis::SymbolRenderHints mRenderHints;
+
+    /**
+     * Symbol flags.
+     *
+     * \since QGIS 3.20
+     */
+    Qgis::SymbolFlags mSymbolFlags = Qgis::SymbolFlags();
+
     bool mClipFeaturesToExtent = true;
     bool mForceRHR = false;
 

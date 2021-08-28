@@ -79,12 +79,12 @@ void QgsFillSymbol::renderPolygonUsingLayer( QgsSymbolLayer *layer, const QPolyg
   if ( layer->dataDefinedProperties().hasActiveProperties() && !layer->dataDefinedProperties().valueAsBool( QgsSymbolLayer::PropertyLayerEnabled, context.renderContext().expressionContext(), true ) )
     return;
 
-  Qgis::SymbolType layertype = layer->type();
+  const Qgis::SymbolType layertype = layer->type();
 
   QgsPaintEffect *effect = layer->paintEffect();
   if ( effect && effect->enabled() )
   {
-    QRectF bounds = polygonBounds( points, rings );
+    const QRectF bounds = polygonBounds( points, rings );
     QVector<QPolygonF> *translatedRings = translateRings( rings, -bounds.left(), -bounds.top() );
 
     QgsEffectPainter p( context.renderContext() );
@@ -150,6 +150,7 @@ QgsFillSymbol *QgsFillSymbol::clone() const
   cloneSymbol->setClipFeaturesToExtent( mClipFeaturesToExtent );
   cloneSymbol->setForceRHR( mForceRHR );
   cloneSymbol->setDataDefinedProperties( dataDefinedProperties() );
+  cloneSymbol->setFlags( mSymbolFlags );
   return cloneSymbol;
 }
 

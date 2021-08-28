@@ -32,6 +32,7 @@
 #include "qgsstyle.h"
 #include "qgsexpressioncontextutils.h"
 #include "qgssymbol.h"
+#include "qgssymbollayerreference.h"
 
 #include <QSize>
 #include <QPainter>
@@ -121,14 +122,14 @@ void QgsSymbolLayer::setDataDefinedProperty( QgsSymbolLayer::Property key, const
 
 void QgsSymbolLayer::startFeatureRender( const QgsFeature &feature, QgsRenderContext &context )
 {
-  if ( subSymbol() )
-    subSymbol()->startFeatureRender( feature, context );
+  if ( QgsSymbol *lSubSymbol = subSymbol() )
+    lSubSymbol->startFeatureRender( feature, context );
 }
 
 void QgsSymbolLayer::stopFeatureRender( const QgsFeature &feature, QgsRenderContext &context )
 {
-  if ( subSymbol() )
-    subSymbol()->stopFeatureRender( feature, context );
+  if ( QgsSymbol *lSubSymbol = subSymbol() )
+    lSubSymbol->stopFeatureRender( feature, context );
 }
 
 QgsSymbol *QgsSymbolLayer::subSymbol()
@@ -539,7 +540,7 @@ void QgsMarkerSymbolLayer::markerOffset( QgsSymbolRenderContext &context, double
   if ( mDataDefinedProperties.isActive( QgsSymbolLayer::PropertyHorizontalAnchor ) )
   {
     QVariant exprVal = mDataDefinedProperties.value( QgsSymbolLayer::PropertyHorizontalAnchor, context.renderContext().expressionContext() );
-    if ( exprVal.isValid() )
+    if ( !exprVal.isNull() )
     {
       horizontalAnchorPoint = decodeHorizontalAnchorPoint( exprVal.toString() );
     }
@@ -547,7 +548,7 @@ void QgsMarkerSymbolLayer::markerOffset( QgsSymbolRenderContext &context, double
   if ( mDataDefinedProperties.isActive( QgsSymbolLayer::PropertyVerticalAnchor ) )
   {
     QVariant exprVal = mDataDefinedProperties.value( QgsSymbolLayer::PropertyVerticalAnchor, context.renderContext().expressionContext() );
-    if ( exprVal.isValid() )
+    if ( !exprVal.isNull() )
     {
       verticalAnchorPoint = decodeVerticalAnchorPoint( exprVal.toString() );
     }
@@ -847,7 +848,7 @@ void QgsMarkerSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, const
   writeSldMarker( doc, symbolizerElem, props );
 }
 
-QgsSymbolLayerReferenceList QgsSymbolLayer::masks() const
+QList<QgsSymbolLayerReference> QgsSymbolLayer::masks() const
 {
   return {};
 }

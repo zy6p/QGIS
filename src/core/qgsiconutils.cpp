@@ -24,7 +24,7 @@
 
 QIcon QgsIconUtils::iconForWkbType( QgsWkbTypes::Type type )
 {
-  QgsWkbTypes::GeometryType geomType = QgsWkbTypes::geometryType( QgsWkbTypes::Type( type ) );
+  const QgsWkbTypes::GeometryType geomType = QgsWkbTypes::geometryType( QgsWkbTypes::Type( type ) );
   switch ( geomType )
   {
     case QgsWkbTypes::NullGeometry:
@@ -35,8 +35,8 @@ QIcon QgsIconUtils::iconForWkbType( QgsWkbTypes::Type type )
       return iconLine();
     case QgsWkbTypes::PolygonGeometry:
       return iconPolygon();
-    default:
-      break;
+    case QgsWkbTypes::UnknownGeometry:
+      return iconGeometryCollection();
   }
   return iconDefaultLayer();
 }
@@ -54,6 +54,11 @@ QIcon QgsIconUtils::iconLine()
 QIcon QgsIconUtils::iconPolygon()
 {
   return QgsApplication::getThemeIcon( QStringLiteral( "/mIconPolygonLayer.svg" ) );
+}
+
+QIcon QgsIconUtils::iconGeometryCollection()
+{
+  return QgsApplication::getThemeIcon( QStringLiteral( "/mIconGeometryCollectionLayer.svg" ) );
 }
 
 QIcon QgsIconUtils::iconTable()
@@ -91,23 +96,13 @@ QIcon QgsIconUtils::iconForLayer( const QgsMapLayer *layer )
   switch ( layer->type() )
   {
     case QgsMapLayerType::RasterLayer:
-    {
-      return QgsIconUtils::iconRaster();
-    }
-
     case QgsMapLayerType::MeshLayer:
-    {
-      return QgsIconUtils::iconMesh();
-    }
-
     case QgsMapLayerType::VectorTileLayer:
-    {
-      return QgsIconUtils::iconVectorTile();
-    }
-
     case QgsMapLayerType::PointCloudLayer:
+    case QgsMapLayerType::PluginLayer:
+    case QgsMapLayerType::AnnotationLayer:
     {
-      return QgsIconUtils::iconPointCloud();
+      return QgsIconUtils::iconForLayerType( layer->type() );
     }
 
     case QgsMapLayerType::VectorLayer:
@@ -136,17 +131,39 @@ QIcon QgsIconUtils::iconForLayer( const QgsMapLayer *layer )
         {
           return QgsIconUtils::iconTable();
         }
-        default:
+        case QgsWkbTypes::UnknownGeometry:
         {
-          return QIcon();
+          return QgsIconUtils::iconGeometryCollection();
         }
       }
     }
-
-    default:
-    {
-      return QIcon();
-    }
   }
+  return QIcon();
+}
+
+QIcon QgsIconUtils::iconForLayerType( QgsMapLayerType type )
+{
+  switch ( type )
+  {
+    case QgsMapLayerType::RasterLayer:
+      return QgsIconUtils::iconRaster();
+
+    case QgsMapLayerType::MeshLayer:
+      return QgsIconUtils::iconMesh();
+
+    case QgsMapLayerType::VectorTileLayer:
+      return QgsIconUtils::iconVectorTile();
+
+    case QgsMapLayerType::PointCloudLayer:
+      return QgsIconUtils::iconPointCloud();
+
+    case QgsMapLayerType::VectorLayer:
+      return QgsIconUtils::iconGeometryCollection();
+
+    case QgsMapLayerType::PluginLayer:
+    case QgsMapLayerType::AnnotationLayer:
+      break;
+  }
+  return QIcon();
 }
 

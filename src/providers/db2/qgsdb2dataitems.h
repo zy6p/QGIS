@@ -80,7 +80,9 @@ class QgsDb2ConnectionItem : public QgsDataCollectionItem
     QVector<QgsDataItem *> createChildren() override;
     bool equal( const QgsDataItem *other ) override;
 
+    using QgsDataCollectionItem::handleDrop;
     bool handleDrop( const QMimeData *data, const QString &toSchema );
+
     void refresh() override;
 
     QString connInfo() const { return mConnInfo; }
@@ -125,7 +127,7 @@ class QgsDb2LayerItem : public QgsLayerItem
     Q_OBJECT
 
   public:
-    QgsDb2LayerItem( QgsDataItem *parent, QString name, QString path, QgsLayerItem::LayerType layerType, QgsDb2LayerProperty layerProperties );
+    QgsDb2LayerItem( QgsDataItem *parent, QString name, QString path, Qgis::BrowserLayerType layerType, QgsDb2LayerProperty layerProperties );
 
     QString createUri();
 

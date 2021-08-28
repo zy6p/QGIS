@@ -61,10 +61,25 @@ QWidget *QgsPgSourceSelectDelegate::createEditor( QWidget *parent, const QStyleO
     QComboBox *cb = new QComboBox( parent );
     static const QList<QgsWkbTypes::Type> types { QgsWkbTypes::Point,
         QgsWkbTypes::LineString,
+        QgsWkbTypes::LineStringZ,
+        QgsWkbTypes::LineStringM,
+        QgsWkbTypes::LineStringZM,
         QgsWkbTypes::Polygon,
+        QgsWkbTypes::PolygonZ,
+        QgsWkbTypes::PolygonM,
+        QgsWkbTypes::PolygonZM,
         QgsWkbTypes::MultiPoint,
+        QgsWkbTypes::MultiPointZ,
+        QgsWkbTypes::MultiPointM,
+        QgsWkbTypes::MultiPointZM,
         QgsWkbTypes::MultiLineString,
+        QgsWkbTypes::MultiLineStringZ,
+        QgsWkbTypes::MultiLineStringM,
+        QgsWkbTypes::MultiLineStringZM,
         QgsWkbTypes::MultiPolygon,
+        QgsWkbTypes::MultiPolygonZ,
+        QgsWkbTypes::MultiPolygonM,
+        QgsWkbTypes::MultiPolygonZM,
         QgsWkbTypes::NoGeometry };
     for ( QgsWkbTypes::Type type : types )
     {
@@ -316,7 +331,8 @@ void QgsPgSourceSelect::btnDelete_clicked()
   if ( QMessageBox::Yes != QMessageBox::question( this, tr( "Confirm Delete" ), msg, QMessageBox::Yes | QMessageBox::No ) )
     return;
 
-  QgsPostgresConn::deleteConnection( cmbConnections->currentText() );
+  QgsPostgresProviderMetadata md = QgsPostgresProviderMetadata();
+  md.deleteConnection( cmbConnections->currentText() );
 
   populateConnectionList();
   emit connectionsChanged();

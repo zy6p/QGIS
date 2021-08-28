@@ -26,10 +26,6 @@
 #include "qgscoordinatereferencesystem.h"
 #include "qgsxmlutils.h"
 #include "qgsvectorlayer.h"
-
-#include <QMessageBox>
-#include <QRegularExpression>
-
 #include "qgsvectorlayerexporter.h"
 #include "qgspostgresprovider.h"
 #include "qgspostgresconn.h"
@@ -43,12 +39,15 @@
 #include "qgslogger.h"
 #include "qgsfeedback.h"
 #include "qgssettings.h"
+#include "qgsstringutils.h"
 #include "qgsjsonutils.h"
 
 #include "qgspostgresprovider.h"
 #include "qgsprovidermetadata.h"
 #include "qgspostgresproviderconnection.h"
 
+#include <QMessageBox>
+#include <QRegularExpression>
 
 const QString QgsPostgresProvider::POSTGRES_KEY = QStringLiteral( "postgres" );
 const QString QgsPostgresProvider::POSTGRES_DESCRIPTION = QStringLiteral( "PostgreSQL/PostGIS data provider" );
@@ -1073,6 +1072,9 @@ bool QgsPostgresProvider::loadFields()
                 fieldTypeName == QLatin1String( "geometry" ) ||
                 fieldTypeName == QLatin1String( "geography" ) ||
                 fieldTypeName == QLatin1String( "inet" ) ||
+                fieldTypeName == QLatin1String( "cidr" ) ||
+                fieldTypeName == QLatin1String( "macaddr" ) ||
+                fieldTypeName == QLatin1String( "macaddr8" ) ||
                 fieldTypeName == QLatin1String( "money" ) ||
                 fieldTypeName == QLatin1String( "ltree" ) ||
                 fieldTypeName == QLatin1String( "uuid" ) ||
@@ -1237,7 +1239,7 @@ bool QgsPostgresProvider::loadFields()
       QgsPostgresResult seqResult( connectionRO()->PQexec( seqSql ) );
       if ( seqResult.PQntuples() == 1 )
       {
-        defValMap[tableoid][attnum] = QStringLiteral( "nextval(%1::regclass)" ).arg( quotedIdentifier( seqName ) );
+        defValMap[tableoid][attnum] = QStringLiteral( "nextval(%1::regclass)" ).arg( quotedValue( seqName ) );
       }
     }
 
@@ -1460,13 +1462,13 @@ bool QgsPostgresProvider::hasSufficientPermsAndCapabilities()
     // get a new alias for the subquery
     int index = 0;
     QString alias;
-    QRegExp regex;
+    QRegularExpression regex;
     do
     {
       alias = QStringLiteral( "subQuery_%1" ).arg( QString::number( index++ ) );
-      QString pattern = QStringLiteral( "(\\\"?)%1\\1" ).arg( QRegExp::escape( alias ) );
+      QString pattern = QStringLiteral( "(\\\"?)%1\\1" ).arg( QgsStringUtils::qRegExpEscape( alias ) );
       regex.setPattern( pattern );
-      regex.setCaseSensitivity( Qt::CaseInsensitive );
+      regex.setPatternOptions( QRegularExpression::CaseInsensitiveOption );
     }
     while ( mQuery.contains( regex ) );
 
@@ -1784,7 +1786,7 @@ void QgsPostgresProvider::determinePrimaryKeyFromUriKeyColumn()
         mPrimaryKeyType = PktFidMap; // Map by default
         if ( mPrimaryKeyAttrs.size() == 1 )
         {
-          QgsField fld = mAttributeFields.at( 0 );
+          QgsField fld = mAttributeFields.at( mPrimaryKeyAttrs.at( 0 ) );
           mPrimaryKeyType = pkType( fld );
         }
       }
@@ -2054,8 +2056,8 @@ bool QgsPostgresProvider::parseDomainCheckConstraint( QStringList &enumValues, c
       //we assume that the constraint is of the following form:
       //(VALUE = ANY (ARRAY['a'::text, 'b'::text, 'c'::text, 'd'::text]))
       //normally, PostgreSQL creates that if the constraint has been specified as 'VALUE in ('a', 'b', 'c', 'd')
-
-      int anyPos = checkDefinition.indexOf( QRegExp( "VALUE\\s*=\\s*ANY\\s*\\(\\s*ARRAY\\s*\\[" ) );
+      const thread_local QRegularExpression definitionRegExp( "VALUE\\s*=\\s*ANY\\s*\\(\\s*ARRAY\\s*\\[" );
+      int anyPos = checkDefinition.indexOf( definitionRegExp );
       int arrayPosition = checkDefinition.lastIndexOf( QLatin1String( "ARRAY[" ) );
       int closingBracketPos = checkDefinition.indexOf( ']', arrayPosition + 6 );
 
@@ -2670,14 +2672,14 @@ bool QgsPostgresProvider::deleteFeatures( const QgsFeatureIds &ids )
     conn->begin();
 
     QgsFeatureIds chunkIds;
-    QgsFeatureIds::const_iterator lastId = ids.constEnd();
-    --lastId;
-
+    const int countIds = ids.size();
+    int i = 0;
     for ( QgsFeatureIds::const_iterator it = ids.constBegin(); it != ids.constEnd(); ++it )
     {
       // create chunks of fids to delete, the last chunk may be smaller
       chunkIds.insert( *it );
-      if ( chunkIds.size() < 5000 && it != lastId )
+      i++;
+      if ( chunkIds.size() < 5000 && i < countIds )
         continue;
 
       const QString sql = QStringLiteral( "DELETE FROM %1 WHERE %2" )
@@ -3598,9 +3600,9 @@ bool QgsPostgresProvider::setSubsetString( const QString &theSQL, bool updateFea
 /**
  * Returns the feature count
  */
-long QgsPostgresProvider::featureCount() const
+long long QgsPostgresProvider::featureCount() const
 {
-  long featuresCounted = mShared->featuresCounted();
+  long long featuresCounted = mShared->featuresCounted();
   if ( featuresCounted >= 0 )
     return featuresCounted;
 
@@ -3616,7 +3618,7 @@ long QgsPostgresProvider::featureCount() const
   // use estimated metadata even when there is a where clause,
   // although we get an incorrect feature count for the subset
   // - but make huge dataset usable.
-  long num = -1;
+  long long num = -1;
   if ( !mIsQuery && mUseEstimatedMetadata )
   {
     if ( relkind() == Relkind::View && connectionRO()->pgVersion() >= 90000 )
@@ -3632,7 +3634,7 @@ long QgsPostgresProvider::featureCount() const
       const QVariant nbRows = countPlan.value( "Plan Rows" );
 
       if ( nbRows.isValid() )
-        num = nbRows.toInt();
+        num = nbRows.toLongLong();
       else
         QgsLogger::warning( QStringLiteral( "Cannot parse JSON explain result to estimate feature count (%1) : %2" ).arg( sql, json ) );
     }
@@ -3640,7 +3642,7 @@ long QgsPostgresProvider::featureCount() const
     {
       sql = QStringLiteral( "SELECT reltuples::bigint FROM pg_catalog.pg_class WHERE oid=regclass(%1)::oid" ).arg( quotedValue( mQuery ) );
       QgsPostgresResult result( connectionRO()->PQexec( sql ) );
-      num = result.PQgetvalue( 0, 0 ).toLong();
+      num = result.PQgetvalue( 0, 0 ).toLongLong();
     }
   }
   else
@@ -3650,7 +3652,7 @@ long QgsPostgresProvider::featureCount() const
 
     QgsDebugMsgLevel( "number of features as text: " + result.PQgetvalue( 0, 0 ), 2 );
 
-    num = result.PQgetvalue( 0, 0 ).toLong();
+    num = result.PQgetvalue( 0, 0 ).toLongLong();
   }
 
   mShared->setFeaturesCounted( num );
@@ -3744,7 +3746,7 @@ QgsRectangle QgsPostgresProvider::extent() const
     {
       sql = QStringLiteral( "SELECT %1(%2%3) FROM %4%5" )
             .arg( connectionRO()->majorVersion() < 2 ? "extent" : "st_extent",
-                  quotedIdentifier( mGeometryColumn ),
+                  quotedIdentifier( mBoundingBoxColumn ),
                   mSpatialColType == SctPcPatch ? "::geometry" : "",
                   mQuery,
                   filterWhereClause() );
@@ -4755,13 +4757,14 @@ QString QgsPostgresProvider::getNextString( const QString &txt, int &i, const QS
   jumpSpace( txt, i );
   if ( i < txt.length() && txt.at( i ) == '"' )
   {
-    QRegExp stringRe( "^\"((?:\\\\.|[^\"\\\\])*)\".*" );
-    if ( !stringRe.exactMatch( txt.mid( i ) ) )
+    const thread_local QRegularExpression stringRe( QRegularExpression::anchoredPattern( "^\"((?:\\\\.|[^\"\\\\])*)\".*" ) );
+    const QRegularExpressionMatch match = stringRe.match( txt.mid( i ) );
+    if ( !match.hasMatch() )
     {
       QgsMessageLog::logMessage( tr( "Cannot find end of double quoted string: %1" ).arg( txt ), tr( "PostGIS" ) );
       return QString();
     }
-    i += stringRe.cap( 1 ).length() + 2;
+    i += match.captured( 1 ).length() + 2;
     jumpSpace( txt, i );
     if ( !QStringView{txt}.mid( i ).startsWith( sep ) && i < txt.length() )
     {
@@ -4769,7 +4772,7 @@ QString QgsPostgresProvider::getNextString( const QString &txt, int &i, const QS
       return QString();
     }
     i += sep.length();
-    return stringRe.cap( 1 ).replace( QLatin1String( "\\\"" ), QLatin1String( "\"" ) ).replace( QLatin1String( "\\\\" ), QLatin1String( "\\" ) );
+    return match.captured( 1 ).replace( QLatin1String( "\\\"" ), QLatin1String( "\"" ) ).replace( QLatin1String( "\\\\" ), QLatin1String( "\\" ) );
   }
   else
   {
@@ -5650,7 +5653,7 @@ void QgsPostgresProviderMetadata::cleanupProvider()
 
 // ----------
 
-void QgsPostgresSharedData::addFeaturesCounted( long diff )
+void QgsPostgresSharedData::addFeaturesCounted( long long diff )
 {
   QMutexLocker locker( &mMutex );
 
@@ -5658,7 +5661,7 @@ void QgsPostgresSharedData::addFeaturesCounted( long diff )
     mFeaturesCounted += diff;
 }
 
-void QgsPostgresSharedData::ensureFeaturesCountedAtLeast( long fetched )
+void QgsPostgresSharedData::ensureFeaturesCountedAtLeast( long long fetched )
 {
   QMutexLocker locker( &mMutex );
 
@@ -5673,13 +5676,13 @@ void QgsPostgresSharedData::ensureFeaturesCountedAtLeast( long fetched )
   }
 }
 
-long QgsPostgresSharedData::featuresCounted()
+long long QgsPostgresSharedData::featuresCounted()
 {
   QMutexLocker locker( &mMutex );
   return mFeaturesCounted;
 }
 
-void QgsPostgresSharedData::setFeaturesCounted( long count )
+void QgsPostgresSharedData::setFeaturesCounted( long long count )
 {
   QMutexLocker locker( &mMutex );
   mFeaturesCounted = count;

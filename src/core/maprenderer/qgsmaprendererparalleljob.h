@@ -36,7 +36,6 @@ class CORE_EXPORT QgsMapRendererParallelJob : public QgsMapRendererQImageJob
     QgsMapRendererParallelJob( const QgsMapSettings &settings );
     ~QgsMapRendererParallelJob() override;
 
-    void start() override;
     void cancel() override;
     void cancelWithoutBlocking() override;
     void waitForFinished() override;
@@ -63,6 +62,8 @@ class CORE_EXPORT QgsMapRendererParallelJob : public QgsMapRendererQImageJob
     //! \note not available in Python bindings
     static void renderLabelsStatic( QgsMapRendererParallelJob *self ) SIP_SKIP;
 
+    void startPrivate() override;
+
     QImage mFinalImage;
 
     //! \note not available in Python bindings
@@ -71,10 +72,10 @@ class CORE_EXPORT QgsMapRendererParallelJob : public QgsMapRendererQImageJob
     QFuture<void> mFuture;
     QFutureWatcher<void> mFutureWatcher;
 
-    LayerRenderJobs mLayerJobs;
+    std::vector< LayerRenderJob > mLayerJobs;
     LabelRenderJob mLabelJob;
 
-    LayerRenderJobs mSecondPassLayerJobs;
+    std::vector< LayerRenderJob > mSecondPassLayerJobs;
     QFuture<void> mSecondPassFuture;
     QFutureWatcher<void> mSecondPassFutureWatcher;
 

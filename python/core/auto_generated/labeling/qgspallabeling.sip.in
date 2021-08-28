@@ -504,17 +504,20 @@ If the text orientation is set to rotation-based, the spaced taken to render
 vertically oriented text will be written to ``rotatedLabelX`` and ``rotatedLabelY`` .
 %End
 
-    void registerFeature( const QgsFeature &f, QgsRenderContext &context  );
-
+    void registerFeature( const QgsFeature &f, QgsRenderContext &context );
 %Docstring
-Register a feature for labeling.
+Registers a feature for labeling.
 
 :param f: feature to label
 :param context: render context. The :py:class:`QgsExpressionContext` contained within the render context
                 must have already had the feature and fields sets prior to calling this method.
-:param labelFeature: if using :py:class:`QgsLabelingEngine`, this will receive the label feature. Not available
-                     in Python bindings.
+
+.. warning::
+
+   This method is designed for use by PyQGIS clients only. C++ code should use the
+   variant with additional arguments.
 %End
+
 
     void readXml( const QDomElement &elem, const QgsReadWriteContext &context );
 %Docstring
@@ -668,6 +671,24 @@ Returns a pixmap preview for label ``settings``.
 .. versionadded:: 3.10
 %End
 
+    Qgis::UnplacedLabelVisibility unplacedVisibility() const;
+%Docstring
+Returns the layer's unplaced label visibility.
+
+.. seealso:: :py:func:`setUnplacedVisibility`
+
+.. versionadded:: 3.20
+%End
+
+    void setUnplacedVisibility( Qgis::UnplacedLabelVisibility visibility );
+%Docstring
+Sets the layer's unplaced label ``visibility``.
+
+.. seealso:: :py:func:`unplacedVisibility`
+
+.. versionadded:: 3.20
+%End
+
     const QgsFeature *mCurFeat;
     QgsFields mCurFields;
     int fieldIndex;
@@ -680,6 +701,7 @@ Returns a pixmap preview for label ``settings``.
     int mFeaturesToLabel;
     int mFeatsSendingToPal;
     int mFeatsRegPal;
+
 };
 
 class QgsLabelCandidate

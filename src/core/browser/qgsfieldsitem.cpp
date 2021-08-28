@@ -29,12 +29,12 @@ QgsFieldsItem::QgsFieldsItem( QgsDataItem *parent,
                               const QString &providerKey,
                               const QString &schema,
                               const QString &tableName )
-  : QgsDataItem( QgsDataItem::Fields, parent, tr( "Fields" ), path, providerKey )
+  : QgsDataItem( Qgis::BrowserItemType::Fields, parent, tr( "Fields" ), path, providerKey )
   , mSchema( schema )
   , mTableName( tableName )
   , mConnectionUri( connectionUri )
 {
-  mCapabilities |= ( Fertile | Collapse );
+  mCapabilities |= ( Qgis::BrowserItemCapability::Fertile | Qgis::BrowserItemCapability::Collapse );
   QgsProviderMetadata *md { QgsProviderRegistry::instance()->providerMetadata( providerKey ) };
   if ( md )
   {
@@ -142,12 +142,26 @@ QString QgsFieldsItem::schema() const
 }
 
 QgsFieldItem::QgsFieldItem( QgsDataItem *parent, const QgsField &field )
-  : QgsDataItem( QgsDataItem::Type::Field, parent, field.name(), parent->path() + '/' + field.name(), parent->providerKey() )
+  : QgsDataItem( Qgis::BrowserItemType::Field, parent, field.name(), parent->path() + '/' + field.name(), parent->providerKey() )
   , mField( field )
 {
   // Precondition
   Q_ASSERT( static_cast<QgsFieldsItem *>( parent ) );
-  setState( QgsDataItem::State::Populated );
+  setState( Qgis::BrowserItemState::Populated );
+  const auto constraints { field.constraints().constraints() };
+  QStringList constraintsText;
+  if ( constraints.testFlag( QgsFieldConstraints::Constraint::ConstraintNotNull ) )
+  {
+    constraintsText.push_back( tr( "NOT NULL" ) );
+  }
+  if ( constraints.testFlag( QgsFieldConstraints::Constraint::ConstraintUnique ) )
+  {
+    constraintsText.push_back( tr( "UNIQUE" ) );
+  }
+  if ( ! constraintsText.isEmpty() )
+  {
+    setToolTip( QStringLiteral( "<ul><li>%1</li></ul>" ).arg( constraintsText.join( QStringLiteral( "</li><li>" ) ) ) );
+  }
 }
 
 QgsFieldItem::~QgsFieldItem()
@@ -176,6 +190,7 @@ QIcon QgsFieldItem::icon()
       case QgsWkbTypes::GeometryType::PolygonGeometry:
         return QgsIconUtils::iconPolygon();
       case QgsWkbTypes::GeometryType::UnknownGeometry:
+        return QgsIconUtils::iconGeometryCollection();
       case QgsWkbTypes::GeometryType::NullGeometry:
         return QgsIconUtils::iconDefaultLayer();
     }
@@ -188,5 +203,4 @@ QIcon QgsFieldItem::icon()
   }
   return icon;
 }
-
 

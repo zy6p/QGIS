@@ -82,7 +82,7 @@ class QgsMapMouseEvent;
  * \brief Map canvas is a class for displaying all GIS data types on a canvas.
  */
 
-class GUI_EXPORT QgsMapCanvas : public QGraphicsView
+class GUI_EXPORT QgsMapCanvas : public QGraphicsView, public QgsExpressionContextGenerator
 {
 
 #ifdef SIP_RUN
@@ -133,9 +133,9 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
     const QgsMapSettings &mapSettings() const SIP_KEEPREFERENCE;
 
     /**
-     * Sets the temporal controller, tQgsMapCanvasInteractionBlockerhis controller will be used to
-     * update the canvas temporal range.
+     * Sets the temporal \a controller for this canvas.
      *
+     * The controller will be used to update the canvas' temporal range.
      * \since QGIS 3.14
      */
     void setTemporalController( QgsTemporalController *controller );
@@ -149,7 +149,7 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
     const QgsTemporalController *temporalController() const;
 
     /**
-     * sets destination coordinate reference system
+     * Sets destination coordinate reference system
      * \since QGIS 2.4
      */
     void setDestinationCrs( const QgsCoordinateReferenceSystem &crs );
@@ -703,7 +703,9 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
      * \see setExpressionContextScope()
      * \since QGIS 3.4
      */
-    QgsExpressionContextScope *defaultExpressionContextScope() SIP_FACTORY;
+    QgsExpressionContextScope *defaultExpressionContextScope() const SIP_FACTORY;
+
+    QgsExpressionContext createExpressionContext() const override;
 
     /**
      * Sets the segmentation tolerance applied when rendering curved geometries
@@ -979,6 +981,8 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
     //! Renames the active map theme called \a theme to \a newTheme
     void mapThemeRenamed( const QString &theme, const QString &newTheme );
 
+    void updateDevicePixelFromScreen();
+
   signals:
 
     /**
@@ -1105,7 +1109,7 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
     void themeChanged( const QString &theme );
 
     //! emit a message (usually to be displayed in a message bar)
-    void messageEmitted( const QString &title, const QString &message, Qgis::MessageLevel = Qgis::Info );
+    void messageEmitted( const QString &title, const QString &message, Qgis::MessageLevel = Qgis::MessageLevel::Info );
 
     /**
      * Emitted whenever an error is encountered during a map render operation.
@@ -1172,12 +1176,14 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
     void resizeEvent( QResizeEvent *e ) override;
     void paintEvent( QPaintEvent *e ) override;
     void dragEnterEvent( QDragEnterEvent *e ) override;
+    bool viewportEvent( QEvent *event ) override;
 
     //! called when panning is in action, reset indicates end of panning
     void moveCanvasContents( bool reset = false );
 
     void dropEvent( QDropEvent *event ) override;
 
+    void showEvent( QShowEvent *event ) override;
 
     /// implementation struct
     class CanvasProperties;
@@ -1354,6 +1360,8 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
     QList< QgsMapCanvasInteractionBlocker * > mInteractionBlockers;
 
     int mBlockItemPositionUpdates = 0;
+
+    QMetaObject::Connection mScreenDpiChangedConnection;
 
     /**
      * Returns the last cursor position on the canvas in geographical coordinates

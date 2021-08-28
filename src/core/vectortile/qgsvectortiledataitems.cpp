@@ -23,7 +23,7 @@
 QgsVectorTileRootItem::QgsVectorTileRootItem( QgsDataItem *parent, QString name, QString path )
   : QgsConnectionsRootItem( parent, name, path, QStringLiteral( "vectortile" ) )
 {
-  mCapabilities |= Fast;
+  mCapabilities |= Qgis::BrowserItemCapability::Fast;
   mIconName = QStringLiteral( "mIconVectorTileLayer.svg" );
   populate();
 }
@@ -34,7 +34,7 @@ QVector<QgsDataItem *> QgsVectorTileRootItem::createChildren()
   const auto connectionList = QgsVectorTileProviderConnection::connectionList();
   for ( const QString &connName : connectionList )
   {
-    QString uri = QgsVectorTileProviderConnection::encodedLayerUri( QgsVectorTileProviderConnection::connection( connName ) );
+    const QString uri = QgsVectorTileProviderConnection::encodedLayerUri( QgsVectorTileProviderConnection::connection( connName ) );
     QgsDataItem *conn = new QgsVectorTileLayerItem( this, connName, mPath + '/' + connName, uri );
     connections.append( conn );
   }
@@ -46,9 +46,9 @@ QVector<QgsDataItem *> QgsVectorTileRootItem::createChildren()
 
 
 QgsVectorTileLayerItem::QgsVectorTileLayerItem( QgsDataItem *parent, QString name, QString path, const QString &encodedUri )
-  : QgsLayerItem( parent, name, path, encodedUri, QgsLayerItem::VectorTile, QString() )
+  : QgsLayerItem( parent, name, path, encodedUri, Qgis::BrowserLayerType::VectorTile, QString() )
 {
-  setState( Populated );
+  setState( Qgis::BrowserItemState::Populated );
   mIconName = QStringLiteral( "mIconVectorTileLayer.svg" );
 }
 

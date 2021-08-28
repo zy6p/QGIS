@@ -720,6 +720,10 @@ QImage QgsSymbol::bigSymbolPreviewImage( QgsExpressionContext *expressionContext
   return preview;
 }
 
+QImage QgsSymbol::bigSymbolPreviewImage( QgsExpressionContext *expressionContext, int flags )
+{
+  return bigSymbolPreviewImage( expressionContext, static_cast< Qgis::SymbolPreviewFlags >( flags ) );
+}
 
 QString QgsSymbol::dump() const
 {
@@ -896,7 +900,7 @@ class GeometryRestorer
 };
 ///@endcond PRIVATE
 
-void QgsSymbol::renderFeature( const QgsFeature &feature, QgsRenderContext &context, int layer, bool selected, bool drawVertexMarker, int currentVertexMarkerType, double currentVertexMarkerSize )
+void QgsSymbol::renderFeature( const QgsFeature &feature, QgsRenderContext &context, int layer, bool selected, bool drawVertexMarker, Qgis::VertexMarkerType currentVertexMarkerType, double currentVertexMarkerSize )
 {
   if ( context.renderingStopped() )
     return;
@@ -1197,7 +1201,10 @@ void QgsSymbol::renderFeature( const QgsFeature &feature, QgsRenderContext &cont
     }
   };
 
-  getPartGeometry( geom.constGet(), 0 );
+  // Use the simplified type ref when rendering -- this avoids some unnecessary cloning/geometry modification
+  // (e.g. if the original geometry is a compound curve containing only a linestring curve, we don't have
+  // to segmentize the geometry before rendering)
+  getPartGeometry( geom.constGet()->simplifiedTypeRef(), 0 );
 
   // step 2 - determine which layers to render
   std::vector< int > layers;
@@ -1428,10 +1435,10 @@ QgsSymbolRenderContext *QgsSymbol::symbolRenderContext()
   return mSymbolRenderContext.get();
 }
 
-void QgsSymbol::renderVertexMarker( QPointF pt, QgsRenderContext &context, int currentVertexMarkerType, double currentVertexMarkerSize )
+void QgsSymbol::renderVertexMarker( QPointF pt, QgsRenderContext &context, Qgis::VertexMarkerType currentVertexMarkerType, double currentVertexMarkerSize )
 {
   int markerSize = context.convertToPainterUnits( currentVertexMarkerSize, QgsUnitTypes::RenderMillimeters );
-  QgsSymbolLayerUtils::drawVertexMarker( pt.x(), pt.y(), *context.painter(), static_cast< QgsSymbolLayerUtils::VertexMarkerType >( currentVertexMarkerType ), markerSize );
+  QgsSymbolLayerUtils::drawVertexMarker( pt.x(), pt.y(), *context.painter(), currentVertexMarkerType, markerSize );
 }
 
 void QgsSymbol::initPropertyDefinitions()

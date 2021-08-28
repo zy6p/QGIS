@@ -42,6 +42,13 @@ Returns an icon representing line geometries.
 Returns an icon representing polygon geometries.
 %End
 
+    static QIcon iconGeometryCollection();
+%Docstring
+Returns an icon representing geometry collections.
+
+.. versionadded:: 3.22
+%End
+
     static QIcon iconTable();
 %Docstring
 Returns an icon representing non-spatial layers (tables).
@@ -75,6 +82,13 @@ Returns an icon representing point cloud layers.
     static QIcon iconForLayer( const QgsMapLayer *layer );
 %Docstring
 Returns the icon corresponding to a specified map ``layer``.
+%End
+
+    static QIcon iconForLayerType( QgsMapLayerType type );
+%Docstring
+Returns the default icon for the specified layer ``type``.
+
+.. versionadded:: 3.22
 %End
 
 };

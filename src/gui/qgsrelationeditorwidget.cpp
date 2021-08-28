@@ -51,7 +51,7 @@ QgsFilteredSelectionManager::QgsFilteredSelectionManager( QgsVectorLayer *layer,
   if ( ! layer )
     return;
 
-  for ( auto fid : layer->selectedFeatureIds() )
+  for ( const auto fid : layer->selectedFeatureIds() )
     if ( mRequest.acceptFeature( layer->getFeature( fid ) ) )
       mSelectedFeatureIds << fid;
 
@@ -79,11 +79,11 @@ void QgsFilteredSelectionManager::onSelectionChanged( const QgsFeatureIds &selec
   }
   else
   {
-    for ( auto fid : deselected )
+    for ( const auto fid : deselected )
       mSelectedFeatureIds.remove( fid );
   }
 
-  for ( auto fid : selected )
+  for ( const auto fid : selected )
     if ( mRequest.acceptFeature( layer()->getFeature( fid ) ) )
       mSelectedFeatureIds << fid;
     else
@@ -135,14 +135,14 @@ QgsRelationEditorWidget::QgsRelationEditorWidget( const QVariantMap &config, QWi
   mDuplicateFeatureButton = new QToolButton( this );
   mDuplicateFeatureButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionDuplicateFeature.svg" ) ) );
   mDuplicateFeatureButton->setText( tr( "Duplicate Child Feature" ) );
-  mDuplicateFeatureButton->setToolTip( tr( "Duplicate child feature" ) );
+  mDuplicateFeatureButton->setToolTip( tr( "Duplicate selected child feature" ) );
   mDuplicateFeatureButton->setObjectName( QStringLiteral( "mDuplicateFeatureButton" ) );
   buttonLayout->addWidget( mDuplicateFeatureButton );
   // delete feature
   mDeleteFeatureButton = new QToolButton( this );
   mDeleteFeatureButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionDeleteSelected.svg" ) ) );
   mDeleteFeatureButton->setText( tr( "Delete Child Feature" ) );
-  mDeleteFeatureButton->setToolTip( tr( "Delete child feature" ) );
+  mDeleteFeatureButton->setToolTip( tr( "Delete selected child feature" ) );
   mDeleteFeatureButton->setObjectName( QStringLiteral( "mDeleteFeatureButton" ) );
   buttonLayout->addWidget( mDeleteFeatureButton );
   // link feature
@@ -156,14 +156,14 @@ QgsRelationEditorWidget::QgsRelationEditorWidget( const QVariantMap &config, QWi
   mUnlinkFeatureButton = new QToolButton( this );
   mUnlinkFeatureButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionUnlink.svg" ) ) );
   mUnlinkFeatureButton->setText( tr( "Unlink Feature" ) );
-  mUnlinkFeatureButton->setToolTip( tr( "Unlink child feature" ) );
+  mUnlinkFeatureButton->setToolTip( tr( "Unlink selected child feature" ) );
   mUnlinkFeatureButton->setObjectName( QStringLiteral( "mUnlinkFeatureButton" ) );
   buttonLayout->addWidget( mUnlinkFeatureButton );
   // zoom to linked feature
   mZoomToFeatureButton = new QToolButton( this );
   mZoomToFeatureButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionZoomToSelected.svg" ) ) );
   mZoomToFeatureButton->setText( tr( "Zoom To Feature" ) );
-  mZoomToFeatureButton->setToolTip( tr( "Zoom to child feature" ) );
+  mZoomToFeatureButton->setToolTip( tr( "Zoom to selected child feature" ) );
   mZoomToFeatureButton->setObjectName( QStringLiteral( "mZoomToFeatureButton" ) );
   buttonLayout->addWidget( mZoomToFeatureButton );
   // spacer
@@ -201,8 +201,13 @@ QgsRelationEditorWidget::QgsRelationEditorWidget( const QVariantMap &config, QWi
   relationLayout->addWidget( mDualView );
   rootLayout->addLayout( relationLayout );
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   connect( mViewModeButtonGroup, static_cast<void ( QButtonGroup::* )( int )>( &QButtonGroup::buttonClicked ),
            this, static_cast<void ( QgsRelationEditorWidget::* )( int )>( &QgsRelationEditorWidget::setViewMode ) );
+#else
+  connect( mViewModeButtonGroup, &QButtonGroup::idClicked,
+           this, static_cast<void ( QgsRelationEditorWidget::* )( int )>( &QgsRelationEditorWidget::setViewMode ) );
+#endif
   connect( mToggleEditingButton, &QAbstractButton::clicked, this, &QgsRelationEditorWidget::toggleEditing );
   connect( mSaveEditsButton, &QAbstractButton::clicked, this, &QgsRelationEditorWidget::saveEdits );
   connect( mAddFeatureButton, &QAbstractButton::clicked, this, [this]() { addFeature(); } );
@@ -273,13 +278,15 @@ void QgsRelationEditorWidget::setViewMode( QgsDualView::ViewMode mode )
 
 void QgsRelationEditorWidget::updateButtons()
 {
+  bool toggleEditingButtonEnabled = false;
   bool editable = false;
   bool linkable = false;
   bool spatial = false;
-  bool selectionNotEmpty = mFeatureSelectionMgr ? mFeatureSelectionMgr->selectedFeatureCount() : false;
+  const bool selectionNotEmpty = mFeatureSelectionMgr ? mFeatureSelectionMgr->selectedFeatureCount() : false;
 
   if ( mRelation.isValid() )
   {
+    toggleEditingButtonEnabled = mRelation.referencingLayer()->supportsEditing();
     editable = mRelation.referencingLayer()->isEditable();
     linkable = mRelation.referencingLayer()->isEditable();
     spatial = mRelation.referencingLayer()->isSpatial();
@@ -287,10 +294,12 @@ void QgsRelationEditorWidget::updateButtons()
 
   if ( mNmRelation.isValid() )
   {
+    toggleEditingButtonEnabled |= mNmRelation.referencedLayer()->supportsEditing();
     editable = mNmRelation.referencedLayer()->isEditable();
     spatial = mNmRelation.referencedLayer()->isSpatial();
   }
 
+  mToggleEditingButton->setEnabled( toggleEditingButtonEnabled );
   mAddFeatureButton->setEnabled( editable );
   mAddFeatureGeometryButton->setEnabled( editable );
   mDuplicateFeatureButton->setEnabled( editable && selectionNotEmpty );
@@ -299,7 +308,7 @@ void QgsRelationEditorWidget::updateButtons()
   mUnlinkFeatureButton->setEnabled( linkable && selectionNotEmpty );
   mZoomToFeatureButton->setEnabled( selectionNotEmpty );
   mToggleEditingButton->setChecked( editable );
-  mSaveEditsButton->setEnabled( editable );
+  mSaveEditsButton->setEnabled( editable || linkable );
 
   mToggleEditingButton->setVisible( !mLayerInSameTransactionGroup );
 
@@ -332,11 +341,11 @@ void QgsRelationEditorWidget::addFeatureGeometry()
 
   if ( auto *lMainMessageBar = mEditorContext.mainMessageBar() )
   {
-    QString displayString = QgsVectorLayerUtils::getFeatureDisplayString( layer, mFeature );
+    const QString displayString = QgsVectorLayerUtils::getFeatureDisplayString( layer, mFeature );
 
-    QString title = tr( "Create child feature for parent %1 \"%2\"" ).arg( mRelation.referencedLayer()->name(), displayString );
-    QString msg = tr( "Digitize the geometry for the new feature on layer %1. Press &lt;ESC&gt; to cancel." )
-                  .arg( layer->name() );
+    const QString title = tr( "Create child feature for parent %1 \"%2\"" ).arg( mRelation.referencedLayer()->name(), displayString );
+    const QString msg = tr( "Digitize the geometry for the new feature on layer %1. Press &lt;ESC&gt; to cancel." )
+                        .arg( layer->name() );
     mMessageBarItem = QgsMessageBar::createMessage( title, msg, this );
     lMainMessageBar->pushItem( mMessageBarItem );
   }
@@ -365,7 +374,7 @@ void QgsRelationEditorWidget::updateUi()
   if ( !isVisible() )
     return;
 
-  QgsFeatureRequest request = mRelation.getRelatedFeaturesRequest( mFeature );
+  const QgsFeatureRequest request = mRelation.getRelatedFeaturesRequest( mFeature );
 
   if ( mNmRelation.isValid() )
   {
@@ -503,27 +512,18 @@ void QgsRelationEditorWidget::beforeSetRelationFeature( const QgsRelation &newRe
 
 void QgsRelationEditorWidget::afterSetRelationFeature()
 {
-  mToggleEditingButton->setEnabled( false );
-
   if ( ! mRelation.isValid() )
+  {
+    updateButtons();
     return;
+  }
 
   connect( mRelation.referencingLayer(), &QgsVectorLayer::editingStarted, this, &QgsRelationEditorWidget::updateButtons );
   connect( mRelation.referencingLayer(), &QgsVectorLayer::editingStopped, this, &QgsRelationEditorWidget::updateButtons );
 
-  QgsVectorLayer *vl = mRelation.referencingLayer();
-  bool canChangeAttributes = vl->dataProvider()->capabilities() & QgsVectorDataProvider::ChangeAttributeValues;
-  if ( canChangeAttributes && !vl->readOnly() )
-  {
-    mToggleEditingButton->setEnabled( true );
-    updateButtons();
-  }
-  else
-  {
-    mToggleEditingButton->setEnabled( false );
-  }
+  updateButtons();
 
-  QgsFeatureRequest myRequest = mRelation.getRelatedFeaturesRequest( mFeature );
+  const QgsFeatureRequest myRequest = mRelation.getRelatedFeaturesRequest( mFeature );
   initDualView( mRelation.referencingLayer(), myRequest );
 }
 
@@ -559,17 +559,6 @@ void QgsRelationEditorWidget::afterSetRelations()
     connect( mNmRelation.referencedLayer(), &QgsVectorLayer::editingStopped, this, &QgsRelationEditorWidget::updateButtons );
   }
 
-  QgsVectorLayer *vl = mRelation.referencingLayer();
-  bool canChangeAttributes = vl->dataProvider()->capabilities() & QgsVectorDataProvider::ChangeAttributeValues;
-  if ( canChangeAttributes && !vl->readOnly() )
-  {
-    mToggleEditingButton->setEnabled( true );
-  }
-  else
-  {
-    mToggleEditingButton->setEnabled( false );
-  }
-
   updateButtons();
 }
 
@@ -595,7 +584,7 @@ void QgsRelationEditorWidget::duplicateSelectedFeatures()
 
 void QgsRelationEditorWidget::deleteSelectedFeatures()
 {
-  QgsFeatureIds selectedFids = mFeatureSelectionMgr->selectedFeatureIds();
+  const QgsFeatureIds selectedFids = mFeatureSelectionMgr->selectedFeatureIds();
   deleteFeatures( selectedFids );
 }
 

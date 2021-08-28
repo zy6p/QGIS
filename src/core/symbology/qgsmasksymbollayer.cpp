@@ -20,6 +20,7 @@
 #include "qgspainteffect.h"
 #include "qgspainterswapper.h"
 #include "qgsmarkersymbol.h"
+#include "qgssymbollayerreference.h"
 
 QgsMaskMarkerSymbolLayer::QgsMaskMarkerSymbolLayer()
 {
@@ -27,6 +28,11 @@ QgsMaskMarkerSymbolLayer::QgsMaskMarkerSymbolLayer()
 }
 
 QgsMaskMarkerSymbolLayer::~QgsMaskMarkerSymbolLayer() = default;
+
+bool QgsMaskMarkerSymbolLayer::enabled() const
+{
+  return !mMaskedSymbolLayers.isEmpty();
+}
 
 bool QgsMaskMarkerSymbolLayer::setSubSymbol( QgsSymbol *symbol )
 {
@@ -123,6 +129,16 @@ void QgsMaskMarkerSymbolLayer::drawPreviewIcon( QgsSymbolRenderContext &context,
   QgsMarkerSymbolLayer::drawPreviewIcon( context, size );
 }
 
+QList<QgsSymbolLayerReference> QgsMaskMarkerSymbolLayer::masks() const
+{
+  return mMaskedSymbolLayers;
+}
+
+void QgsMaskMarkerSymbolLayer::setMasks( const QList<QgsSymbolLayerReference> &maskedLayers )
+{
+  mMaskedSymbolLayers = maskedLayers;
+}
+
 QRectF QgsMaskMarkerSymbolLayer::bounds( QPointF point, QgsSymbolRenderContext &context )
 {
   return mSymbol->bounds( point, context.renderContext() );
@@ -153,7 +169,7 @@ void QgsMaskMarkerSymbolLayer::renderPoint( QPointF point, QgsSymbolRenderContex
 
   {
     // Otherwise switch to the mask painter before rendering
-    QgsPainterSwapper swapper( context.renderContext(), context.renderContext().maskPainter() );
+    const QgsPainterSwapper swapper( context.renderContext(), context.renderContext().maskPainter() );
 
     // Special case when an effect is defined on this mask symbol layer
     // (effects defined on sub symbol's layers do not need special handling)

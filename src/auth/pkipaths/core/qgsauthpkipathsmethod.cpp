@@ -16,8 +16,17 @@
 
 #include "qgsauthpkipathsmethod.h"
 
+#include "qgsauthcertutils.h"
+#include "qgsauthmanager.h"
+#include "qgslogger.h"
+#include "qgsapplication.h"
+#ifdef HAVE_GUI
+#include "qgsauthpkipathsedit.h"
+#endif
+
 #include <QDir>
 #include <QFile>
+#include <QRegularExpression>
 #include <QUuid>
 #ifndef QT_NO_SSL
 #include <QtCrypto>
@@ -26,14 +35,9 @@
 #endif
 #include <QMutexLocker>
 
-#include "qgsauthcertutils.h"
-#include "qgsauthmanager.h"
-#include "qgslogger.h"
-#include "qgsapplication.h"
-
-
-static const QString AUTH_METHOD_KEY = QStringLiteral( "PKI-Paths" );
-static const QString AUTH_METHOD_DESCRIPTION = QStringLiteral( "PKI paths authentication" );
+const QString QgsAuthPkiPathsMethod::AUTH_METHOD_KEY = QStringLiteral( "PKI-Paths" );
+const QString QgsAuthPkiPathsMethod::AUTH_METHOD_DESCRIPTION = QStringLiteral( "PKI paths authentication" );
+const QString QgsAuthPkiPathsMethod::AUTH_METHOD_DISPLAY_DESCRIPTION = tr( "PKI paths authentication" );
 
 QMap<QString, QgsPkiConfigBundle *> QgsAuthPkiPathsMethod::sPkiConfigBundleCache = QMap<QString, QgsPkiConfigBundle *>();
 
@@ -52,7 +56,7 @@ QgsAuthPkiPathsMethod::QgsAuthPkiPathsMethod()
 
 QgsAuthPkiPathsMethod::~QgsAuthPkiPathsMethod()
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   qDeleteAll( sPkiConfigBundleCache );
   sPkiConfigBundleCache.clear();
 }
@@ -69,14 +73,15 @@ QString QgsAuthPkiPathsMethod::description() const
 
 QString QgsAuthPkiPathsMethod::displayDescription() const
 {
-  return tr( "PKI paths authentication" );
+  return AUTH_METHOD_DISPLAY_DESCRIPTION;
 }
+
 
 bool QgsAuthPkiPathsMethod::updateNetworkRequest( QNetworkRequest &request, const QString &authcfg,
     const QString &dataprovider )
 {
   Q_UNUSED( dataprovider )
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
   // TODO: is this too restrictive, to intercept only HTTPS connections?
   if ( request.url().scheme().toLower() != QLatin1String( "https" ) )
@@ -124,7 +129,7 @@ bool QgsAuthPkiPathsMethod::updateDataSourceUriItems( QStringList &connectionIte
     const QString &dataprovider )
 {
   Q_UNUSED( dataprovider )
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
   QgsDebugMsg( QStringLiteral( "Update URI items for authcfg: %1" ).arg( authcfg ) );
 
@@ -136,21 +141,21 @@ bool QgsAuthPkiPathsMethod::updateDataSourceUriItems( QStringList &connectionIte
   }
   QgsDebugMsg( QStringLiteral( "Update URI items: PKI bundle valid" ) );
 
-  QString pkiTempFileBase = QStringLiteral( "tmppki_%1.pem" );
+  const QString pkiTempFileBase = QStringLiteral( "tmppki_%1.pem" );
 
   // save client cert to temp file
-  QString certFilePath = QgsAuthCertUtils::pemTextToTempFile(
-                           pkiTempFileBase.arg( QUuid::createUuid().toString() ),
-                           pkibundle->clientCert().toPem() );
+  const QString certFilePath = QgsAuthCertUtils::pemTextToTempFile(
+                                 pkiTempFileBase.arg( QUuid::createUuid().toString() ),
+                                 pkibundle->clientCert().toPem() );
   if ( certFilePath.isEmpty() )
   {
     return false;
   }
 
   // save client cert key to temp file
-  QString keyFilePath = QgsAuthCertUtils::pemTextToTempFile(
-                          pkiTempFileBase.arg( QUuid::createUuid().toString() ),
-                          pkibundle->clientCertKey().toPem() );
+  const QString keyFilePath = QgsAuthCertUtils::pemTextToTempFile(
+                                pkiTempFileBase.arg( QUuid::createUuid().toString() ),
+                                pkibundle->clientCertKey().toPem() );
   if ( keyFilePath.isEmpty() )
   {
     return false;
@@ -176,20 +181,21 @@ bool QgsAuthPkiPathsMethod::updateDataSourceUriItems( QStringList &connectionIte
   }
 
   // save CAs to temp file
-  QString caFilePath = QgsAuthCertUtils::pemTextToTempFile(
-                         pkiTempFileBase.arg( QUuid::createUuid().toString() ),
-                         QgsAuthCertUtils::certsToPemText( cas ) );
+  const QString caFilePath = QgsAuthCertUtils::pemTextToTempFile(
+                               pkiTempFileBase.arg( QUuid::createUuid().toString() ),
+                               QgsAuthCertUtils::certsToPemText( cas ) );
   if ( caFilePath.isEmpty() )
   {
     return false;
   }
 
   // get common name of the client certificate
-  QString commonName = QgsAuthCertUtils::resolvedCertName( pkibundle->clientCert(), false );
+  const QString commonName = QgsAuthCertUtils::resolvedCertName( pkibundle->clientCert(), false );
 
   // add uri parameters
-  QString userparam = "user='" + commonName + "'";
-  int userindx = connectionItems.indexOf( QRegExp( "^user='.*" ) );
+  const QString userparam = "user='" + commonName + "'";
+  const thread_local QRegularExpression userRegExp( "^user='.*" );
+  const int userindx = connectionItems.indexOf( userRegExp );
   if ( userindx != -1 )
   {
     connectionItems.replace( userindx, userparam );
@@ -200,8 +206,9 @@ bool QgsAuthPkiPathsMethod::updateDataSourceUriItems( QStringList &connectionIte
   }
 
   // add uri parameters
-  QString certparam = "sslcert='" + certFilePath + "'";
-  int sslcertindx = connectionItems.indexOf( QRegExp( "^sslcert='.*" ) );
+  const QString certparam = "sslcert='" + certFilePath + "'";
+  const thread_local QRegularExpression sslcertRegExp( "^sslcert='.*" );
+  const int sslcertindx = connectionItems.indexOf( sslcertRegExp );
   if ( sslcertindx != -1 )
   {
     connectionItems.replace( sslcertindx, certparam );
@@ -211,8 +218,9 @@ bool QgsAuthPkiPathsMethod::updateDataSourceUriItems( QStringList &connectionIte
     connectionItems.append( certparam );
   }
 
-  QString keyparam = "sslkey='" + keyFilePath + "'";
-  int sslkeyindx = connectionItems.indexOf( QRegExp( "^sslkey='.*" ) );
+  const QString keyparam = "sslkey='" + keyFilePath + "'";
+  const thread_local QRegularExpression sslkeyRegExp( "^sslkey='.*" );
+  const int sslkeyindx = connectionItems.indexOf( sslkeyRegExp );
   if ( sslkeyindx != -1 )
   {
     connectionItems.replace( sslkeyindx, keyparam );
@@ -222,8 +230,9 @@ bool QgsAuthPkiPathsMethod::updateDataSourceUriItems( QStringList &connectionIte
     connectionItems.append( keyparam );
   }
 
-  QString caparam = "sslrootcert='" + caFilePath + "'";
-  int sslcaindx = connectionItems.indexOf( QRegExp( "^sslrootcert='.*" ) );
+  const QString caparam = "sslrootcert='" + caFilePath + "'";
+  const thread_local QRegularExpression sslcaRegExp( "^sslrootcert='.*" );
+  const int sslcaindx = connectionItems.indexOf( sslcaRegExp );
   if ( sslcaindx != -1 )
   {
     connectionItems.replace( sslcaindx, caparam );
@@ -238,18 +247,18 @@ bool QgsAuthPkiPathsMethod::updateDataSourceUriItems( QStringList &connectionIte
 
 void QgsAuthPkiPathsMethod::clearCachedConfig( const QString &authcfg )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   removePkiConfigBundle( authcfg );
 }
 
 void QgsAuthPkiPathsMethod::updateMethodConfig( QgsAuthMethodConfig &mconfig )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   if ( mconfig.hasConfig( QStringLiteral( "oldconfigstyle" ) ) )
   {
     QgsDebugMsg( QStringLiteral( "Updating old style auth method config" ) );
 
-    QStringList conflist = mconfig.config( QStringLiteral( "oldconfigstyle" ) ).split( QStringLiteral( "|||" ) );
+    const QStringList conflist = mconfig.config( QStringLiteral( "oldconfigstyle" ) ).split( QStringLiteral( "|||" ) );
     mconfig.setConfig( QStringLiteral( "certpath" ), conflist.at( 0 ) );
     mconfig.setConfig( QStringLiteral( "keypath" ), conflist.at( 1 ) );
     mconfig.setConfig( QStringLiteral( "keypass" ), conflist.at( 2 ) );
@@ -261,7 +270,7 @@ void QgsAuthPkiPathsMethod::updateMethodConfig( QgsAuthMethodConfig &mconfig )
 
 QgsPkiConfigBundle *QgsAuthPkiPathsMethod::getPkiConfigBundle( const QString &authcfg )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   QgsPkiConfigBundle *bundle = nullptr;
 
   // check if it is cached
@@ -286,7 +295,7 @@ QgsPkiConfigBundle *QgsAuthPkiPathsMethod::getPkiConfigBundle( const QString &au
 
   // init client cert
   // Note: if this is not valid, no sense continuing
-  QSslCertificate clientcert( QgsAuthCertUtils::certFromFile( mconfig.config( QStringLiteral( "certpath" ) ) ) );
+  const QSslCertificate clientcert( QgsAuthCertUtils::certFromFile( mconfig.config( QStringLiteral( "certpath" ) ) ) );
   if ( !QgsAuthCertUtils::certIsViable( clientcert ) )
   {
     QgsDebugMsg( QStringLiteral( "PKI bundle for authcfg %1: insert FAILED, client cert is not viable" ).arg( authcfg ) );
@@ -294,7 +303,7 @@ QgsPkiConfigBundle *QgsAuthPkiPathsMethod::getPkiConfigBundle( const QString &au
   }
 
   // init key
-  QSslKey clientkey = QgsAuthCertUtils::keyFromFile( mconfig.config( QStringLiteral( "keypath" ) ), mconfig.config( QStringLiteral( "keypass" ) ) );
+  const QSslKey clientkey = QgsAuthCertUtils::keyFromFile( mconfig.config( QStringLiteral( "keypath" ) ), mconfig.config( QStringLiteral( "keypass" ) ) );
 
   if ( clientkey.isNull() )
   {
@@ -312,14 +321,14 @@ QgsPkiConfigBundle *QgsAuthPkiPathsMethod::getPkiConfigBundle( const QString &au
 
 void QgsAuthPkiPathsMethod::putPkiConfigBundle( const QString &authcfg, QgsPkiConfigBundle *pkibundle )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   QgsDebugMsg( QStringLiteral( "Putting PKI bundle for authcfg %1" ).arg( authcfg ) );
   sPkiConfigBundleCache.insert( authcfg, pkibundle );
 }
 
 void QgsAuthPkiPathsMethod::removePkiConfigBundle( const QString &authcfg )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   if ( sPkiConfigBundleCache.contains( authcfg ) )
   {
     QgsPkiConfigBundle *pkibundle = sPkiConfigBundleCache.take( authcfg );
@@ -329,47 +338,21 @@ void QgsAuthPkiPathsMethod::removePkiConfigBundle( const QString &authcfg )
   }
 }
 
+#ifdef HAVE_GUI
+QWidget *QgsAuthPkiPathsMethod::editWidget( QWidget *parent ) const
+{
+  return new QgsAuthPkiPathsEdit( parent );
+}
+#endif
 
 //////////////////////////////////////////////
 // Plugin externals
 //////////////////////////////////////////////
 
-/**
- * Required class factory to return a pointer to a newly created object
- */
-QGISEXTERN QgsAuthPkiPathsMethod *classFactory()
-{
-  return new QgsAuthPkiPathsMethod();
-}
 
-/**
- * Required key function (used to map the plugin to a data store type)
- */
-QGISEXTERN QString authMethodKey()
+#ifndef HAVE_STATIC_PROVIDERS
+QGISEXTERN QgsAuthMethodMetadata *authMethodMetadataFactory()
 {
-  return AUTH_METHOD_KEY;
+  return new QgsAuthPkiPathsMethodMetadata();
 }
-
-/**
- * Required description function
- */
-QGISEXTERN QString description()
-{
-  return AUTH_METHOD_DESCRIPTION;
-}
-
-/**
- * Required isAuthMethod function. Used to determine if this shared library
- * is an authentication method plugin
- */
-QGISEXTERN bool isAuthMethod()
-{
-  return true;
-}
-
-/**
- * Required cleanup function
- */
-QGISEXTERN void cleanupAuthMethod() // pass QgsAuthMethod *method, then delete method  ?
-{
-}
+#endif

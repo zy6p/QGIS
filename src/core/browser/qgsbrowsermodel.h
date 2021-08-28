@@ -16,43 +16,18 @@
 #define QGSBROWSERMODEL_H
 
 #include "qgis_core.h"
+#include "qgis.h"
+
 #include <QAbstractItemModel>
 #include <QIcon>
 #include <QMimeData>
 #include <QMovie>
-#include <QFuture>
-#include <QFutureWatcher>
 
-#include "qgsdataitem.h"
-
-class QgsDataItemProvider;
 class QgsDataItem;
+class QgsDataItemProvider;
 class QgsDirectoryItem;
 class QgsFavoriteItem;
 class QgsFavoritesItem;
-
-/**
- * \ingroup core
- * \class QgsBrowserWatcher
- * \note not available in Python bindings
-*/
-#ifndef SIP_RUN
-class CORE_EXPORT QgsBrowserWatcher : public QFutureWatcher<QVector <QgsDataItem *> >
-{
-    Q_OBJECT
-
-  public:
-    QgsBrowserWatcher( QgsDataItem *item );
-
-    QgsDataItem *item() const { return mItem; }
-
-  signals:
-    void finished( QgsDataItem *item, const QVector <QgsDataItem *> &items );
-
-  private:
-    QgsDataItem *mItem = nullptr;
-};
-#endif
 
 /**
  * \ingroup core
@@ -185,7 +160,7 @@ class CORE_EXPORT QgsBrowserModel : public QAbstractItemModel
   signals:
 
     //! Emitted when item children fetch was finished
-    void stateChanged( const QModelIndex &index, QgsDataItem::State oldState );
+    void stateChanged( const QModelIndex &index, Qgis::BrowserItemState oldState );
 
     /**
      * Emitted when connections for the specified \a providerKey have changed in the browser.
@@ -211,7 +186,11 @@ class CORE_EXPORT QgsBrowserModel : public QAbstractItemModel
     void beginRemoveItems( QgsDataItem *parent, int first, int last );
     void endRemoveItems();
     void itemDataChanged( QgsDataItem *item );
-    void itemStateChanged( QgsDataItem *item, QgsDataItem::State oldState );
+
+    /**
+     * Emitted when an \a item's state is changed.
+     */
+    void itemStateChanged( QgsDataItem *item, Qgis::BrowserItemState oldState );
 
     /**
      * Adds a \a directory to the favorites group.

@@ -71,7 +71,8 @@ QgsLayoutPictureWidget::QgsLayoutPictureWidget( QgsLayoutItemPicture *picture )
   connect( mStrokeWidthSpinBox, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ), this, &QgsLayoutPictureWidget::mStrokeWidthSpinBox_valueChanged );
   connect( mPictureRotationOffsetSpinBox, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ), this, &QgsLayoutPictureWidget::mPictureRotationOffsetSpinBox_valueChanged );
   connect( mNorthTypeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsLayoutPictureWidget::mNorthTypeComboBox_currentIndexChanged );
-  connect( mSvgSelectorWidget->sourceLineEdit(), &QgsSvgSourceLineEdit::sourceChanged, this, &QgsLayoutPictureWidget::sourceChanged );
+  connect( mSvgSelectorWidget, &QgsSvgSelectorWidget::svgSelected, this, &QgsLayoutPictureWidget::sourceChanged );
+
   connect( mSvgSelectorWidget, &QgsSvgSelectorWidget::svgParametersChanged, this, &QgsLayoutPictureWidget::setSvgDynamicParameters );
   connect( mRadioSVG, &QRadioButton::toggled, this, &QgsLayoutPictureWidget::modeChanged );
   connect( mRadioRaster, &QRadioButton::toggled, this, &QgsLayoutPictureWidget::modeChanged );
@@ -109,17 +110,6 @@ QgsLayoutPictureWidget::QgsLayoutPictureWidget( QgsLayoutItemPicture *picture )
   }
 
   setGuiElementValues();
-
-  switch ( mPicture->mode() )
-  {
-    case QgsLayoutItemPicture::FormatSVG:
-    case QgsLayoutItemPicture::FormatUnknown:
-      mRadioSVG->setChecked( true );
-      break;
-    case QgsLayoutItemPicture::FormatRaster:
-      mRadioRaster->setChecked( true );
-      break;
-  }
 
   connect( mPicture, &QgsLayoutObject::changed, this, &QgsLayoutPictureWidget::setGuiElementValues );
   connect( mPicture, &QgsLayoutItemPicture::pictureRotationChanged, this, &QgsLayoutPictureWidget::setPicRotationSpinValue );
@@ -329,6 +319,18 @@ void QgsLayoutPictureWidget::setGuiElementValues()
       mAnchorPointComboBox->setEnabled( false );
     }
 
+    switch ( mPicture->mode() )
+    {
+      case QgsLayoutItemPicture::FormatSVG:
+      case QgsLayoutItemPicture::FormatUnknown:
+        mRadioSVG->setChecked( true );
+        break;
+      case QgsLayoutItemPicture::FormatRaster:
+        mRadioRaster->setChecked( true );
+        break;
+    }
+
+    mSvgSelectorWidget->setSvgPath( mPicture->picturePath() );
     mSvgSelectorWidget->setSvgParameters( mPicture->svgDynamicParameters() );
 
     updateSvgParamGui( false );
@@ -356,7 +358,7 @@ void QgsLayoutPictureWidget::updateSvgParamGui( bool resetValues )
   if ( !mPicture )
     return;
 
-  QString picturePath = mPicture->picturePath();
+  const QString picturePath = mPicture->picturePath();
 
   //activate gui for svg parameters only if supported by the svg file
   bool hasFillParam, hasFillOpacityParam, hasStrokeParam, hasStrokeWidthParam, hasStrokeOpacityParam;
@@ -372,7 +374,7 @@ void QgsLayoutPictureWidget::updateSvgParamGui( bool resetValues )
   if ( resetValues )
   {
     QColor fill = mFillColorButton->color();
-    double newOpacity = hasFillOpacityParam ? fill.alphaF() : 1.0;
+    const double newOpacity = hasFillOpacityParam ? fill.alphaF() : 1.0;
     if ( hasDefaultFillColor )
     {
       fill = defaultFill;
@@ -385,7 +387,7 @@ void QgsLayoutPictureWidget::updateSvgParamGui( bool resetValues )
   if ( resetValues )
   {
     QColor stroke = mStrokeColorButton->color();
-    double newOpacity = hasStrokeOpacityParam ? stroke.alphaF() : 1.0;
+    const double newOpacity = hasStrokeOpacityParam ? stroke.alphaF() : 1.0;
     if ( hasDefaultStrokeColor )
     {
       stroke = defaultStroke;
@@ -447,7 +449,7 @@ void QgsLayoutPictureWidget::modeChanged( bool checked )
   if ( !checked )
     return;
 
-  bool svg = mRadioSVG->isChecked();
+  const bool svg = mRadioSVG->isChecked();
   const QgsLayoutItemPicture::Format newFormat = svg ? QgsLayoutItemPicture::FormatSVG : QgsLayoutItemPicture::FormatRaster;
 
   if ( svg )
@@ -472,7 +474,7 @@ void QgsLayoutPictureWidget::sourceChanged( const QString &source )
   if ( mPicture )
   {
     mPicture->beginCommand( tr( "Change Picture" ) );
-    mPicture->setPicturePath( source, QgsLayoutItemPicture::FormatSVG );
+    mPicture->setPicturePath( source, mRadioSVG->isChecked() ? QgsLayoutItemPicture::FormatSVG : QgsLayoutItemPicture::FormatRaster );
     mPicture->update();
     mPicture->endCommand();
     updateSvgParamGui();

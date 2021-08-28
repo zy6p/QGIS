@@ -2749,7 +2749,7 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
   if ( version == QLatin1String( STYLE_CURRENT_VERSION ) || version == QLatin1String( "1" ) )
   {
     // For the new style, load symbols individually
-    while ( !e.isNull() )
+    for ( ; !e.isNull(); e = e.nextSiblingElement() )
     {
       const int entityAddedVersion = e.attribute( QStringLiteral( "addedVersion" ) ).toInt();
       if ( entityAddedVersion != 0 && sinceVersion != -1 && entityAddedVersion <= sinceVersion )
@@ -2786,7 +2786,6 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
       {
         QgsDebugMsg( "unknown tag: " + e.tagName() );
       }
-      e = e.nextSiblingElement();
     }
   }
   else
@@ -2804,7 +2803,7 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
   // load color ramps
   QDomElement rampsElement = docEl.firstChildElement( QStringLiteral( "colorramps" ) );
   e = rampsElement.firstChildElement();
-  while ( !e.isNull() )
+  for ( ; !e.isNull(); e = e.nextSiblingElement() )
   {
     const int entityAddedVersion = e.attribute( QStringLiteral( "addedVersion" ) ).toInt();
     if ( entityAddedVersion != 0 && sinceVersion != -1 && entityAddedVersion <= sinceVersion )
@@ -2841,7 +2840,6 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
     {
       QgsDebugMsg( "unknown tag: " + e.tagName() );
     }
-    e = e.nextSiblingElement();
   }
 
   // load text formats
@@ -2853,7 +2851,7 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
     {
       const QDomElement textFormatElement = docEl.firstChildElement( QStringLiteral( "textformats" ) );
       e = textFormatElement.firstChildElement();
-      while ( !e.isNull() )
+      for ( ; !e.isNull(); e = e.nextSiblingElement() )
       {
         const int entityAddedVersion = e.attribute( QStringLiteral( "addedVersion" ) ).toInt();
         if ( entityAddedVersion != 0 && sinceVersion != -1 && entityAddedVersion <= sinceVersion )
@@ -2889,7 +2887,6 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
         {
           QgsDebugMsg( "unknown tag: " + e.tagName() );
         }
-        e = e.nextSiblingElement();
       }
     }
 
@@ -2898,7 +2895,7 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
     {
       const QDomElement labelSettingsElement = docEl.firstChildElement( QStringLiteral( "labelsettings" ) );
       e = labelSettingsElement.firstChildElement();
-      while ( !e.isNull() )
+      for ( ; !e.isNull(); e = e.nextSiblingElement() )
       {
         const int entityAddedVersion = e.attribute( QStringLiteral( "addedVersion" ) ).toInt();
         if ( entityAddedVersion != 0 && sinceVersion != -1 && entityAddedVersion <= sinceVersion )
@@ -2934,7 +2931,6 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
         {
           QgsDebugMsg( "unknown tag: " + e.tagName() );
         }
-        e = e.nextSiblingElement();
       }
     }
   }
@@ -2944,7 +2940,7 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
   {
     const QDomElement legendPatchShapesElement = docEl.firstChildElement( QStringLiteral( "legendpatchshapes" ) );
     e = legendPatchShapesElement.firstChildElement();
-    while ( !e.isNull() )
+    for ( ; !e.isNull(); e = e.nextSiblingElement() )
     {
       const int entityAddedVersion = e.attribute( QStringLiteral( "addedVersion" ) ).toInt();
       if ( entityAddedVersion != 0 && sinceVersion != -1 && entityAddedVersion <= sinceVersion )
@@ -2980,7 +2976,6 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
       {
         QgsDebugMsg( "unknown tag: " + e.tagName() );
       }
-      e = e.nextSiblingElement();
     }
   }
 
@@ -2989,7 +2984,7 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
   {
     const QDomElement symbols3DElement = docEl.firstChildElement( QStringLiteral( "symbols3d" ) );
     e = symbols3DElement.firstChildElement();
-    while ( !e.isNull() )
+    for ( ; !e.isNull(); e = e.nextSiblingElement() )
     {
       const int entityAddedVersion = e.attribute( QStringLiteral( "addedVersion" ) ).toInt();
       if ( entityAddedVersion != 0 && sinceVersion != -1 && entityAddedVersion <= sinceVersion )
@@ -3030,7 +3025,6 @@ bool QgsStyle::importXml( const QString &filename, int sinceVersion )
       {
         QgsDebugMsg( "unknown tag: " + e.tagName() );
       }
-      e = e.nextSiblingElement();
     }
   }
 

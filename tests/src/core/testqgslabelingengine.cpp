@@ -34,6 +34,9 @@
 #include "qgslabelingresults.h"
 #include "qgscallout.h"
 #include "qgslinesymbol.h"
+#include "qgsmarkersymbol.h"
+#include "qgsmarkersymbollayer.h"
+#include "qgsfillsymbol.h"
 
 class TestQgsLabelingEngine : public QObject
 {
@@ -47,6 +50,7 @@ class TestQgsLabelingEngine : public QObject
     void init();// will be called before each testfunction is executed.
     void cleanup();// will be called after every testfunction.
     void testEngineSettings();
+    void testScaledFont();
     void testBasic();
     void testDiagrams();
     void testRuleBased();
@@ -96,6 +100,8 @@ class TestQgsLabelingEngine : public QObject
     void testLineAnchorHorizontalConstraints();
     void testLineAnchorClipping();
     void testShowAllLabelsWhenALabelHasNoCandidates();
+    void testSymbologyScalingFactor();
+    void testSymbologyScalingFactor2();
 
   private:
     QgsVectorLayer *vl = nullptr;
@@ -121,7 +127,7 @@ void TestQgsLabelingEngine::initTestCase()
 void TestQgsLabelingEngine::cleanupTestCase()
 {
   QgsApplication::exitQgis();
-  QString myReportFile = QDir::tempPath() + "/qgistest.html";
+  const QString myReportFile = QDir::tempPath() + "/qgistest.html";
   QFile myFile( myReportFile );
   if ( myFile.open( QIODevice::WriteOnly | QIODevice::Append ) )
   {
@@ -133,7 +139,7 @@ void TestQgsLabelingEngine::cleanupTestCase()
 
 void TestQgsLabelingEngine::init()
 {
-  QString filename = QStringLiteral( TEST_DATA_DIR ) + "/points.shp";
+  const QString filename = QStringLiteral( TEST_DATA_DIR ) + "/points.shp";
   vl = new QgsVectorLayer( filename, QStringLiteral( "points" ), QStringLiteral( "ogr" ) );
   QVERIFY( vl->isValid() );
   QgsProject::instance()->addMapLayer( vl );
@@ -209,6 +215,36 @@ void TestQgsLabelingEngine::testEngineSettings()
   QCOMPARE( settings3.placementVersion(), QgsLabelingEngineSettings::PlacementEngineVersion1 );
 }
 
+void TestQgsLabelingEngine::testScaledFont()
+{
+  QgsTextFormat format;
+  format.setFont( QgsFontUtils::getStandardTestFont( QStringLiteral( "Bold" ) ).family() );
+  format.setSize( 9.9 );
+  format.setSizeUnit( QgsUnitTypes::RenderUnit::RenderPixels );
+
+  bool isNullSize = true;
+
+  QgsRenderContext context;
+  QFont f = format.scaledFont( context, 1.0, &isNullSize );
+  QCOMPARE( f.pixelSize(), 10 );
+  QVERIFY( !isNullSize );
+
+  isNullSize = true;
+  f = format.scaledFont( context, 10.0, &isNullSize );
+  QCOMPARE( f.pixelSize(), 100 );
+  QVERIFY( !isNullSize );
+
+  isNullSize = false;
+  format.setSize( 0 );
+  format.scaledFont( context, 1.0, &isNullSize );
+  QVERIFY( isNullSize );
+
+  isNullSize = false;
+  format.scaledFont( context, 10.0, &isNullSize );
+  QVERIFY( isNullSize );
+};
+
+
 void TestQgsLabelingEngine::setDefaultLabelParams( QgsPalLayerSettings &settings )
 {
   QgsTextFormat format;
@@ -228,7 +264,7 @@ QgsLabelingEngineSettings TestQgsLabelingEngine::createLabelEngineSettings()
 
 void TestQgsLabelingEngine::testBasic()
 {
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -280,7 +316,7 @@ void TestQgsLabelingEngine::testBasic()
 
 void TestQgsLabelingEngine::testDiagrams()
 {
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -325,7 +361,7 @@ void TestQgsLabelingEngine::testDiagrams()
 
 void TestQgsLabelingEngine::testRuleBased()
 {
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -379,15 +415,15 @@ void TestQgsLabelingEngine::testRuleBased()
 
   // test read/write rules
   QDomDocument doc, doc2, doc3;
-  QDomElement e = vl->labeling()->save( doc, QgsReadWriteContext() );
+  const QDomElement e = vl->labeling()->save( doc, QgsReadWriteContext() );
   doc.appendChild( e );
   // read saved rules
   doc2.setContent( doc.toString() );
-  QDomElement e2 = doc2.documentElement();
+  const QDomElement e2 = doc2.documentElement();
   QgsRuleBasedLabeling *rl2 = QgsRuleBasedLabeling::create( e2, QgsReadWriteContext() );
   QVERIFY( rl2 );
   // check that another save will keep the data the same
-  QDomElement e3 = rl2->save( doc3, QgsReadWriteContext() );
+  const QDomElement e3 = rl2->save( doc3, QgsReadWriteContext() );
   doc3.appendChild( e3 );
   QCOMPARE( doc.toString(), doc3.toString() );
 
@@ -409,7 +445,7 @@ void TestQgsLabelingEngine::testRuleBased()
 
 void TestQgsLabelingEngine::zOrder()
 {
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -477,7 +513,7 @@ void TestQgsLabelingEngine::zOrder()
   engine.addProvider( provider1 );
 
   //add a second layer
-  QString filename = QStringLiteral( TEST_DATA_DIR ) + "/points.shp";
+  const QString filename = QStringLiteral( TEST_DATA_DIR ) + "/points.shp";
   QgsVectorLayer *vl2 = new QgsVectorLayer( filename, QStringLiteral( "points" ), QStringLiteral( "ogr" ) );
   QVERIFY( vl2->isValid() );
   QgsProject::instance()->addMapLayer( vl2 );
@@ -541,7 +577,7 @@ void TestQgsLabelingEngine::testEncodeDecodePositionOrder()
            << QgsPalLayerSettings::TopSlightlyLeft << QgsPalLayerSettings::TopMiddle
            << QgsPalLayerSettings::TopSlightlyRight << QgsPalLayerSettings::TopRight;
   //encode list
-  QString encoded = QgsLabelingUtils::encodePredefinedPositionOrder( original );
+  const QString encoded = QgsLabelingUtils::encodePredefinedPositionOrder( original );
   QVERIFY( !encoded.isEmpty() );
 
   //decode
@@ -575,7 +611,7 @@ void TestQgsLabelingEngine::testSubstitutions()
 {
   QgsPalLayerSettings settings;
   settings.useSubstitutions = false;
-  QgsStringReplacementCollection collection( QList< QgsStringReplacement >() << QgsStringReplacement( QStringLiteral( "aa" ), QStringLiteral( "bb" ) ) );
+  const QgsStringReplacementCollection collection( QList< QgsStringReplacement >() << QgsStringReplacement( QStringLiteral( "aa" ), QStringLiteral( "bb" ) ) );
   settings.substitutions = collection;
   settings.fieldName = QStringLiteral( "'aa label'" );
   settings.isExpression = true;
@@ -585,7 +621,7 @@ void TestQgsLabelingEngine::testSubstitutions()
   f.setGeometry( QgsGeometry::fromPointXY( QgsPointXY( -100, 30 ) ) );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -618,7 +654,7 @@ void TestQgsLabelingEngine::testCapitalization()
   f.setGeometry( QgsGeometry::fromPointXY( QgsPointXY( -100, 30 ) ) );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -725,7 +761,7 @@ void TestQgsLabelingEngine::testNumberFormat()
   f.setGeometry( QgsGeometry::fromPointXY( QgsPointXY( -100, 30 ) ) );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -801,22 +837,22 @@ void TestQgsLabelingEngine::testParticipatingLayers()
   QgsDefaultLabelingEngine engine;
   QVERIFY( engine.participatingLayers().isEmpty() );
 
-  QgsPalLayerSettings settings1;
+  const QgsPalLayerSettings settings1;
   QgsVectorLayerLabelProvider *provider = new QgsVectorLayerLabelProvider( vl, QStringLiteral( "test" ), true, &settings1 );
   engine.addProvider( provider );
   QCOMPARE( engine.participatingLayers(), QList<QgsMapLayer *>() << vl );
 
   QgsVectorLayer *layer2 = new QgsVectorLayer( QStringLiteral( "Point?field=col1:integer" ), QStringLiteral( "layer2" ), QStringLiteral( "memory" ) );
-  QgsPalLayerSettings settings2;
+  const QgsPalLayerSettings settings2;
   QgsVectorLayerLabelProvider *provider2 = new QgsVectorLayerLabelProvider( layer2, QStringLiteral( "test2" ), true, &settings2 );
   engine.addProvider( provider2 );
   QCOMPARE( qgis::listToSet( engine.participatingLayers() ), QSet< QgsMapLayer * >() << vl << layer2 );
 
   // add a rule-based labeling node
   QgsRuleBasedLabeling::Rule *root = new QgsRuleBasedLabeling::Rule( nullptr );
-  QgsPalLayerSettings s1;
+  const QgsPalLayerSettings s1;
   root->appendChild( new QgsRuleBasedLabeling::Rule( new QgsPalLayerSettings( s1 ) ) );
-  QgsPalLayerSettings s2;
+  const QgsPalLayerSettings s2;
   root->appendChild( new QgsRuleBasedLabeling::Rule( new QgsPalLayerSettings( s2 ) ) );
 
   QgsVectorLayer *layer3 = new QgsVectorLayer( QStringLiteral( "Point?field=col1:integer" ), QStringLiteral( "layer3" ), QStringLiteral( "memory" ) );
@@ -835,15 +871,15 @@ bool TestQgsLabelingEngine::imageCheck( const QString &testName, QImage &image, 
   painter.end();
 
   mReport += "<h2>" + testName + "</h2>\n";
-  QString tempDir = QDir::tempPath() + '/';
-  QString fileName = tempDir + testName + ".png";
+  const QString tempDir = QDir::tempPath() + '/';
+  const QString fileName = tempDir + testName + ".png";
   imageWithBackground.save( fileName, "PNG" );
   QgsMultiRenderChecker checker;
   checker.setControlPathPrefix( QStringLiteral( "labelingengine" ) );
   checker.setControlName( "expected_" + testName );
   checker.setRenderedImage( fileName );
   checker.setColorTolerance( 2 );
-  bool resultFlag = checker.runTest( testName, mismatchCount );
+  const bool resultFlag = checker.runTest( testName, mismatchCount );
   mReport += checker.report();
   return resultFlag;
 }
@@ -860,11 +896,11 @@ void TestQgsLabelingEngine::testRegisterFeatureUnprojectible()
   QgsVectorLayerLabelProvider *provider = new QgsVectorLayerLabelProvider( vl2.get(), QStringLiteral( "test" ), true, &settings );
   QgsFeature f( vl2->fields(), 1 );
 
-  QString wkt1 = QStringLiteral( "POLYGON((0 0,8 0,8 -90,0 0))" );
+  const QString wkt1 = QStringLiteral( "POLYGON((0 0,8 0,8 -90,0 0))" );
   f.setGeometry( QgsGeometry().fromWkt( wkt1 ) );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   QgsCoordinateReferenceSystem tgtCrs;
@@ -917,7 +953,7 @@ void TestQgsLabelingEngine::testRotateHidePartial()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   QgsCoordinateReferenceSystem tgtCrs;
@@ -989,7 +1025,7 @@ void TestQgsLabelingEngine::testParallelLabelSmallFeature()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   QgsCoordinateReferenceSystem tgtCrs;
@@ -1056,7 +1092,7 @@ void TestQgsLabelingEngine::testAdjacentParts()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1111,7 +1147,7 @@ void TestQgsLabelingEngine::testTouchingParts()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1178,7 +1214,7 @@ void TestQgsLabelingEngine::testMergingLinesWithForks()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1245,7 +1281,7 @@ void TestQgsLabelingEngine::testMergingLinesWithMinimumSize()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1300,7 +1336,7 @@ void TestQgsLabelingEngine::testCurvedLabelsWithTinySegments()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1349,7 +1385,7 @@ void TestQgsLabelingEngine::testCurvedLabelCorrectLinePlacement()
   QgsFeature f;
   f.setAttributes( QgsAttributes() << 1 );
   // Geometry which roughly curves around from "1 o'clock" anticlockwise to 6 o'clock.
-  QgsGeometry g( QgsGeometry::fromWkt( QStringLiteral( "LineString (0.30541596873255172 0.3835845896147404, -0.08989391401451696 0.21831379117811278, -0.33668341708542704 -0.01619207146845336, -0.156895589056393 -0.20714684533780003, 0.02735901730876611 -0.21496370742601911)" ) ) );
+  const QgsGeometry g( QgsGeometry::fromWkt( QStringLiteral( "LineString (0.30541596873255172 0.3835845896147404, -0.08989391401451696 0.21831379117811278, -0.33668341708542704 -0.01619207146845336, -0.156895589056393 -0.20714684533780003, 0.02735901730876611 -0.21496370742601911)" ) ) );
   f.setGeometry( g );
   QVERIFY( vl2->dataProvider()->addFeature( f ) );
 
@@ -1357,7 +1393,7 @@ void TestQgsLabelingEngine::testCurvedLabelCorrectLinePlacement()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1421,7 +1457,7 @@ void TestQgsLabelingEngine::testCurvedLabelNegativeDistance()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1474,7 +1510,7 @@ void TestQgsLabelingEngine::testCurvedLabelOnSmallLineNearCenter()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1528,7 +1564,7 @@ void TestQgsLabelingEngine::testRepeatDistanceWithSmallLine()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1582,7 +1618,7 @@ void TestQgsLabelingEngine::testParallelPlacementPreferAbove()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -1639,7 +1675,7 @@ void TestQgsLabelingEngine::testLabelBoundary()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   QgsCoordinateReferenceSystem tgtCrs;
@@ -1708,7 +1744,7 @@ void TestQgsLabelingEngine::testLabelBlockingRegion()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   QgsCoordinateReferenceSystem tgtCrs;
@@ -1792,10 +1828,10 @@ void TestQgsLabelingEngine::testLabelRotationWithReprojection()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
-  QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
+  const QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
   mapSettings.setDestinationCrs( tgtCrs );
 
   mapSettings.setOutputSize( size );
@@ -1874,10 +1910,10 @@ void TestQgsLabelingEngine::drawUnplaced()
   vl3->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
-  QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
+  const QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
   mapSettings.setDestinationCrs( tgtCrs );
 
   mapSettings.setOutputSize( size );
@@ -1914,7 +1950,7 @@ void TestQgsLabelingEngine::labelingResults()
   settings.fieldName = QStringLiteral( "\"id\"" );
   settings.isExpression = true;
   settings.placement = QgsPalLayerSettings::OverPoint;
-
+  settings.priority = 10;
 
   std::unique_ptr< QgsVectorLayer> vl2( new QgsVectorLayer( QStringLiteral( "Point?crs=epsg:4326&field=id:integer" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) ) );
   vl2->setRenderer( new QgsNullSymbolRenderer() );
@@ -1931,20 +1967,22 @@ void TestQgsLabelingEngine::labelingResults()
   QVERIFY( vl2->dataProvider()->addFeature( f ) );
   vl2->updateExtents();
 
+  std::unique_ptr< QgsVectorLayer> vl3( vl2->clone() );
+
   vl2->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );  // TODO: this should not be necessary!
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
-  QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
+  const QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
   mapSettings.setDestinationCrs( tgtCrs );
 
   mapSettings.setOutputSize( size );
   mapSettings.setExtent( QgsRectangle( -4137976.6, 6557092.6, 1585557.4, 9656515.0 ) );
 // mapSettings.setRotation( 60 );
-  mapSettings.setLayers( QList<QgsMapLayer *>() << vl2.get() );
+  mapSettings.setLayers( QList<QgsMapLayer *>() << vl2.get() << vl3.get() );
   mapSettings.setOutputDpi( 96 );
 
   QgsLabelingEngineSettings engineSettings = mapSettings.labelingEngineSettings();
@@ -1961,7 +1999,17 @@ void TestQgsLabelingEngine::labelingResults()
   QVERIFY( results );
 
   // retrieve some labels
-  QList<QgsLabelPosition> labels = results->labelsAtPosition( QgsPointXY( -654732, 7003282 ) );
+  QList<QgsLabelPosition> labels = results->allLabels();
+  QCOMPARE( labels.count(), 3 );
+  std::sort( labels.begin(), labels.end(), []( const QgsLabelPosition & a, const QgsLabelPosition & b )
+  {
+    return a.labelText.compare( b.labelText ) < 0;
+  } );
+  QCOMPARE( labels.at( 0 ).labelText, QStringLiteral( "1" ) );
+  QCOMPARE( labels.at( 1 ).labelText, QStringLiteral( "33333" ) );
+  QCOMPARE( labels.at( 2 ).labelText, QStringLiteral( "8888" ) );
+
+  labels = results->labelsAtPosition( QgsPointXY( -654732, 7003282 ) );
   QCOMPARE( labels.count(), 1 );
   QCOMPARE( labels.at( 0 ).featureId, 1 );
   QCOMPARE( labels.at( 0 ).labelText, QStringLiteral( "1" ) );
@@ -2004,6 +2052,41 @@ void TestQgsLabelingEngine::labelingResults()
   QCOMPARE( labels.at( 0 ).rotation, 0.0 );
   labels = results->labelsAtPosition( QgsPointXY( -2463392, 6708478 ) );
   QCOMPARE( labels.count(), 0 );
+
+  // with unplaced labels -- all vl3 labels will be unplaced, because they are conflicting with those in vl2
+  settings.priority = 1;
+  vl3->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );
+  vl3->setLabelsEnabled( true );
+  engineSettings.setFlag( QgsLabelingEngineSettings::CollectUnplacedLabels, true );
+  mapSettings.setLabelingEngineSettings( engineSettings );
+
+  QgsMapRendererSequentialJob jobB( mapSettings );
+  jobB.start();
+  jobB.waitForFinished();
+
+  results.reset( jobB.takeLabelingResults() );
+  QVERIFY( results );
+
+  labels = results->allLabels();
+  QCOMPARE( labels.count(), 6 );
+  std::sort( labels.begin(), labels.end(), []( const QgsLabelPosition & a, const QgsLabelPosition & b )
+  {
+    return a.isUnplaced == b.isUnplaced ? a.labelText.compare( b.labelText ) < 0 : a.isUnplaced < b.isUnplaced;
+  } );
+  QCOMPARE( labels.at( 0 ).labelText, QStringLiteral( "1" ) );
+  QVERIFY( !labels.at( 0 ).isUnplaced );
+  QCOMPARE( labels.at( 1 ).labelText, QStringLiteral( "33333" ) );
+  QVERIFY( !labels.at( 1 ).isUnplaced );
+  QCOMPARE( labels.at( 2 ).labelText, QStringLiteral( "8888" ) );
+  QVERIFY( !labels.at( 2 ).isUnplaced );
+  QCOMPARE( labels.at( 3 ).labelText, QStringLiteral( "1" ) );
+  QVERIFY( labels.at( 3 ).isUnplaced );
+  QCOMPARE( labels.at( 4 ).labelText, QStringLiteral( "33333" ) );
+  QVERIFY( labels.at( 4 ).isUnplaced );
+  QCOMPARE( labels.at( 5 ).labelText, QStringLiteral( "8888" ) );
+  QVERIFY( labels.at( 5 ).isUnplaced );
+
+  mapSettings.setLayers( {vl2.get() } );
 
   // with rotation
   mapSettings.setRotation( 60 );
@@ -2121,10 +2204,10 @@ void TestQgsLabelingEngine::labelingResultsWithCallouts()
   vl3->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
-  QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
+  const QgsCoordinateReferenceSystem tgtCrs( QStringLiteral( "EPSG:3857" ) );
   mapSettings.setDestinationCrs( tgtCrs );
 
   mapSettings.setOutputSize( size );
@@ -2206,9 +2289,9 @@ void TestQgsLabelingEngine::labelingResultsWithCallouts()
 
   callouts = results->calloutsWithinRectangle( mapSettings.visibleExtent() );
   QCOMPARE( callouts.count(), 3 );
-  int callout1Index = callouts.at( 0 ).layerID == vl2->id() ? 0 : callouts.at( 1 ).layerID == vl2->id() ? 1 : 2;
-  int callout2Index = callouts.at( 0 ).layerID == vl3->id() && callouts.at( 0 ).featureId == 1 ? 0 :  callouts.at( 1 ).layerID == vl3->id() && callouts.at( 1 ).featureId == 1 ? 1 : 2;
-  int callout3Index = callouts.at( 0 ).layerID == vl3->id() && callouts.at( 0 ).featureId == 2 ? 0 :  callouts.at( 1 ).layerID == vl3->id() && callouts.at( 1 ).featureId == 2 ? 1 : 2;
+  const int callout1Index = callouts.at( 0 ).layerID == vl2->id() ? 0 : callouts.at( 1 ).layerID == vl2->id() ? 1 : 2;
+  const int callout2Index = callouts.at( 0 ).layerID == vl3->id() && callouts.at( 0 ).featureId == 1 ? 0 :  callouts.at( 1 ).layerID == vl3->id() && callouts.at( 1 ).featureId == 1 ? 1 : 2;
+  const int callout3Index = callouts.at( 0 ).layerID == vl3->id() && callouts.at( 0 ).featureId == 2 ? 0 :  callouts.at( 1 ).layerID == vl3->id() && callouts.at( 1 ).featureId == 2 ? 1 : 2;
   QCOMPARE( callouts.at( callout1Index ).featureId, 1 );
   QCOMPARE( callouts.at( callout1Index ).layerID, vl2->id() );
   QGSCOMPARENEAR( callouts.at( callout1Index ).origin().x(), -1242325.0, 10 );
@@ -2281,7 +2364,7 @@ void TestQgsLabelingEngine::labelingResultsWithCallouts()
 
   callouts = results->calloutsWithinRectangle( mapSettings.visibleExtent() );
   QCOMPARE( callouts.count(), 2 );
-  bool callout1IsFirstLayer = callouts.at( 0 ).layerID == vl2->id();
+  const bool callout1IsFirstLayer = callouts.at( 0 ).layerID == vl2->id();
   QCOMPARE( callouts.at( callout1IsFirstLayer ? 0 : 1 ).featureId, 1 );
   QCOMPARE( callouts.at( callout1IsFirstLayer ? 0 : 1 ).layerID, vl2->id() );
   QGSCOMPARENEAR( callouts.at( callout1IsFirstLayer ? 0 : 1 ).origin().x(), -1242325.0, 10 );
@@ -2555,7 +2638,7 @@ void TestQgsLabelingEngine::curvedOverrun()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setDestinationCrs( vl2->crs() );
 
@@ -2630,7 +2713,7 @@ void TestQgsLabelingEngine::parallelOverrun()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -2709,7 +2792,7 @@ void TestQgsLabelingEngine::testDataDefinedLabelAllParts()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -2736,7 +2819,7 @@ void TestQgsLabelingEngine::testDataDefinedLabelAllParts()
 
 void TestQgsLabelingEngine::testVerticalOrientation()
 {
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -2781,7 +2864,7 @@ void TestQgsLabelingEngine::testVerticalOrientation()
 
 void TestQgsLabelingEngine::testVerticalOrientationLetterLineSpacing()
 {
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -2831,7 +2914,7 @@ void TestQgsLabelingEngine::testVerticalOrientationLetterLineSpacing()
 
 void TestQgsLabelingEngine::testRotationBasedOrientationPoint()
 {
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -2877,12 +2960,12 @@ void TestQgsLabelingEngine::testRotationBasedOrientationPoint()
 
 void TestQgsLabelingEngine::testRotationBasedOrientationLine()
 {
-  QString filename = QStringLiteral( TEST_DATA_DIR ) + "/lines.shp";
+  const QString filename = QStringLiteral( TEST_DATA_DIR ) + "/lines.shp";
   QgsVectorLayer *vl2 = new QgsVectorLayer( filename, QStringLiteral( "lines" ), QStringLiteral( "ogr" ) );
   QVERIFY( vl2->isValid() );
   QgsProject::instance()->addMapLayer( vl2 );
 
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setOutputSize( size );
@@ -2960,7 +3043,7 @@ void TestQgsLabelingEngine::testMapUnitLetterSpacing()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3014,7 +3097,7 @@ void TestQgsLabelingEngine::testMapUnitWordSpacing()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3081,7 +3164,7 @@ void TestQgsLabelingEngine::testClipping()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3151,7 +3234,7 @@ void TestQgsLabelingEngine::testLineAnchorParallel()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3215,7 +3298,7 @@ void TestQgsLabelingEngine::testLineAnchorParallelConstraints()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3297,7 +3380,7 @@ void TestQgsLabelingEngine::testLineAnchorCurved()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3361,7 +3444,7 @@ void TestQgsLabelingEngine::testLineAnchorCurvedConstraints()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3443,7 +3526,7 @@ void TestQgsLabelingEngine::testLineAnchorHorizontal()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3515,7 +3598,7 @@ void TestQgsLabelingEngine::testLineAnchorHorizontalConstraints()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3598,7 +3681,7 @@ void TestQgsLabelingEngine::testLineAnchorClipping()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3659,7 +3742,7 @@ void TestQgsLabelingEngine::testShowAllLabelsWhenALabelHasNoCandidates()
   vl2->setLabelsEnabled( true );
 
   // make a fake render context
-  QSize size( 640, 480 );
+  const QSize size( 640, 480 );
   QgsMapSettings mapSettings;
   mapSettings.setLabelingEngineSettings( createLabelEngineSettings() );
   mapSettings.setDestinationCrs( vl2->crs() );
@@ -3682,6 +3765,133 @@ void TestQgsLabelingEngine::testShowAllLabelsWhenALabelHasNoCandidates()
 
   QImage img = job.renderedImage();
   QVERIFY( imageCheck( QStringLiteral( "show_all_labels_when_no_candidates" ), img, 20 ) );
+}
+
+void TestQgsLabelingEngine::testSymbologyScalingFactor()
+{
+  // test rendering labels with a layer with a reference scale set (with callout)
+  std::unique_ptr< QgsVectorLayer > vl = std::make_unique< QgsVectorLayer >( QStringLiteral( TEST_DATA_DIR ) + "/points.shp", QStringLiteral( "points" ), QStringLiteral( "ogr" ) );
+  QVERIFY( vl->isValid() );
+  QgsMarkerSymbol *marker = static_cast< QgsMarkerSymbol * >( QgsSymbol::defaultSymbol( QgsWkbTypes::PointGeometry ) );
+  marker->setColor( QColor( 255, 0, 0 ) );
+  marker->setSize( 3 );
+  static_cast< QgsSimpleMarkerSymbolLayer * >( marker->symbolLayer( 0 ) )->setStrokeStyle( Qt::NoPen );
+
+  vl->setRenderer( new QgsSingleSymbolRenderer( marker ) );
+
+  const QSize size( 640, 480 );
+  QgsMapSettings mapSettings;
+  mapSettings.setOutputSize( size );
+  mapSettings.setExtent( vl->extent() );
+  mapSettings.setLayers( QList<QgsMapLayer *>() << vl.get() );
+  mapSettings.setOutputDpi( 96 );
+
+  QgsPalLayerSettings settings;
+  settings.fieldName = QStringLiteral( "Class" );
+  settings.placement = QgsPalLayerSettings::AroundPoint;
+  settings.dist = 7;
+
+  QgsTextFormat format;
+  format.setFont( QgsFontUtils::getStandardTestFont( QStringLiteral( "Bold" ) ).family() );
+  format.setSize( 12 );
+  format.setNamedStyle( QStringLiteral( "Bold" ) );
+  format.setColor( QColor( 200, 0, 200 ) );
+
+  format.buffer().setEnabled( true );
+  format.buffer().setSize( 3 );
+  format.buffer().setColor( QColor( 200, 255, 200 ) );
+
+  settings.setFormat( format );
+
+  QgsBalloonCallout *callout = new QgsBalloonCallout();
+  callout->setEnabled( true );
+  callout->setFillSymbol( QgsFillSymbol::createSimple( QVariantMap( { { "color", "#ffcccc"},
+    { "outline-width", "1"}
+  } ) ) );
+  callout->setMargins( QgsMargins( 2, 2, 2, 2 ) );
+
+  settings.setCallout( callout );
+
+  vl->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );
+  vl->setLabelsEnabled( true );
+
+  QgsMapRendererSequentialJob job( mapSettings );
+  job.start();
+  job.waitForFinished();
+
+  QImage img = job.renderedImage();
+  QVERIFY( imageCheck( QStringLiteral( "labeling_reference_scale_not_set" ), img, 20 ) );
+
+  // with reference scale set
+  vl->renderer()->setReferenceScale( mapSettings.scale() * 2 );
+  QgsMapRendererSequentialJob job2( mapSettings );
+  job2.start();
+  job2.waitForFinished();
+
+  img = job2.renderedImage();
+  QVERIFY( imageCheck( QStringLiteral( "labeling_reference_scale_set" ), img, 20 ) );
+}
+
+void TestQgsLabelingEngine::testSymbologyScalingFactor2()
+{
+  // test rendering labels with a layer with a reference scale set (with label background)
+  std::unique_ptr< QgsVectorLayer > vl = std::make_unique< QgsVectorLayer >( QStringLiteral( TEST_DATA_DIR ) + "/points.shp", QStringLiteral( "points" ), QStringLiteral( "ogr" ) );
+  QVERIFY( vl->isValid() );
+  QgsMarkerSymbol *marker = static_cast< QgsMarkerSymbol * >( QgsSymbol::defaultSymbol( QgsWkbTypes::PointGeometry ) );
+  marker->setColor( QColor( 255, 0, 0 ) );
+  marker->setSize( 3 );
+  static_cast< QgsSimpleMarkerSymbolLayer * >( marker->symbolLayer( 0 ) )->setStrokeStyle( Qt::NoPen );
+
+  vl->setRenderer( new QgsSingleSymbolRenderer( marker ) );
+
+  const QSize size( 640, 480 );
+  QgsMapSettings mapSettings;
+  mapSettings.setOutputSize( size );
+  mapSettings.setExtent( vl->extent() );
+  mapSettings.setLayers( QList<QgsMapLayer *>() << vl.get() );
+  mapSettings.setOutputDpi( 96 );
+
+  QgsPalLayerSettings settings;
+  settings.fieldName = QStringLiteral( "Class" );
+  settings.placement = QgsPalLayerSettings::AroundPoint;
+  settings.dist = 7;
+
+  QgsTextFormat format;
+  format.setFont( QgsFontUtils::getStandardTestFont( QStringLiteral( "Bold" ) ).family() );
+  format.setSize( 12 );
+  format.setNamedStyle( QStringLiteral( "Bold" ) );
+  format.setColor( QColor( 200, 0, 200 ) );
+
+  format.buffer().setEnabled( true );
+  format.buffer().setSize( 3 );
+  format.buffer().setColor( QColor( 200, 255, 200 ) );
+
+  format.background().setEnabled( true );
+  format.background().setFillSymbol( QgsFillSymbol::createSimple( QVariantMap( { { "color", "#ffcccc"},
+    { "outline-width", "1"}
+  } ) ) );
+  format.background().setSize( QSizeF( 2, 3 ) );
+
+  settings.setFormat( format );
+
+  vl->setLabeling( new QgsVectorLayerSimpleLabeling( settings ) );
+  vl->setLabelsEnabled( true );
+
+  QgsMapRendererSequentialJob job( mapSettings );
+  job.start();
+  job.waitForFinished();
+
+  QImage img = job.renderedImage();
+  QVERIFY( imageCheck( QStringLiteral( "labeling_reference_scale2_not_set" ), img, 20 ) );
+
+  // with reference scale set
+  vl->renderer()->setReferenceScale( mapSettings.scale() * 2 );
+  QgsMapRendererSequentialJob job2( mapSettings );
+  job2.start();
+  job2.waitForFinished();
+
+  img = job2.renderedImage();
+  QVERIFY( imageCheck( QStringLiteral( "labeling_reference_scale2_set" ), img, 20 ) );
 }
 
 QGSTEST_MAIN( TestQgsLabelingEngine )

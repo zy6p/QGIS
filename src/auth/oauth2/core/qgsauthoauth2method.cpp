@@ -26,6 +26,9 @@
 #include "qgslogger.h"
 #include "qgsmessagelog.h"
 #include "qgssettings.h"
+#ifdef HAVE_GUI
+#include "qgsauthoauth2edit.h"
+#endif
 
 #include <algorithm>
 
@@ -40,8 +43,9 @@
 #include <QInputDialog>
 #endif
 
-static const QString AUTH_METHOD_KEY = QStringLiteral( "OAuth2" );
-static const QString AUTH_METHOD_DESCRIPTION = QStringLiteral( "OAuth2 authentication" );
+const QString QgsAuthOAuth2Method::AUTH_METHOD_KEY = QStringLiteral( "OAuth2" );
+const QString QgsAuthOAuth2Method::AUTH_METHOD_DESCRIPTION = QStringLiteral( "OAuth2 authentication" );
+const QString QgsAuthOAuth2Method::AUTH_METHOD_DISPLAY_DESCRIPTION = tr( "OAuth2 authentication" );
 
 QMap<QString, QgsO2 * > QgsAuthOAuth2Method::sOAuth2ConfigCache =
   QMap<QString, QgsO2 * >();
@@ -63,7 +67,7 @@ QgsAuthOAuth2Method::QgsAuthOAuth2Method()
 
   for ( const QString &cachedirpath : cachedirpaths )
   {
-    QDir cachedir( cachedirpath );
+    const QDir cachedir( cachedirpath );
     if ( !cachedir.mkpath( cachedirpath ) )
     {
       QgsDebugMsg( QStringLiteral( "FAILED to create cache dir: %1" ).arg( cachedirpath ) );
@@ -73,11 +77,11 @@ QgsAuthOAuth2Method::QgsAuthOAuth2Method()
 
 QgsAuthOAuth2Method::~QgsAuthOAuth2Method()
 {
-  QDir tempdir( QgsAuthOAuth2Config::tokenCacheDirectory( true ) );
+  const QDir tempdir( QgsAuthOAuth2Config::tokenCacheDirectory( true ) );
   const QStringList dirlist = tempdir.entryList( QDir::Files | QDir::NoDotAndDotDot );
   for ( const QString &f : dirlist )
   {
-    QString tempfile( tempdir.path() + '/' + f );
+    const QString tempfile( tempdir.path() + '/' + f );
     if ( !QFile::remove( tempfile ) )
     {
       QgsDebugMsg( QStringLiteral( "FAILED to delete temp token cache file: %1" ).arg( tempfile ) );
@@ -101,7 +105,7 @@ QString QgsAuthOAuth2Method::description() const
 
 QString QgsAuthOAuth2Method::displayDescription() const
 {
-  return tr( "OAuth2 authentication" );
+  return AUTH_METHOD_DISPLAY_DESCRIPTION;
 }
 
 bool QgsAuthOAuth2Method::updateNetworkRequest( QNetworkRequest &request, const QString &authcfg,
@@ -109,7 +113,7 @@ bool QgsAuthOAuth2Method::updateNetworkRequest( QNetworkRequest &request, const 
 {
   Q_UNUSED( dataprovider )
 
-  QMutexLocker locker( &mNetworkRequestMutex );
+  const QMutexLocker locker( &mNetworkRequestMutex );
 
   QString msg;
 
@@ -124,7 +128,7 @@ bool QgsAuthOAuth2Method::updateNetworkRequest( QNetworkRequest &request, const 
   if ( o2->linked() )
   {
     // Check if the cache file has been deleted outside core method routines
-    QString tokencache = QgsAuthOAuth2Config::tokenCachePath( authcfg, !o2->oauth2config()->persistToken() );
+    const QString tokencache = QgsAuthOAuth2Config::tokenCachePath( authcfg, !o2->oauth2config()->persistToken() );
     if ( !QFile::exists( tokencache ) )
     {
       msg = QStringLiteral( "Token cache removed for authcfg %1: unlinking authenticator" ).arg( authcfg );
@@ -139,7 +143,7 @@ bool QgsAuthOAuth2Method::updateNetworkRequest( QNetworkRequest &request, const 
     bool expired = false;
     if ( o2->expires() > 0 )  // QStringLiteral("").toInt() result for tokens with no expiration
     {
-      int cursecs = static_cast<int>( QDateTime::currentDateTime().toMSecsSinceEpoch() / 1000 );
+      const int cursecs = static_cast<int>( QDateTime::currentDateTime().toMSecsSinceEpoch() / 1000 );
       const int lExpirationDelay = o2->expirationDelay();
       // try refresh with expired or two minutes to go (or a fraction of the initial expiration delay if it is short)
       const int refreshThreshold = lExpirationDelay > 0 ? std::min( 120, std::max( 2, lExpirationDelay / 10 ) ) : 120;
@@ -186,9 +190,9 @@ bool QgsAuthOAuth2Method::updateNetworkRequest( QNetworkRequest &request, const 
 
 
     QgsSettings settings;
-    QString timeoutkey = QStringLiteral( "qgis/networkAndProxy/networkTimeout" );
-    int prevtimeout = settings.value( timeoutkey, QStringLiteral( "-1" ) ).toInt();
-    int reqtimeout = o2->oauth2config()->requestTimeout() * 1000;
+    const QString timeoutkey = QStringLiteral( "qgis/networkAndProxy/networkTimeout" );
+    const int prevtimeout = settings.value( timeoutkey, QStringLiteral( "-1" ) ).toInt();
+    const int reqtimeout = o2->oauth2config()->requestTimeout() * 1000;
     settings.setValue( timeoutkey, reqtimeout );
 
     // go into local event loop and wait for a fired linking-related slot
@@ -243,7 +247,7 @@ bool QgsAuthOAuth2Method::updateNetworkRequest( QNetworkRequest &request, const 
   }
 
   // update the request
-  QgsAuthOAuth2Config::AccessMethod accessmethod = o2->oauth2config()->accessMethod();
+  const QgsAuthOAuth2Config::AccessMethod accessmethod = o2->oauth2config()->accessMethod();
 
   QUrl url = request.url();
   QUrlQuery query( url );
@@ -292,7 +296,7 @@ bool QgsAuthOAuth2Method::updateNetworkRequest( QNetworkRequest &request, const 
 bool QgsAuthOAuth2Method::updateNetworkReply( QNetworkReply *reply, const QString &authcfg, const QString &dataprovider )
 {
   Q_UNUSED( dataprovider )
-  QMutexLocker locker( &mNetworkRequestMutex );
+  const QMutexLocker locker( &mNetworkRequestMutex );
 
   // TODO: handle token refresh error on the reply, see O2Requestor::onRequestError()
   // Is this doable if the errors are also handled in qgsapp (and/or elsewhere)?
@@ -301,8 +305,8 @@ bool QgsAuthOAuth2Method::updateNetworkReply( QNetworkReply *reply, const QStrin
 
   if ( !reply )
   {
-    QString msg = QStringLiteral( "Updated reply with token refresh connection FAILED"
-                                  " for authcfg %1: null reply object" ).arg( authcfg );
+    const QString msg = QStringLiteral( "Updated reply with token refresh connection FAILED"
+                                        " for authcfg %1: null reply object" ).arg( authcfg );
     QgsMessageLog::logMessage( msg, AUTH_METHOD_KEY, Qgis::MessageLevel::Warning );
     return false;
   }
@@ -315,7 +319,7 @@ bool QgsAuthOAuth2Method::updateNetworkReply( QNetworkReply *reply, const QStrin
   //         this, &QgsAuthOAuth2Method::onNetworkError, Qt::QueuedConnection );
 
 #ifdef QGISDEBUG
-  QString msg = QStringLiteral( "Updated reply with token refresh connection for authcfg: %1" ).arg( authcfg );
+  const QString msg = QStringLiteral( "Updated reply with token refresh connection for authcfg: %1" ).arg( authcfg );
   QgsDebugMsgLevel( msg, 2 );
 #endif
 
@@ -359,7 +363,7 @@ void QgsAuthOAuth2Method::onLinkingSucceeded()
   //QgsDebugMsg( QStringLiteral( "Access token secret: %1" ).arg( o2->tokenSecret() ) );
   //###################### DO NOT LEAVE ME UNCOMMENTED ######################
 
-  QVariantMap extraTokens = o2->extraTokens();
+  const QVariantMap extraTokens = o2->extraTokens();
   if ( !extraTokens.isEmpty() )
   {
     QString msg = QStringLiteral( "Extra tokens in response:\n" );
@@ -379,7 +383,7 @@ void QgsAuthOAuth2Method::onReplyFinished()
   QNetworkReply *reply = qobject_cast<QNetworkReply *>( sender() );
   if ( !reply )
   {
-    QString msg = tr( "Network reply finished but no reply object accessible" );
+    const QString msg = tr( "Network reply finished but no reply object accessible" );
     QgsMessageLog::logMessage( msg, AUTH_METHOD_KEY, Qgis::MessageLevel::Warning );
     return;
   }
@@ -389,9 +393,9 @@ void QgsAuthOAuth2Method::onReplyFinished()
 
 void QgsAuthOAuth2Method::onNetworkError( QNetworkReply::NetworkError err )
 {
-  QMutexLocker locker( &mNetworkRequestMutex );
+  const QMutexLocker locker( &mNetworkRequestMutex );
   QString msg;
-  QPointer<QNetworkReply> reply = qobject_cast<QNetworkReply *>( sender() );
+  const QPointer<QNetworkReply> reply = qobject_cast<QNetworkReply *>( sender() );
   if ( reply.isNull() )
   {
 #ifdef QGISDEBUG
@@ -402,8 +406,8 @@ void QgsAuthOAuth2Method::onNetworkError( QNetworkReply::NetworkError err )
   }
 
   // Grab some reply properties before object is deleted elsewhere
-  QVariant replyStatus = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute );
-  QVariant replyAuthProp = reply->property( "authcfg" );
+  const QVariant replyStatus = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute );
+  const QVariant replyAuthProp = reply->property( "authcfg" );
   const QString replyErrString = reply->errorString();
 
   if ( err != QNetworkReply::NoError && err != QNetworkReply::OperationCanceledError )
@@ -434,7 +438,7 @@ void QgsAuthOAuth2Method::onNetworkError( QNetworkReply::NetworkError err )
       QgsMessageLog::logMessage( msg, AUTH_METHOD_KEY, Qgis::MessageLevel::Warning );
       return;
     }
-    QString authcfg = replyAuthProp.toString();
+    const QString authcfg = replyAuthProp.toString();
     if ( authcfg.isEmpty() )
     {
       msg = tr( "Token refresh FAILED: authcfg empty" );
@@ -467,7 +471,7 @@ void QgsAuthOAuth2Method::onRefreshFinished( QNetworkReply::NetworkError err )
   QNetworkReply *reply = qobject_cast<QNetworkReply *>( sender() );
   if ( !reply )
   {
-    QString msg = tr( "Token refresh finished but no reply object accessible" );
+    const QString msg = tr( "Token refresh finished but no reply object accessible" );
     QgsMessageLog::logMessage( msg, AUTH_METHOD_KEY, Qgis::MessageLevel::Warning );
     return;
   }
@@ -538,13 +542,13 @@ QgsO2 *QgsAuthOAuth2Method::getOAuth2Bundle( const QString &authcfg, bool fullco
     return nullbundle;
   }
 
-  QgsStringMap configmap = mconfig.configMap();
+  const QgsStringMap configmap = mconfig.configMap();
 
   // do loading of method config into oauth2 config
 
   if ( configmap.contains( QStringLiteral( "oauth2config" ) ) )
   {
-    QByteArray configtxt = configmap.value( QStringLiteral( "oauth2config" ) ).toUtf8();
+    const QByteArray configtxt = configmap.value( QStringLiteral( "oauth2config" ) ).toUtf8();
     if ( configtxt.isEmpty() )
     {
       QgsDebugMsg( QStringLiteral( "FAILED to load OAuth2 config: empty config txt" ) );
@@ -565,7 +569,7 @@ QgsO2 *QgsAuthOAuth2Method::getOAuth2Bundle( const QString &authcfg, bool fullco
   else if ( configmap.contains( QStringLiteral( "definedid" ) ) )
   {
     bool ok = false;
-    QString definedid = configmap.value( QStringLiteral( "definedid" ) );
+    const QString definedid = configmap.value( QStringLiteral( "definedid" ) );
     if ( definedid.isEmpty() )
     {
       QgsDebugMsg( QStringLiteral( "FAILED to load a defined ID for OAuth2 config" ) );
@@ -573,13 +577,13 @@ QgsO2 *QgsAuthOAuth2Method::getOAuth2Bundle( const QString &authcfg, bool fullco
       return nullbundle;
     }
 
-    QString extradir = configmap.value( QStringLiteral( "defineddirpath" ) );
+    const QString extradir = configmap.value( QStringLiteral( "defineddirpath" ) );
     if ( extradir.isEmpty() )
     {
       QgsDebugMsg( QStringLiteral( "No custom defined dir path to load OAuth2 config" ) );
     }
 
-    QgsStringMap definedcache = QgsAuthOAuth2Config::mappedOAuth2ConfigsCache( this, extradir );
+    const QgsStringMap definedcache = QgsAuthOAuth2Config::mappedOAuth2ConfigsCache( this, extradir );
 
     if ( !definedcache.contains( definedid ) )
     {
@@ -588,7 +592,7 @@ QgsO2 *QgsAuthOAuth2Method::getOAuth2Bundle( const QString &authcfg, bool fullco
       return nullbundle;
     }
 
-    QByteArray definedtxt = definedcache.value( definedid ).toUtf8();
+    const QByteArray definedtxt = definedcache.value( definedid ).toUtf8();
     if ( definedtxt.isNull() || definedtxt.isEmpty() )
     {
       QgsDebugMsg( QStringLiteral( "FAILED to load config text for defined ID: empty text for %1" ).arg( definedid ) );
@@ -603,10 +607,10 @@ QgsO2 *QgsAuthOAuth2Method::getOAuth2Bundle( const QString &authcfg, bool fullco
       return nullbundle;
     }
 
-    QByteArray querypairstxt = configmap.value( QStringLiteral( "querypairs" ) ).toUtf8();
+    const QByteArray querypairstxt = configmap.value( QStringLiteral( "querypairs" ) ).toUtf8();
     if ( !querypairstxt.isNull() && !querypairstxt.isEmpty() )
     {
-      QVariantMap querypairsmap =
+      const QVariantMap querypairsmap =
         QgsAuthOAuth2Config::variantFromSerialized( querypairstxt, QgsAuthOAuth2Config::JSON, &ok );
       if ( !ok )
       {
@@ -656,47 +660,21 @@ void QgsAuthOAuth2Method::removeOAuth2Bundle( const QString &authcfg )
   }
 }
 
+#ifdef HAVE_GUI
+QWidget *QgsAuthOAuth2Method::editWidget( QWidget *parent ) const
+{
+  return new QgsAuthOAuth2Edit( parent );
+}
+#endif
 
 //////////////////////////////////////////////
 // Plugin externals
 //////////////////////////////////////////////
 
-/**
- * Required class factory to return a pointer to a newly created object
- */
-QGISEXTERN QgsAuthOAuth2Method *classFactory()
-{
-  return new QgsAuthOAuth2Method();
-}
 
-/**
- * Required key function (used to map the plugin to a data store type)
- */
-QGISEXTERN QString authMethodKey()
+#ifndef HAVE_STATIC_PROVIDERS
+QGISEXTERN QgsAuthMethodMetadata *authMethodMetadataFactory()
 {
-  return AUTH_METHOD_KEY;
+  return new QgsAuthOAuth2MethodMetadata();
 }
-
-/**
- * Required description function
- */
-QGISEXTERN QString description()
-{
-  return AUTH_METHOD_DESCRIPTION;
-}
-
-/**
- * Required isAuthMethod function. Used to determine if this shared library
- * is an authentication method plugin
- */
-QGISEXTERN bool isAuthMethod()
-{
-  return true;
-}
-
-/**
- * Required cleanup function
- */
-QGISEXTERN void cleanupAuthMethod() // pass QgsAuthMethod *method, then delete method  ?
-{
-}
+#endif

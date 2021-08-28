@@ -92,19 +92,19 @@ void QgsMapCanvasTracer::reportError( QgsTracer::PathError err, bool addingVerte
   if ( message.isEmpty() )
     return;
 
-  mLastMessage = new QgsMessageBarItem( tr( "Tracing" ), message, Qgis::Warning, QgsMessageBar::defaultMessageTimeout( Qgis::Info ) );
+  mLastMessage = new QgsMessageBarItem( tr( "Tracing" ), message, Qgis::MessageLevel::Warning, QgsMessageBar::defaultMessageTimeout( Qgis::MessageLevel::Info ) );
   mMessageBar->pushItem( mLastMessage );
 }
 
 void QgsMapCanvasTracer::configure()
 {
   setDestinationCrs( mCanvas->mapSettings().destinationCrs(), mCanvas->mapSettings().transformContext() );
-  QgsRenderContext ctx = QgsRenderContext::fromMapSettings( mCanvas->mapSettings() );
+  const QgsRenderContext ctx = QgsRenderContext::fromMapSettings( mCanvas->mapSettings() );
   setRenderContext( &ctx );
   setExtent( mCanvas->extent() );
 
   QList<QgsVectorLayer *> layers;
-  QList<QgsMapLayer *> visibleLayers = mCanvas->mapSettings().layers();
+  const QList<QgsMapLayer *> visibleLayers = mCanvas->mapSettings().layers();
 
   switch ( mCanvas->snappingUtils()->config().mode() )
   {

@@ -140,6 +140,8 @@ Returns the flags for this layer.
    For instance, even if the Removable flag is not set, the layer can still be removed with the API
    but the action will not be listed in the legend menu.
 
+.. seealso:: :py:func:`properties`
+
 .. versionadded:: 3.4
 %End
 
@@ -153,7 +155,22 @@ Returns the flags for this layer.
    For instance, even if the Removable flag is not set, the layer can still be removed with the API
    but the action will not be listed in the legend menu.
 
+.. seealso:: :py:func:`properties`
+
 .. versionadded:: 3.4
+%End
+
+    virtual Qgis::MapLayerProperties properties() const;
+%Docstring
+Returns the map layer properties of this layer.
+
+.. note::
+
+   :py:func:`~QgsMapLayer.properties` differ from :py:func:`~QgsMapLayer.flags` in that :py:func:`~QgsMapLayer.flags` are user settable, and reflect options that
+   users can enable for map layers. In contrast :py:func:`~QgsMapLayer.properties` are reflections of inherent capabilities
+   for the layer, which cannot be directly changed by users.
+
+.. versionadded:: 3.22
 %End
 
     static QString extensionPropertyType( PropertyType type );
@@ -552,9 +569,33 @@ Set the visibility of the given sublayer name.
 :param visible: sublayer visibility
 %End
 
+    virtual bool supportsEditing() const;
+%Docstring
+Returns whether the layer supports editing or not.
+
+:return: ``False`` if the layer is read only or the data provider has no editing capabilities.
+
+.. note::
+
+   default implementation returns ``False``.
+
+.. versionadded:: 3.22
+%End
+
     virtual bool isEditable() const;
 %Docstring
 Returns ``True`` if the layer can be edited.
+%End
+
+    virtual bool isModified() const;
+%Docstring
+Returns ``True`` if the layer has been modified since last commit/save.
+
+.. note::
+
+   default implementation returns ``False``.
+
+.. versionadded:: 3.22
 %End
 
     virtual bool isSpatial() const;
@@ -579,6 +620,7 @@ or layer with temporary data (as temporary mesh layer dataset)
     {
       FlagDontResolveLayers,
       FlagTrustLayerMetadata,
+      FlagReadExtentFromXml,
     };
     typedef QFlags<QgsMapLayer::ReadFlag> ReadFlags;
 
@@ -670,6 +712,8 @@ Read all custom properties from layer. Properties are stored in a map and saved 
 
 .. versionadded:: 3.14
 %End
+
+
 
     void removeCustomProperty( const QString &key );
 %Docstring
@@ -1011,7 +1055,7 @@ Read the style for the current layer from the DOM node supplied.
     virtual bool writeSymbology( QDomNode &node, QDomDocument &doc, QString &errorMessage, const QgsReadWriteContext &context,
                                  StyleCategories categories = AllStyleCategories ) const = 0;
 %Docstring
-Write the style for the layer into the docment provided.
+Write the style for the layer into the document provided.
 
 :param node: the node that will have the style element added to it.
 :param doc: the document that will have the QDomNode added.
@@ -1406,6 +1450,24 @@ Returns the layer's elevation properties. This may be ``None``, depending on the
 .. versionadded:: 3.18
 %End
 
+    QString legendPlaceholderImage() const;
+%Docstring
+Returns path to the placeholder image or an empty string if a generated legend is shown
+
+:return: placholder image path
+
+.. versionadded:: 3.22
+%End
+
+    void setLegendPlaceholderImage( const QString &imgPath );
+%Docstring
+Set placeholder image for legend. If the string is empty, a generated legend will be shown.
+
+:param imgPath: file path to the placeholder image
+
+.. versionadded:: 3.22
+%End
+
   public slots:
 
     void setMinimumScale( double scale );
@@ -1725,6 +1787,27 @@ Emitted when a custom property of the layer has been changed or removed.
 .. versionadded:: 3.18
 %End
 
+    void editingStarted();
+%Docstring
+Emitted when editing on this layer has started.
+
+.. versionadded:: 3.22
+%End
+
+    void editingStopped();
+%Docstring
+Emitted when edited changes have been successfully written to the data provider.
+
+.. versionadded:: 3.22
+%End
+
+    void layerModified();
+%Docstring
+Emitted when modifications has been done on layer
+
+.. versionadded:: 3.22
+%End
+
   protected:
 
     void clone( QgsMapLayer *layer ) const;
@@ -1868,6 +1951,7 @@ this method is now deprecated and always return ``False``, because circular depe
 
 .. deprecated:: QGIS 3.10
 %End
+
 
 
 

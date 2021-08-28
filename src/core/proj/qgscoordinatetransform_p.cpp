@@ -267,7 +267,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
   QgsReadWriteLocker locker( mProjLock, QgsReadWriteLocker::Read );
 
   PJ_CONTEXT *context = QgsProjContext::get();
-  QMap < uintptr_t, ProjData >::const_iterator it = mProjProjections.constFind( reinterpret_cast< uintptr_t>( context ) );
+  const QMap < uintptr_t, ProjData >::const_iterator it = mProjProjections.constFind( reinterpret_cast< uintptr_t>( context ) );
 
   if ( it != mProjProjections.constEnd() )
   {
@@ -303,7 +303,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
         const QString err = QObject::tr( "Could not use operation specified in project between %1 and %2. (Wanted to use: %3)." ).arg( mSourceCRS.authid(),
                             mDestCRS.authid(),
                             mProjCoordinateOperation );
-        QgsMessageLog::logMessage( err, QString(), Qgis::Critical );
+        QgsMessageLog::logMessage( err, QString(), Qgis::MessageLevel::Critical );
       }
 
       transform.reset();
@@ -337,7 +337,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
       if ( mAvailableOpCount < 1 )
       {
         // huh?
-        int errNo = proj_context_errno( context );
+        const int errNo = proj_context_errno( context );
         if ( errNo && errNo != -61 )
         {
           nonAvailableError = QString( proj_errno_string( errNo ) );
@@ -386,7 +386,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
                   const QString err = QObject::tr( "Cannot create transform between %1 and %2, missing required grid %3" ).arg( mSourceCRS.authid(),
                                       mDestCRS.authid(),
                                       shortName );
-                  QgsMessageLog::logMessage( err, QString(), Qgis::Critical );
+                  QgsMessageLog::logMessage( err, QString(), Qgis::MessageLevel::Critical );
                 }
                 break;
               }
@@ -401,7 +401,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
             {
               const QString err = QObject::tr( "Cannot normalize transform between %1 and %2" ).arg( mSourceCRS.authid(),
                                   mDestCRS.authid() );
-              QgsMessageLog::logMessage( err, QString(), Qgis::Critical );
+              QgsMessageLog::logMessage( err, QString(), Qgis::MessageLevel::Critical );
             }
           }
         }
@@ -419,7 +419,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
           if ( stillLookingForPreferred && transform && !isInstantiable )
           {
             // uh oh :( something is missing blocking us from the preferred operation!
-            QgsDatumTransform::TransformDetails candidate = QgsDatumTransform::transformDetailsFromPj( transform.get() );
+            const QgsDatumTransform::TransformDetails candidate = QgsDatumTransform::transformDetailsFromPj( transform.get() );
             if ( !candidate.proj.isEmpty() )
             {
               preferred = candidate;
@@ -438,7 +438,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
         if ( transform && missingPreferred )
         {
           // found a transform, but it's not the preferred
-          QgsDatumTransform::TransformDetails available = QgsDatumTransform::transformDetailsFromPj( transform.get() );
+          const QgsDatumTransform::TransformDetails available = QgsDatumTransform::transformDetailsFromPj( transform.get() );
           if ( sMissingPreferredGridHandler )
           {
             sMissingPreferredGridHandler( mSourceCRS, mDestCRS, preferred, available );
@@ -449,7 +449,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
                                 mDestCRS.authid(),
                                 available.proj,
                                 preferred.proj );
-            QgsMessageLog::logMessage( err, QString(), Qgis::Critical );
+            QgsMessageLog::logMessage( err, QString(), Qgis::MessageLevel::Critical );
           }
         }
 
@@ -460,7 +460,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
         {
           const QString err = QObject::tr( "Cannot normalize transform between %1 and %2" ).arg( mSourceCRS.authid(),
                               mDestCRS.authid() );
-          QgsMessageLog::logMessage( err, QString(), Qgis::Critical );
+          QgsMessageLog::logMessage( err, QString(), Qgis::MessageLevel::Critical );
         }
       }
       proj_list_destroy( ops );
@@ -470,7 +470,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
 
   if ( !transform && nonAvailableError.isEmpty() )
   {
-    int errNo = proj_context_errno( context );
+    const int errNo = proj_context_errno( context );
     if ( errNo && errNo != -61 )
     {
       nonAvailableError = QString( proj_errno_string( errNo ) );
@@ -502,7 +502,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalProjData()
       const QString err = QObject::tr( "Cannot create transform between %1 and %2: %3" ).arg( mSourceCRS.authid(),
                           mDestCRS.authid(),
                           nonAvailableError );
-      QgsMessageLog::logMessage( err, QString(), Qgis::Critical );
+      QgsMessageLog::logMessage( err, QString(), Qgis::MessageLevel::Critical );
     }
   }
 
@@ -525,7 +525,7 @@ ProjData QgsCoordinateTransformPrivate::threadLocalFallbackProjData()
   QgsReadWriteLocker locker( mProjLock, QgsReadWriteLocker::Read );
 
   PJ_CONTEXT *context = QgsProjContext::get();
-  QMap < uintptr_t, ProjData >::const_iterator it = mProjFallbackProjections.constFind( reinterpret_cast< uintptr_t>( context ) );
+  const QMap < uintptr_t, ProjData >::const_iterator it = mProjFallbackProjections.constFind( reinterpret_cast< uintptr_t>( context ) );
 
   if ( it != mProjFallbackProjections.constEnd() )
   {
@@ -572,7 +572,7 @@ void QgsCoordinateTransformPrivate::setDynamicCrsToDynamicCrsWarningHandler( con
 
 void QgsCoordinateTransformPrivate::freeProj()
 {
-  QgsReadWriteLocker locker( mProjLock, QgsReadWriteLocker::Write );
+  const QgsReadWriteLocker locker( mProjLock, QgsReadWriteLocker::Write );
   if ( mProjProjections.isEmpty() && mProjFallbackProjections.isEmpty() )
     return;
   QMap < uintptr_t, ProjData >::const_iterator it = mProjProjections.constBegin();
@@ -603,7 +603,7 @@ void QgsCoordinateTransformPrivate::freeProj()
 
 bool QgsCoordinateTransformPrivate::removeObjectsBelongingToCurrentThread( void *pj_context )
 {
-  QgsReadWriteLocker locker( mProjLock, QgsReadWriteLocker::Write );
+  const QgsReadWriteLocker locker( mProjLock, QgsReadWriteLocker::Write );
 
   QMap < uintptr_t, ProjData >::iterator it = mProjProjections.find( reinterpret_cast< uintptr_t>( pj_context ) );
   if ( it != mProjProjections.end() )

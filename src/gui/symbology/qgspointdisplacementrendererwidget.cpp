@@ -71,11 +71,13 @@ QgsPointDisplacementRendererWidget::QgsPointDisplacementRendererWidget( QgsVecto
 
   if ( renderer )
   {
-    mRenderer = QgsPointDisplacementRenderer::convertFromRenderer( renderer );
+    mRenderer.reset( QgsPointDisplacementRenderer::convertFromRenderer( renderer ) );
   }
   if ( !mRenderer )
   {
-    mRenderer = new QgsPointDisplacementRenderer();
+    mRenderer = std::make_unique< QgsPointDisplacementRenderer >();
+    if ( renderer )
+      renderer->copyRendererData( mRenderer.get() );
   }
 
   blockAllSignals( true );
@@ -94,7 +96,7 @@ QgsPointDisplacementRendererWidget::QgsPointDisplacementRendererWidget( QgsVecto
     }
     mLabelFieldComboBox->addItem( tr( "None" ) );
 
-    QString currentLabelAttribute = mRenderer->labelAttributeName();
+    const QString currentLabelAttribute = mRenderer->labelAttributeName();
     if ( !currentLabelAttribute.isEmpty() )
     {
       mLabelFieldComboBox->setCurrentIndex( mLabelFieldComboBox->findText( currentLabelAttribute ) );
@@ -106,7 +108,7 @@ QgsPointDisplacementRendererWidget::QgsPointDisplacementRendererWidget( QgsVecto
   }
 
   //insert possible renderer types
-  QStringList rendererList = QgsApplication::rendererRegistry()->renderersList( QgsRendererAbstractMetadata::PointLayer );
+  const QStringList rendererList = QgsApplication::rendererRegistry()->renderersList( QgsRendererAbstractMetadata::PointLayer );
   QStringList::const_iterator it = rendererList.constBegin();
   for ( ; it != rendererList.constEnd(); ++it )
   {
@@ -159,8 +161,8 @@ QgsPointDisplacementRendererWidget::QgsPointDisplacementRendererWidget( QgsVecto
   //set the appropriate renderer dialog
   if ( mRenderer->embeddedRenderer() )
   {
-    QString rendererName = mRenderer->embeddedRenderer()->type();
-    int rendererIndex = mRendererComboBox->findData( rendererName );
+    const QString rendererName = mRenderer->embeddedRenderer()->type();
+    const int rendererIndex = mRendererComboBox->findData( rendererName );
     if ( rendererIndex != -1 )
     {
       mRendererComboBox->setCurrentIndex( rendererIndex );
@@ -176,14 +178,11 @@ QgsPointDisplacementRendererWidget::QgsPointDisplacementRendererWidget( QgsVecto
   mCenterSymbolToolButton->registerExpressionContextGenerator( this );
 }
 
-QgsPointDisplacementRendererWidget::~QgsPointDisplacementRendererWidget()
-{
-  delete mRenderer;
-}
+QgsPointDisplacementRendererWidget::~QgsPointDisplacementRendererWidget() = default;
 
 QgsFeatureRenderer *QgsPointDisplacementRendererWidget::renderer()
 {
-  return mRenderer;
+  return mRenderer.get();
 }
 
 void QgsPointDisplacementRendererWidget::setContext( const QgsSymbolWidgetContext &context )
@@ -241,12 +240,12 @@ void QgsPointDisplacementRendererWidget::mLabelFieldComboBox_currentIndexChanged
 
 void QgsPointDisplacementRendererWidget::mRendererComboBox_currentIndexChanged( int index )
 {
-  QString rendererId = mRendererComboBox->itemData( index ).toString();
+  const QString rendererId = mRendererComboBox->itemData( index ).toString();
   QgsRendererAbstractMetadata *m = QgsApplication::rendererRegistry()->rendererMetadata( rendererId );
   if ( m )
   {
     // unfortunately renderer conversion is only available through the creation of a widget...
-    std::unique_ptr< QgsFeatureRenderer> oldRenderer( mRenderer->embeddedRenderer()->clone() );
+    const std::unique_ptr< QgsFeatureRenderer> oldRenderer( mRenderer->embeddedRenderer()->clone() );
     QgsRendererWidget *tempRenderWidget = m->createRendererWidget( mLayer, mStyle, oldRenderer.get() );
     mRenderer->setEmbeddedRenderer( tempRenderWidget->renderer()->clone() );
     delete tempRenderWidget;
@@ -282,6 +281,7 @@ void QgsPointDisplacementRendererWidget::mRendererSettingsButton_clicked()
     QList< QgsExpressionContextScope > scopes = context.additionalExpressionContextScopes();
     scopes << scope;
     context.setAdditionalExpressionContextScopes( scopes );
+    w->disableSymbolLevels();
     w->setContext( context );
 
     connect( w, &QgsPanelWidget::widgetChanged, this, &QgsPointDisplacementRendererWidget::updateRendererFromWidget );

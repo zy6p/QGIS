@@ -21,6 +21,7 @@
 #include "qgsmaplayer.h"
 #include "qgsexception.h"
 #include "qgsabstractdatabaseproviderconnection.h"
+#include "qgsprovidersublayerdetails.h"
 
 QgsProviderMetadata::QgsProviderMetadata( QString const &key,
     QString const &description,
@@ -106,6 +107,16 @@ bool QgsProviderMetadata::uriIsBlocklisted( const QString & ) const
   return false;
 }
 
+QStringList QgsProviderMetadata::sidecarFilesForUri( const QString & ) const
+{
+  return QStringList();
+}
+
+QList<QgsProviderSublayerDetails> QgsProviderMetadata::querySublayers( const QString &, Qgis::SublayerQueryFlags, QgsFeedback * ) const
+{
+  return QList<QgsProviderSublayerDetails>();
+}
+
 QgsDataProvider *QgsProviderMetadata::createProvider( const QString &uri,
     const QgsDataProvider::ProviderOptions &options,
     QgsDataProvider::ReadFlags flags )
@@ -181,11 +192,17 @@ QgsRasterDataProvider *QgsProviderMetadata::createRasterDataProvider(
   return nullptr;
 }
 
-bool QgsProviderMetadata::createMeshData(
-  const QgsMesh &,
-  const QString,
-  const QString &,
-  const QgsCoordinateReferenceSystem & ) const
+bool QgsProviderMetadata::createMeshData( const QgsMesh &,
+    const QString &,
+    const QString &,
+    const QgsCoordinateReferenceSystem & ) const
+{
+  return false;
+}
+
+bool QgsProviderMetadata::createMeshData( const QgsMesh &,
+    const QString &,
+    const QgsCoordinateReferenceSystem & ) const
 {
   return false;
 }
@@ -333,8 +350,29 @@ QMap<QString, T *> QgsProviderMetadata::connections( bool cached )
 
 QgsMeshDriverMetadata::QgsMeshDriverMetadata() = default;
 
-QgsMeshDriverMetadata::QgsMeshDriverMetadata( const QString &name, const QString &description, const MeshDriverCapabilities &capabilities, const QString &writeDatasetOnfileSuffix )
-  : mName( name ), mDescription( description ), mCapabilities( capabilities ), mWriteDatasetOnFileSuffix( writeDatasetOnfileSuffix )
+QgsMeshDriverMetadata::QgsMeshDriverMetadata( const QString &name,
+    const QString &description,
+    const MeshDriverCapabilities &capabilities,
+    const QString &writeDatasetOnfileSuffix )
+  : mName( name )
+  , mDescription( description )
+  , mCapabilities( capabilities )
+  , mWriteDatasetOnFileSuffix( writeDatasetOnfileSuffix )
+{
+}
+
+QgsMeshDriverMetadata::QgsMeshDriverMetadata( const QString &name,
+    const QString &description,
+    const MeshDriverCapabilities &capabilities,
+    const QString &writeDatasetOnfileSuffix,
+    const QString &writeMeshFrameOnFileSuffix,
+    int maxVerticesPerface )
+  : mName( name )
+  , mDescription( description )
+  , mCapabilities( capabilities )
+  , mWriteDatasetOnFileSuffix( writeDatasetOnfileSuffix )
+  , mWriteMeshFrameOnFileSuffix( ( writeMeshFrameOnFileSuffix ) )
+  , mMaxVerticesPerFace( maxVerticesPerface )
 {
 }
 
@@ -356,4 +394,14 @@ QString QgsMeshDriverMetadata::description() const
 QString QgsMeshDriverMetadata::writeDatasetOnFileSuffix() const
 {
   return mWriteDatasetOnFileSuffix;
+}
+
+QString QgsMeshDriverMetadata::writeMeshFrameOnFileSuffix() const
+{
+  return mWriteMeshFrameOnFileSuffix;
+}
+
+int QgsMeshDriverMetadata::maximumVerticesCountPerFace() const
+{
+  return mMaxVerticesPerFace;
 }

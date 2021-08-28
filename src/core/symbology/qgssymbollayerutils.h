@@ -48,6 +48,7 @@ class QPointF;
 class QSize;
 class QMimeData;
 class QgsFeatureRenderer;
+class QgsSymbolLayerId;
 
 /**
  * \ingroup core
@@ -56,14 +57,6 @@ class QgsFeatureRenderer;
 class CORE_EXPORT QgsSymbolLayerUtils
 {
   public:
-
-    //! Editing vertex markers
-    enum VertexMarkerType
-    {
-      SemiTransparentCircle,
-      Cross,
-      NoMarker
-    };
 
     static QString encodeColor( const QColor &color );
     static QColor decodeColor( const QString &str );
@@ -302,7 +295,7 @@ class CORE_EXPORT QgsSymbolLayerUtils
      * Draws a vertex symbol at (painter) coordinates x, y. (Useful to assist vertex editing.)
      * \since QGIS 3.4.5
      */
-    static void drawVertexMarker( double x, double y, QPainter &p, QgsSymbolLayerUtils::VertexMarkerType type, int markerSize );
+    static void drawVertexMarker( double x, double y, QPainter &p, Qgis::VertexMarkerType type, int markerSize );
 
     //! Returns the maximum estimated bleed for the symbol
     static double estimateMaxSymbolBleed( QgsSymbol *symbol, const QgsRenderContext &context );
@@ -831,19 +824,19 @@ class CORE_EXPORT QgsSymbolLayerUtils
 #ifndef SIP_RUN
     static QgsProperty rotateWholeSymbol( double additionalRotation, const QgsProperty &property )
     {
-      QString exprString = property.asExpression();
+      const QString exprString = property.asExpression();
       return QgsProperty::fromExpression( QString::number( additionalRotation ) + " + (" + exprString + ')' );
     }
 
     static QgsProperty scaleWholeSymbol( double scaleFactor, const QgsProperty &property )
     {
-      QString exprString = property.asExpression();
+      const QString exprString = property.asExpression();
       return QgsProperty::fromExpression( QString::number( scaleFactor ) + "*(" + exprString + ')' );
     }
 
     static QgsProperty scaleWholeSymbol( double scaleFactorX, double scaleFactorY, const QgsProperty &property )
     {
-      QString exprString = property.asExpression();
+      const QString exprString = property.asExpression();
       return QgsProperty::fromExpression(
                ( !qgsDoubleNear( scaleFactorX, 0.0 ) ? "tostring(" + QString::number( scaleFactorX ) + "*(" + exprString + "))" : QStringLiteral( "'0'" ) ) +
                "|| ',' || " +
