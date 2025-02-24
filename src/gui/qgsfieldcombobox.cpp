@@ -14,6 +14,7 @@
 ***************************************************************************/
 
 #include "qgsfieldcombobox.h"
+#include "moc_qgsfieldcombobox.cpp"
 #include "qgsfieldproxymodel.h"
 #include "qgsmaplayer.h"
 #include "qgsvectorlayer.h"
@@ -25,7 +26,7 @@ QgsFieldComboBox::QgsFieldComboBox( QWidget *parent )
   mFieldProxyModel = new QgsFieldProxyModel( this );
   setModel( mFieldProxyModel );
 
-  connect( this, static_cast < void ( QComboBox::* )( int ) > ( &QComboBox::activated ), this, &QgsFieldComboBox::indexChanged );
+  connect( this, static_cast<void ( QComboBox::* )( int )>( &QComboBox::activated ), this, &QgsFieldComboBox::indexChanged );
 }
 
 void QgsFieldComboBox::setFilters( QgsFieldProxyModel::Filters filters )
@@ -67,10 +68,10 @@ QgsFields QgsFieldComboBox::fields() const
 void QgsFieldComboBox::setField( const QString &fieldName )
 {
   const QString prevField = currentField();
-  QModelIndex idx = mFieldProxyModel->sourceFieldModel()->indexFromName( fieldName );
+  const QModelIndex idx = mFieldProxyModel->sourceFieldModel()->indexFromName( fieldName );
   if ( idx.isValid() )
   {
-    QModelIndex proxyIdx = mFieldProxyModel->mapFromSource( idx );
+    const QModelIndex proxyIdx = mFieldProxyModel->mapFromSource( idx );
     if ( proxyIdx.isValid() )
     {
       setCurrentIndex( proxyIdx.row() );
@@ -91,7 +92,7 @@ void QgsFieldComboBox::setField( const QString &fieldName )
 
 QString QgsFieldComboBox::currentField() const
 {
-  int i = currentIndex();
+  const int i = currentIndex();
 
   const QModelIndex proxyIndex = mFieldProxyModel->index( i, 0 );
   if ( !proxyIndex.isValid() )
@@ -99,13 +100,13 @@ QString QgsFieldComboBox::currentField() const
     return QString();
   }
 
-  QString name = mFieldProxyModel->data( proxyIndex, QgsFieldModel::FieldNameRole ).toString();
+  QString name = mFieldProxyModel->data( proxyIndex, static_cast<int>( QgsFieldModel::CustomRole::FieldName ) ).toString();
   return name;
 }
 
 void QgsFieldComboBox::indexChanged( int i )
 {
   Q_UNUSED( i )
-  QString name = currentField();
+  const QString name = currentField();
   emit fieldChanged( name );
 }

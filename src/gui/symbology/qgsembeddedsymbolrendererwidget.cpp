@@ -13,14 +13,11 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsembeddedsymbolrendererwidget.h"
+#include "moc_qgsembeddedsymbolrendererwidget.cpp"
 #include "qgsembeddedsymbolrenderer.h"
 #include "qgsrendererregistry.h"
-
 #include "qgssymbol.h"
-
-#include "qgslogger.h"
 #include "qgsvectorlayer.h"
-#include "qgsapplication.h"
 
 QgsRendererWidget *QgsEmbeddedSymbolRendererWidget::create( QgsVectorLayer *layer, QgsStyle *style, QgsFeatureRenderer *renderer )
 {
@@ -35,10 +32,10 @@ QgsEmbeddedSymbolRendererWidget::QgsEmbeddedSymbolRendererWidget( QgsVectorLayer
     return;
   }
 
-  QgsWkbTypes::GeometryType type = QgsWkbTypes::geometryType( layer->wkbType() );
+  const Qgis::GeometryType type = QgsWkbTypes::geometryType( layer->wkbType() );
 
   // the renderer only applies to layers with providers supporting embedded symbols
-  if ( !( layer->dataProvider()->capabilities() & QgsVectorDataProvider::FeatureSymbology ) )
+  if ( !( layer->dataProvider()->capabilities() & Qgis::VectorProviderCapability::FeatureSymbology ) )
   {
     //setup blank dialog
     mRenderer.reset( nullptr );
@@ -46,9 +43,11 @@ QgsEmbeddedSymbolRendererWidget::QgsEmbeddedSymbolRendererWidget( QgsVectorLayer
     QLabel *label = new QLabel( tr( "The embedded symbols renderer can only be used with layers\n"
                                     "containing embedded styling information.\n\n"
                                     "'%1' does not contain embedded styling and cannot be displayed." )
-                                .arg( layer->name() ), this );
+                                  .arg( layer->name() ),
+                                this );
     this->setLayout( layout );
     layout->addWidget( label );
+    mDefaultSymbolToolButton = nullptr;
     return;
   }
   setupUi( this );
@@ -61,10 +60,12 @@ QgsEmbeddedSymbolRendererWidget::QgsEmbeddedSymbolRendererWidget( QgsVectorLayer
   {
     mRenderer.reset( QgsEmbeddedSymbolRenderer::convertFromRenderer( renderer ) );
   }
-  if ( ! mRenderer )
+  if ( !mRenderer )
   {
     // use default embedded renderer
     mRenderer.reset( new QgsEmbeddedSymbolRenderer( QgsSymbol::defaultSymbol( type ) ) );
+    if ( renderer )
+      renderer->copyRendererData( mRenderer.get() );
   }
 
   mDefaultSymbolToolButton->setSymbol( mRenderer->defaultSymbol()->clone() );
@@ -72,12 +73,13 @@ QgsEmbeddedSymbolRendererWidget::QgsEmbeddedSymbolRendererWidget( QgsVectorLayer
   mDefaultSymbolToolButton->setLayer( mLayer );
   mDefaultSymbolToolButton->registerExpressionContextGenerator( this );
 
-  connect( mDefaultSymbolToolButton, &QgsSymbolButton::changed, this, [ = ]
-  {
+  connect( mDefaultSymbolToolButton, &QgsSymbolButton::changed, this, [=] {
     mRenderer->setDefaultSymbol( mDefaultSymbolToolButton->symbol()->clone() );
     emit widgetChanged();
   } );
 }
+
+QgsEmbeddedSymbolRendererWidget::~QgsEmbeddedSymbolRendererWidget() = default;
 
 QgsFeatureRenderer *QgsEmbeddedSymbolRendererWidget::renderer()
 {
@@ -102,11 +104,10 @@ QgsExpressionContext QgsEmbeddedSymbolRendererWidget::createExpressionContext() 
   else
     context.appendScopes( mContext.globalProjectAtlasMapLayerScopes( mLayer ) );
 
-  const QList< QgsExpressionContextScope > scopes = mContext.additionalExpressionContextScopes();
+  const QList<QgsExpressionContextScope> scopes = mContext.additionalExpressionContextScopes();
   for ( const QgsExpressionContextScope &s : scopes )
   {
     context << new QgsExpressionContextScope( s );
   }
   return context;
 }
-

@@ -30,7 +30,10 @@ class QgsMeshLayer;
 class QgsMapCanvas;
 
 /**
- * Widget for renderer properties of the mesh, contours (scalars)
+ * \ingroup gui
+ * \class QgsRendererMeshPropertiesWidget
+ *
+ * \brief Widget for renderer properties of the mesh, contours (scalars)
  * and vectors data associated with the mesh layer
  */
 class GUI_EXPORT QgsRendererMeshPropertiesWidget : public QgsMapLayerConfigWidget, private Ui::QgsRendererMeshPropsWidgetBase
@@ -38,7 +41,6 @@ class GUI_EXPORT QgsRendererMeshPropertiesWidget : public QgsMapLayerConfigWidge
     Q_OBJECT
 
   public:
-
     /**
      * A widget to hold the renderer properties for a mesh layer.
      * \param layer The mesh layer to style
@@ -47,16 +49,22 @@ class GUI_EXPORT QgsRendererMeshPropertiesWidget : public QgsMapLayerConfigWidge
      */
     QgsRendererMeshPropertiesWidget( QgsMeshLayer *layer, QgsMapCanvas *canvas, QWidget *parent = nullptr );
 
+    /**
+     * Synchronize widgets state with associated map layer
+     *
+     * \since QGIS 3.22, replace syncToLayer() without argument
+     */
+    void syncToLayer( QgsMapLayer *mapLayer ) final;
+
   public slots:
     //! Applies the settings made in the dialog
     void apply() override;
 
-    //! Synchronize widgets state with associated mesh layer
-    void syncToLayer();
-
   private slots:
     void onActiveScalarGroupChanged( int groupIndex );
     void onActiveVectorGroupChanged( int groupIndex );
+
+    void syncToLayerPrivate();
 
   private:
     QgsMeshLayer *mMeshLayer = nullptr; //not owned

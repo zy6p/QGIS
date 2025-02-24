@@ -28,37 +28,45 @@
 #include "qgis.h"
 #include "qgsapplication.h"
 #include "qgsproviderregistry.h"
-#include "qgspdalprovider.h"
 #include "qgsmaplayer.h"
 #include "qgspointcloudlayer.h"
-#include "qgspdaleptgenerationtask.h"
+#include "qgspdalindexingtask.h"
+#include "qgsprovidersublayerdetails.h"
+#include "qgsgeometry.h"
+#include "qgsprovidermetadata.h"
 
 /**
  * \ingroup UnitTests
  * This is a unit test for the PDAL provider
  */
-class TestQgsPdalProvider : public QObject
+class TestQgsPdalProvider : public QgsTest
 {
     Q_OBJECT
 
+  public:
+    TestQgsPdalProvider()
+      : QgsTest( QStringLiteral( "PDAL Provider Tests" ) ) {}
+
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init() {}// will be called before each testfunction is executed.
-    void cleanup() {}// will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init() {}          // will be called before each testfunction is executed.
+    void cleanup() {}       // will be called after every testfunction.
 
     void filters();
     void encodeUri();
     void decodeUri();
     void layerTypesForUri();
     void preferredUri();
+    void querySublayers();
     void brokenPath();
     void validLayer();
-    void testEptGeneration();
+    void testTextReader();
+    void testCopcGenerationLasFile();
+    void testCopcGenerationTextFile();
 
   private:
     QString mTestDataDir;
-    QString mReport;
 };
 
 //runs before all tests
@@ -69,21 +77,12 @@ void TestQgsPdalProvider::initTestCase()
   QgsApplication::initQgis();
 
   mTestDataDir = QStringLiteral( TEST_DATA_DIR ) + '/'; //defined in CmakeLists.txt
-  mReport = QStringLiteral( "<h1>PDAL Provider Tests</h1>\n" );
 }
 
 //runs after all tests
 void TestQgsPdalProvider::cleanupTestCase()
 {
   QgsApplication::exitQgis();
-  QString myReportFile = QDir::tempPath() + "/qgistest.html";
-  QFile myFile( myReportFile );
-  if ( myFile.open( QIODevice::WriteOnly | QIODevice::Append ) )
-  {
-    QTextStream myQTextStream( &myFile );
-    myQTextStream << mReport;
-    myFile.close();
-  }
 }
 
 void TestQgsPdalProvider::filters()
@@ -91,11 +90,19 @@ void TestQgsPdalProvider::filters()
   QgsProviderMetadata *metadata = QgsProviderRegistry::instance()->providerMetadata( QStringLiteral( "pdal" ) );
   QVERIFY( metadata );
 
-  QCOMPARE( metadata->filters( QgsProviderMetadata::FilterType::FilterPointCloud ), QStringLiteral( "PDAL Point Clouds (*.laz *.las *.LAZ *.LAS)" ) );
-  QCOMPARE( metadata->filters( QgsProviderMetadata::FilterType::FilterVector ), QString() );
+  const QString metadataFilters = metadata->filters( Qgis::FileFilterType::PointCloud );
+  QVERIFY( metadataFilters.contains( "*.laz" ) );
+  QVERIFY( metadataFilters.contains( "*.las" ) );
+  QVERIFY( metadataFilters.contains( "*.LAZ" ) );
+  QVERIFY( metadataFilters.contains( "*.LAS" ) );
+
+  QCOMPARE( metadata->filters( Qgis::FileFilterType::Vector ), QString() );
 
   const QString registryPointCloudFilters = QgsProviderRegistry::instance()->filePointCloudFilters();
-  QVERIFY( registryPointCloudFilters.contains( "(*.laz *.las *.LAZ *.LAS)" ) );
+  QVERIFY( registryPointCloudFilters.contains( "*.laz" ) );
+  QVERIFY( registryPointCloudFilters.contains( "*.las" ) );
+  QVERIFY( registryPointCloudFilters.contains( "*.LAZ" ) );
+  QVERIFY( registryPointCloudFilters.contains( "*.LAS" ) );
 }
 
 void TestQgsPdalProvider::encodeUri()
@@ -122,8 +129,8 @@ void TestQgsPdalProvider::layerTypesForUri()
   QgsProviderMetadata *pdalMetadata = QgsProviderRegistry::instance()->providerMetadata( QStringLiteral( "pdal" ) );
   QVERIFY( pdalMetadata->capabilities() & QgsProviderMetadata::LayerTypesForUri );
 
-  QCOMPARE( pdalMetadata->validLayerTypesForUri( QStringLiteral( "/home/test/cloud.las" ) ), QList< QgsMapLayerType >() << QgsMapLayerType::PointCloudLayer );
-  QCOMPARE( pdalMetadata->validLayerTypesForUri( QStringLiteral( "/home/test/cloud.shp" ) ), QList< QgsMapLayerType >() );
+  QCOMPARE( pdalMetadata->validLayerTypesForUri( QStringLiteral( "/home/test/cloud.las" ) ), QList<Qgis::LayerType>() << Qgis::LayerType::PointCloud );
+  QCOMPARE( pdalMetadata->validLayerTypesForUri( QStringLiteral( "/home/test/cloud.shp" ) ), QList<Qgis::LayerType>() );
 }
 
 void TestQgsPdalProvider::preferredUri()
@@ -131,38 +138,66 @@ void TestQgsPdalProvider::preferredUri()
   QgsProviderMetadata *pdalMetadata = QgsProviderRegistry::instance()->providerMetadata( QStringLiteral( "pdal" ) );
   QVERIFY( pdalMetadata->capabilities() & QgsProviderMetadata::PriorityForUri );
 
-  // test that EPT is the preferred provider for las/laz uris
+  // test that pdal is the preferred provider for las/laz uris
   QList<QgsProviderRegistry::ProviderCandidateDetails> candidates = QgsProviderRegistry::instance()->preferredProvidersForUri( QStringLiteral( "/home/test/cloud.las" ) );
   QCOMPARE( candidates.size(), 1 );
   QCOMPARE( candidates.at( 0 ).metadata()->key(), QStringLiteral( "pdal" ) );
-  QCOMPARE( candidates.at( 0 ).layerTypes(), QList< QgsMapLayerType >() << QgsMapLayerType::PointCloudLayer );
+  QCOMPARE( candidates.at( 0 ).layerTypes(), QList<Qgis::LayerType>() << Qgis::LayerType::PointCloud );
 
   candidates = QgsProviderRegistry::instance()->preferredProvidersForUri( QStringLiteral( "/home/test/CLOUD.LAS" ) );
   QCOMPARE( candidates.size(), 1 );
   QCOMPARE( candidates.at( 0 ).metadata()->key(), QStringLiteral( "pdal" ) );
-  QCOMPARE( candidates.at( 0 ).layerTypes(), QList< QgsMapLayerType >() << QgsMapLayerType::PointCloudLayer );
+  QCOMPARE( candidates.at( 0 ).layerTypes(), QList<Qgis::LayerType>() << Qgis::LayerType::PointCloud );
 
   candidates = QgsProviderRegistry::instance()->preferredProvidersForUri( QStringLiteral( "/home/test/cloud.laz" ) );
   QCOMPARE( candidates.size(), 1 );
   QCOMPARE( candidates.at( 0 ).metadata()->key(), QStringLiteral( "pdal" ) );
-  QCOMPARE( candidates.at( 0 ).layerTypes(), QList< QgsMapLayerType >() << QgsMapLayerType::PointCloudLayer );
+  QCOMPARE( candidates.at( 0 ).layerTypes(), QList<Qgis::LayerType>() << Qgis::LayerType::PointCloud );
 
   candidates = QgsProviderRegistry::instance()->preferredProvidersForUri( QStringLiteral( "/home/test/CLOUD.LAZ" ) );
   QCOMPARE( candidates.size(), 1 );
   QCOMPARE( candidates.at( 0 ).metadata()->key(), QStringLiteral( "pdal" ) );
-  QCOMPARE( candidates.at( 0 ).layerTypes(), QList< QgsMapLayerType >() << QgsMapLayerType::PointCloudLayer );
+  QCOMPARE( candidates.at( 0 ).layerTypes(), QList<Qgis::LayerType>() << Qgis::LayerType::PointCloud );
 
   QVERIFY( !QgsProviderRegistry::instance()->shouldDeferUriForOtherProviders( QStringLiteral( "/home/test/cloud.las" ), QStringLiteral( "pdal" ) ) );
   QVERIFY( QgsProviderRegistry::instance()->shouldDeferUriForOtherProviders( QStringLiteral( "/home/test/cloud.las" ), QStringLiteral( "ept" ) ) );
 }
 
+void TestQgsPdalProvider::querySublayers()
+{
+  // test querying sub layers for a pdal layer
+  QgsProviderMetadata *pdalMetadata = QgsProviderRegistry::instance()->providerMetadata( QStringLiteral( "pdal" ) );
+
+  // invalid uri
+  QList<QgsProviderSublayerDetails> res = pdalMetadata->querySublayers( QString() );
+  QVERIFY( res.empty() );
+
+  // not a pdal layer
+  res = pdalMetadata->querySublayers( QString( TEST_DATA_DIR ) + "/lines.shp" );
+  QVERIFY( res.empty() );
+
+  // valid pdal layer
+  res = pdalMetadata->querySublayers( mTestDataDir + "/point_clouds/las/cloud.las" );
+  QCOMPARE( res.count(), 1 );
+  QCOMPARE( res.at( 0 ).name(), QStringLiteral( "cloud" ) );
+  QCOMPARE( res.at( 0 ).uri(), mTestDataDir + "/point_clouds/las/cloud.las" );
+  QCOMPARE( res.at( 0 ).providerKey(), QStringLiteral( "pdal" ) );
+  QCOMPARE( res.at( 0 ).type(), Qgis::LayerType::PointCloud );
+
+  // make sure result is valid to load layer from
+  const QgsProviderSublayerDetails::LayerOptions options { QgsCoordinateTransformContext() };
+  std::unique_ptr<QgsPointCloudLayer> ml( qgis::down_cast<QgsPointCloudLayer *>( res.at( 0 ).toLayer( options ) ) );
+  QVERIFY( ml->isValid() );
+}
+
 void TestQgsPdalProvider::brokenPath()
 {
   // test loading a bad layer URI
-  std::unique_ptr< QgsPointCloudLayer > layer = std::make_unique< QgsPointCloudLayer >(
-        QStringLiteral( "not valid" ),
-        QStringLiteral( "layer" ),
-        QStringLiteral( "pdal" ) );
+  auto layer = std::make_unique<QgsPointCloudLayer>(
+    QStringLiteral( "not valid" ),
+    QStringLiteral( "layer" ),
+    QStringLiteral( "pdal" )
+  );
   QVERIFY( !layer->isValid() );
 }
 
@@ -171,12 +206,12 @@ void TestQgsPdalProvider::validLayer()
   QgsPointCloudLayer::LayerOptions options;
   options.skipIndexGeneration = true;
 
-  std::unique_ptr< QgsPointCloudLayer > layer = std::make_unique< QgsPointCloudLayer >(
-        mTestDataDir + QStringLiteral( "point_clouds/las/cloud.las" ),
-        QStringLiteral( "layer" ),
-        QStringLiteral( "pdal" ),
-        options
-      );
+  auto layer = std::make_unique<QgsPointCloudLayer>(
+    mTestDataDir + QStringLiteral( "point_clouds/las/cloud.las" ),
+    QStringLiteral( "layer" ),
+    QStringLiteral( "pdal" ),
+    options
+  );
   QVERIFY( layer->isValid() );
 
   QCOMPARE( layer->crs().authid(), QStringLiteral( "EPSG:28356" ) );
@@ -188,16 +223,51 @@ void TestQgsPdalProvider::validLayer()
 
   QCOMPARE( layer->dataProvider()->pointCount(), 253 );
   QCOMPARE( layer->pointCount(), 253 );
-  QVERIFY( layer->dataProvider()->indexingState() == QgsPointCloudDataProvider::NotIndexed );
 }
 
-void TestQgsPdalProvider::testEptGeneration()
+void TestQgsPdalProvider::testTextReader()
 {
-  QTemporaryDir dir;
+  QgsPointCloudLayer::LayerOptions options;
+  options.skipIndexGeneration = true;
+
+  auto layer = std::make_unique<QgsPointCloudLayer>(
+    mTestDataDir + QStringLiteral( "point_clouds/text/cloud.txt" ),
+    QStringLiteral( "layer" ),
+    QStringLiteral( "pdal" ),
+    options
+  );
+  QVERIFY( layer->isValid() );
+
+  QCOMPARE( layer->crs().authid(), "" );
+  QGSCOMPARENEAR( layer->extent().xMinimum(), 473850.0, 0.1 );
+  QGSCOMPARENEAR( layer->extent().yMinimum(), 6374925.0, 0.1 );
+  QGSCOMPARENEAR( layer->extent().xMaximum(), 488625.0, 0.1 );
+  QGSCOMPARENEAR( layer->extent().yMaximum(), 6375000.0, 0.1 );
+  QCOMPARE( layer->dataProvider()->polygonBounds().asWkt( 0 ), QStringLiteral( "Polygon ((473850 6374925, 488625 6374925, 488625 6375000, 473850 6375000, 473850 6374925))" ) );
+
+  QCOMPARE( layer->dataProvider()->pointCount(), 320 );
+  QCOMPARE( layer->pointCount(), 320 );
+}
+
+void TestQgsPdalProvider::testCopcGenerationLasFile()
+{
+  const QTemporaryDir dir;
+  QString outputPath = dir.path() + QDir::separator() + "cloud.copc.laz";
   QVERIFY( dir.isValid() );
-  QgsPdalEptGenerationTask task( mTestDataDir + QStringLiteral( "point_clouds/las/cloud.las" ), dir.path() );
+  QgsPdalIndexingTask task( mTestDataDir + QStringLiteral( "point_clouds/las/cloud.las" ), outputPath );
   QVERIFY( task.run() );
-  QFileInfo fi( dir.path() + "/ept.json" );
+  const QFileInfo fi( outputPath );
+  QVERIFY( fi.exists() );
+}
+
+void TestQgsPdalProvider::testCopcGenerationTextFile()
+{
+  const QTemporaryDir dir;
+  QString outputPath = dir.path() + QDir::separator() + "cloud.copc.txt";
+  QVERIFY( dir.isValid() );
+  QgsPdalIndexingTask task( mTestDataDir + QStringLiteral( "point_clouds/text/cloud.txt" ), outputPath );
+  QVERIFY( task.run() );
+  const QFileInfo fi( outputPath );
   QVERIFY( fi.exists() );
 }
 

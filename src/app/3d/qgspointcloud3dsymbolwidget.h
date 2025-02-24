@@ -40,12 +40,13 @@ class QgsPointCloud3DSymbolWidget : public QWidget, private Ui::QgsPointCloud3DS
     double maximumScreenError() const;
 
     void setShowBoundingBoxes( bool showBoundingBoxes );
-    double showBoundingBoxes() const;
+    bool showBoundingBoxes() const;
 
     void setPointBudget( double budget );
     double pointBudget() const;
 
-    void setPointCloudSize( int size );
+    void setZoomOutBehavior( Qgis::PointCloudZoomOutRenderBehavior zoomOutBehavior );
+    Qgis::PointCloudZoomOutRenderBehavior zoomOutBehavior() const;
 
     void connectChildPanels( QgsPanelWidget *parent );
 
@@ -83,15 +84,13 @@ class QgsPointCloud3DSymbolWidget : public QWidget, private Ui::QgsPointCloud3DS
     bool mBlockMinMaxChanged = false;
     bool mBlockSetMinMaxFromLayer = false;
 
-    double mProviderMin = std::numeric_limits< double >::quiet_NaN();
-    double mProviderMax = std::numeric_limits< double >::quiet_NaN();
+    double mProviderMin = std::numeric_limits<double>::quiet_NaN();
+    double mProviderMax = std::numeric_limits<double>::quiet_NaN();
 
     void createValidators();
     void setCustomMinMaxValues( QgsRgbPointCloud3DSymbol *r ) const;
     void minMaxModified();
     void setMinMaxValue( const QgsContrastEnhancement *ce, QLineEdit *minEdit, QLineEdit *maxEdit );
-
-    double mPointBudget = 1000000;
 };
 
 #endif // QGSPOINTCLOUD3DSYMBOLWIDGET_H

@@ -52,6 +52,7 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QStandardItemModel>
+#include <QRegularExpression>
 
 #include "modeltest.h"
 #include "dynamictreemodel.h"
@@ -81,7 +82,6 @@ class tst_ModelTest : public QObject
 };
 
 
-
 void tst_ModelTest::initTestCase()
 {
 }
@@ -92,7 +92,6 @@ void tst_ModelTest::cleanupTestCase()
 
 void tst_ModelTest::init()
 {
-
 }
 
 void tst_ModelTest::cleanup()
@@ -116,7 +115,7 @@ void tst_ModelTest::stringListModel()
   model.setStringList( QStringList() << "a" << "e" << "plop" << "b" << "c" );
 
   proxy.setDynamicSortFilter( true );
-  proxy.setFilterRegExp( QRegExp( "[^b]" ) );
+  proxy.setFilterRegularExpression( QRegularExpression( "[^b]" ) );
 }
 
 void tst_ModelTest::treeWidgetModel()
@@ -199,7 +198,8 @@ class AccessibleProxyModel : public QSortFilterProxyModel
 {
     Q_OBJECT
   public:
-    explicit AccessibleProxyModel( QObject *parent = 0 ) : QSortFilterProxyModel( parent ) {}
+    explicit AccessibleProxyModel( QObject *parent = 0 )
+      : QSortFilterProxyModel( parent ) {}
 
     QModelIndexList persistent()
     {
@@ -211,9 +211,8 @@ class ObservingObject : public QObject
 {
     Q_OBJECT
   public:
-    ObservingObject( AccessibleProxyModel  *proxy, QObject *parent = 0 )
-      : QObject( parent ),
-        m_proxy( proxy )
+    ObservingObject( AccessibleProxyModel *proxy, QObject *parent = 0 )
+      : QObject( parent ), m_proxy( proxy )
     {
       connect( m_proxy, SIGNAL( layoutAboutToBeChanged() ), SLOT( storePersistent() ) );
       connect( m_proxy, SIGNAL( layoutChanged() ), SLOT( checkPersistent() ) );
@@ -264,7 +263,7 @@ class ObservingObject : public QObject
     }
 
   private:
-    AccessibleProxyModel  *m_proxy = nullptr;
+    AccessibleProxyModel *m_proxy = nullptr;
     QList<QPersistentModelIndex> m_persistentSourceIndexes;
     QList<QPersistentModelIndex> m_persistentProxyIndexes;
 };

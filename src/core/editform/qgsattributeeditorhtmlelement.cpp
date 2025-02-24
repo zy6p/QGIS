@@ -14,7 +14,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsattributeeditorhtmlelement.h"
-
+#include <QDomText>
 
 QgsAttributeEditorElement *QgsAttributeEditorHtmlElement::clone( QgsAttributeEditorElement *parent ) const
 {
@@ -36,7 +36,7 @@ void QgsAttributeEditorHtmlElement::setHtmlCode( const QString &htmlCode )
 
 void QgsAttributeEditorHtmlElement::saveConfiguration( QDomElement &elem, QDomDocument &doc ) const
 {
-  QDomText codeElem = doc.createTextNode( mHtmlCode );
+  const QDomText codeElem = doc.createTextNode( mHtmlCode );
   elem.appendChild( codeElem );
 }
 

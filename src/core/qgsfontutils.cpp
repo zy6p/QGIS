@@ -31,20 +31,20 @@
 
 bool QgsFontUtils::fontMatchOnSystem( const QFont &f )
 {
-  QFontInfo fi = QFontInfo( f );
+  const QFontInfo fi = QFontInfo( f );
   return fi.exactMatch();
 }
 
 bool QgsFontUtils::fontFamilyOnSystem( const QString &family )
 {
-  QFont tmpFont = QFont( family );
+  const QFont tmpFont = QFont( family );
   // compare just beginning of family string in case 'family [foundry]' differs
   return tmpFont.family().startsWith( family, Qt::CaseInsensitive );
 }
 
 bool QgsFontUtils::fontFamilyHasStyle( const QString &family, const QString &style )
 {
-  QFontDatabase fontDB;
+  const QFontDatabase fontDB;
   if ( !fontFamilyOnSystem( family ) )
     return false;
 
@@ -66,10 +66,41 @@ bool QgsFontUtils::fontFamilyHasStyle( const QString &family, const QString &sty
   return false;
 }
 
+QString QgsFontUtils::resolveFontStyleName( const QFont &font )
+{
+  auto styleNameIsMatch = [&font]( const QString & candidate ) -> bool
+  {
+    // confirm that style name matches bold/italic flags
+    QFont testFont( font.family() );
+    testFont.setStyleName( candidate );
+    return testFont.italic() == font.italic() && testFont.weight() == font.weight();
+  };
+
+  // attempt 1
+  const QFontInfo fontInfo( font );
+  QString styleName = fontInfo.styleName();
+  if ( !styleName.isEmpty() )
+  {
+    if ( styleNameIsMatch( styleName ) )
+      return styleName;
+  }
+
+  // attempt 2
+  styleName = QFontDatabase().styleString( font );
+  if ( !styleName.isEmpty() )
+  {
+    if ( styleNameIsMatch( styleName ) )
+      return styleName;
+  }
+
+  // failed
+  return QString();
+}
+
 bool QgsFontUtils::fontFamilyMatchOnSystem( const QString &family, QString *chosen, bool *match )
 {
-  QFontDatabase fontDB;
-  QStringList fontFamilies = fontDB.families();
+  const QFontDatabase fontDB;
+  const QStringList fontFamilies = fontDB.families();
   bool found = false;
 
   QList<QString>::const_iterator it = fontFamilies.constBegin();
@@ -99,7 +130,7 @@ bool QgsFontUtils::fontFamilyMatchOnSystem( const QString &family, QString *chos
     if ( chosen )
     {
       // retrieve the family actually assigned by matching algorithm
-      QFont f = QFont( family );
+      const QFont f = QFont( family );
       *chosen = f.family();
     }
   }
@@ -131,7 +162,7 @@ bool QgsFontUtils::updateFontViaStyle( QFont &f, const QString &fontstyle, bool 
   if ( !fallback )
   {
     // does the font even have the requested style?
-    bool hasstyle = fontFamilyHasStyle( f.family(), fontstyle );
+    const bool hasstyle = fontFamilyHasStyle( f.family(), fontstyle );
     if ( !hasstyle )
     {
       return false;
@@ -144,8 +175,8 @@ bool QgsFontUtils::updateFontViaStyle( QFont &f, const QString &fontstyle, bool 
     return false;
   }
 
-  QFont appfont = QApplication::font();
-  int defaultSize = appfont.pointSize(); // QFontDatabase::font() needs an integer for size
+  const QFont appfont = QApplication::font();
+  const int defaultSize = appfont.pointSize(); // QFontDatabase::font() needs an integer for size
 
   QFont styledfont;
   bool foundmatch = false;
@@ -227,22 +258,24 @@ bool QgsFontUtils::loadStandardTestFonts( const QStringList &loadstyles )
   // load standard test font from filesystem or testdata.qrc (for unit tests and general testing)
   bool fontsLoaded = false;
 
-  QString fontFamily = standardTestFontFamily();
   QMap<QString, QString> fontStyles;
   fontStyles.insert( QStringLiteral( "Roman" ), QStringLiteral( "QGIS-Vera/QGIS-Vera.ttf" ) );
   fontStyles.insert( QStringLiteral( "Oblique" ), QStringLiteral( "QGIS-Vera/QGIS-VeraIt.ttf" ) );
   fontStyles.insert( QStringLiteral( "Bold" ), QStringLiteral( "QGIS-Vera/QGIS-VeraBd.ttf" ) );
   fontStyles.insert( QStringLiteral( "Bold Oblique" ), QStringLiteral( "QGIS-Vera/QGIS-VeraBI.ttf" ) );
+  fontStyles.insert( QStringLiteral( "Deja Bold" ), QStringLiteral( "QGIS-DejaVu/QGISDejaVuSans-Bold.ttf" ) );
 
   QMap<QString, QString>::const_iterator f = fontStyles.constBegin();
   for ( ; f != fontStyles.constEnd(); ++f )
   {
-    QString fontstyle( f.key() );
-    QString fontpath( f.value() );
-    if ( !( loadstyles.contains( fontstyle ) || loadstyles.contains( QStringLiteral( "All" ) ) ) )
+    const QString fontpath( f.value() );
+    if ( !( loadstyles.contains( f.key() ) || loadstyles.contains( QStringLiteral( "All" ) ) ) )
     {
       continue;
     }
+
+    const QString fontFamily = !f.key().startsWith( QLatin1String( "Deja" ) ) ? standardTestFontFamily() : QStringLiteral( "QGIS DejaVu Sans" );
+    const QString fontstyle  = !f.key().startsWith( QLatin1String( "Deja" ) ) ?  f.key() : f.key().mid( 5 );
 
     if ( fontFamilyHasStyle( fontFamily, fontstyle ) )
     {
@@ -257,21 +290,20 @@ bool QgsFontUtils::loadStandardTestFonts( const QStringList &loadstyles )
         // from qrc resources load but fail to work and default font is substituted [LS]:
         //   https://bugreports.qt.io/browse/QTBUG-30917
         //   https://bugreports.qt.io/browse/QTBUG-32789
-        QString fontPath( QgsApplication::buildSourcePath() + "/tests/testdata/font/" + fontpath );
-        int fontID = QFontDatabase::addApplicationFont( fontPath );
+        const QString fontPath( QgsApplication::buildSourcePath() + "/tests/testdata/font/" + fontpath );
+        const int fontID = QFontDatabase::addApplicationFont( fontPath );
         loaded = ( fontID != -1 );
         fontsLoaded = ( fontsLoaded || loaded );
         QgsDebugMsgLevel( QStringLiteral( "Test font '%1 %2' %3 from filesystem [%4]" )
                           .arg( fontFamily, fontstyle, loaded ? "loaded" : "FAILED to load", fontPath ), 2 );
-        QFontDatabase db;
-        QgsDebugMsgLevel( QStringLiteral( "font families in %1: %2" ).arg( fontID ).arg( db.applicationFontFamilies( fontID ).join( "," ) ), 2 );
+        QgsDebugMsgLevel( QStringLiteral( "font families in %1: %2" ).arg( fontID ).arg( QFontDatabase().applicationFontFamilies( fontID ).join( "," ) ), 2 );
       }
       else
       {
         QFile fontResource( ":/testdata/font/" + fontpath );
         if ( fontResource.open( QIODevice::ReadOnly ) )
         {
-          int fontID = QFontDatabase::addApplicationFontFromData( fontResource.readAll() );
+          const int fontID = QFontDatabase::addApplicationFontFromData( fontResource.readAll() );
           loaded = ( fontID != -1 );
           fontsLoaded = ( fontsLoaded || loaded );
         }
@@ -286,37 +318,40 @@ bool QgsFontUtils::loadStandardTestFonts( const QStringList &loadstyles )
 
 QFont QgsFontUtils::getStandardTestFont( const QString &style, int pointsize )
 {
-  if ( ! fontFamilyHasStyle( standardTestFontFamily(), style ) )
+  const QString fontFamily = !style.startsWith( QLatin1String( "Deja" ) ) ? standardTestFontFamily() : QStringLiteral( "QGIS DejaVu Sans" );
+  const QString fontStyle  = !style.startsWith( QLatin1String( "Deja" ) ) ?  style : style.mid( 5 );
+
+  if ( ! fontFamilyHasStyle( fontFamily, fontStyle ) )
   {
     loadStandardTestFonts( QStringList() << style );
   }
 
-  QFontDatabase fontDB;
-  QFont f = fontDB.font( standardTestFontFamily(), style, pointsize );
+  const QFontDatabase fontDB;
+  QFont f = fontDB.font( fontFamily, fontStyle, pointsize );
 #ifdef Q_OS_WIN
   if ( !f.exactMatch() )
   {
     QString modified;
-    if ( style == "Roman" )
+    if ( fontStyle == "Roman" )
       modified = "Normal";
-    else if ( style == "Oblique" )
+    else if ( fontStyle == "Oblique" )
       modified = "Italic";
-    else if ( style == "Bold Oblique" )
+    else if ( fontStyle == "Bold Oblique" )
       modified = "Bold Italic";
     if ( !modified.isEmpty() )
-      f = fontDB.font( standardTestFontFamily(), modified, pointsize );
+      f = fontDB.font( fontFamily, modified, pointsize );
   }
   if ( !f.exactMatch() )
   {
-    QgsDebugMsg( QStringLiteral( "Inexact font match - consider installing the %1 font." ).arg( standardTestFontFamily() ) );
-    QgsDebugMsg( QStringLiteral( "Requested: %1" ).arg( f.toString() ) );
+    QgsDebugMsgLevel( QStringLiteral( "Inexact font match - consider installing the %1 font." ).arg( fontFamily ), 2 );
+    QgsDebugMsgLevel( QStringLiteral( "Requested: %1" ).arg( f.toString() ), 2 );
     QFontInfo fi( f );
-    QgsDebugMsg( QStringLiteral( "Replaced:  %1,%2,%3,%4,%5,%6,%7,%8,%9" ).arg( fi.family() ).arg( fi.pointSizeF() ).arg( fi.pixelSize() ).arg( fi.styleHint() ).arg( fi.weight() ).arg( fi.style() ).arg( fi.underline() ).arg( fi.strikeOut() ).arg( fi.fixedPitch() ) );
+    QgsDebugMsgLevel( QStringLiteral( "Replaced:  %1,%2,%3,%4,%5,%6,%7,%8,%9" ).arg( fi.family() ).arg( fi.pointSizeF() ).arg( fi.pixelSize() ).arg( fi.styleHint() ).arg( fi.weight() ).arg( fi.style() ).arg( fi.underline() ).arg( fi.strikeOut() ).arg( fi.fixedPitch() ), 2 );
   }
 #endif
   // in case above statement fails to set style
-  f.setBold( style.contains( QLatin1String( "Bold" ) ) );
-  f.setItalic( style.contains( QLatin1String( "Oblique" ) ) || style.contains( QLatin1String( "Italic" ) ) );
+  f.setBold( fontStyle.contains( QLatin1String( "Bold" ) ) );
+  f.setItalic( fontStyle.contains( QLatin1String( "Oblique" ) ) || fontStyle.contains( QLatin1String( "Italic" ) ) );
 
   return f;
 }
@@ -326,6 +361,10 @@ QDomElement QgsFontUtils::toXmlElement( const QFont &font, QDomDocument &documen
   QDomElement fontElem = document.createElement( elementName );
   fontElem.setAttribute( QStringLiteral( "description" ), font.toString() );
   fontElem.setAttribute( QStringLiteral( "style" ), untranslateNamedStyle( font.styleName() ) );
+  fontElem.setAttribute( QStringLiteral( "bold" ), font.bold() ? QChar( '1' ) : QChar( '0' ) );
+  fontElem.setAttribute( QStringLiteral( "italic" ), font.italic() ? QChar( '1' ) : QChar( '0' ) );
+  fontElem.setAttribute( QStringLiteral( "underline" ), font.underline() ? QChar( '1' ) : QChar( '0' ) );
+  fontElem.setAttribute( QStringLiteral( "strikethrough" ), font.strikeOut() ? QChar( '1' ) : QChar( '0' ) );
   return fontElem;
 }
 
@@ -337,6 +376,24 @@ bool QgsFontUtils::setFromXmlElement( QFont &font, const QDomElement &element )
   }
 
   font.fromString( element.attribute( QStringLiteral( "description" ) ) );
+
+  if ( element.hasAttribute( QStringLiteral( "bold" ) ) && element.attribute( QStringLiteral( "bold" ) ) == QChar( '1' ) )
+  {
+    font.setBold( true );
+  }
+  if ( element.hasAttribute( QStringLiteral( "italic" ) ) )
+  {
+    font.setItalic( element.attribute( QStringLiteral( "italic" ) ) == QChar( '1' ) );
+  }
+  if ( element.hasAttribute( QStringLiteral( "underline" ) ) )
+  {
+    font.setUnderline( element.attribute( QStringLiteral( "underline" ) ) == QChar( '1' ) );
+  }
+  if ( element.hasAttribute( QStringLiteral( "strikethrough" ) ) )
+  {
+    font.setStrikeOut( element.attribute( QStringLiteral( "strikethrough" ) ) == QChar( '1' ) );
+  }
+
   if ( element.hasAttribute( QStringLiteral( "style" ) ) )
   {
     ( void )updateFontViaStyle( font, translateNamedStyle( element.attribute( QStringLiteral( "style" ) ) ) );
@@ -352,10 +409,10 @@ bool QgsFontUtils::setFromXmlChildNode( QFont &font, const QDomElement &element,
     return false;
   }
 
-  QDomNodeList nodeList = element.elementsByTagName( childNode );
+  const QDomNodeList nodeList = element.elementsByTagName( childNode );
   if ( !nodeList.isEmpty() )
   {
-    QDomElement fontElem = nodeList.at( 0 ).toElement();
+    const QDomElement fontElem = nodeList.at( 0 ).toElement();
     return setFromXmlElement( font, fontElem );
   }
   else
@@ -369,7 +426,7 @@ QMimeData *QgsFontUtils::toMimeData( const QFont &font )
   std::unique_ptr< QMimeData >mimeData( new QMimeData );
 
   QDomDocument fontDoc;
-  QDomElement fontElem = toXmlElement( font, fontDoc, QStringLiteral( "font" ) );
+  const QDomElement fontElem = toXmlElement( font, fontDoc, QStringLiteral( "font" ) );
   fontDoc.appendChild( fontElem );
   mimeData->setText( fontDoc.toString() );
 
@@ -385,7 +442,7 @@ QFont QgsFontUtils::fromMimeData( const QMimeData *data, bool *ok )
   if ( !data )
     return font;
 
-  QString text = data->text();
+  const QString text = data->text();
   if ( !text.isEmpty() )
   {
     QDomDocument doc;
@@ -412,15 +469,15 @@ QFont QgsFontUtils::fromMimeData( const QMimeData *data, bool *ok )
 static QMap<QString, QString> createTranslatedStyleMap()
 {
   QMap<QString, QString> translatedStyleMap;
-  QStringList words = QStringList()
-                      << QStringLiteral( "Normal" )
-                      << QStringLiteral( "Regular" )
-                      << QStringLiteral( "Light" )
-                      << QStringLiteral( "Bold" )
-                      << QStringLiteral( "Black" )
-                      << QStringLiteral( "Demi" )
-                      << QStringLiteral( "Italic" )
-                      << QStringLiteral( "Oblique" );
+  const QStringList words = QStringList()
+                            << QStringLiteral( "Normal" )
+                            << QStringLiteral( "Regular" )
+                            << QStringLiteral( "Light" )
+                            << QStringLiteral( "Bold" )
+                            << QStringLiteral( "Black" )
+                            << QStringLiteral( "Demi" )
+                            << QStringLiteral( "Italic" )
+                            << QStringLiteral( "Oblique" );
   const auto constWords = words;
   for ( const QString &word : constWords )
   {
@@ -431,11 +488,7 @@ static QMap<QString, QString> createTranslatedStyleMap()
 
 QString QgsFontUtils::translateNamedStyle( const QString &namedStyle )
 {
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-  QStringList words = namedStyle.split( ' ', QString::SkipEmptyParts );
-#else
   QStringList words = namedStyle.split( ' ', Qt::SkipEmptyParts );
-#endif
   for ( int i = 0, n = words.length(); i < n; ++i )
   {
     words[i] = QCoreApplication::translate( "QFontDatabase", words[i].toLocal8Bit().constData() );
@@ -445,12 +498,8 @@ QString QgsFontUtils::translateNamedStyle( const QString &namedStyle )
 
 QString QgsFontUtils::untranslateNamedStyle( const QString &namedStyle )
 {
-  static QMap<QString, QString> translatedStyleMap = createTranslatedStyleMap();
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-  QStringList words = namedStyle.split( ' ', QString::SkipEmptyParts );
-#else
+  static const QMap<QString, QString> translatedStyleMap = createTranslatedStyleMap();
   QStringList words = namedStyle.split( ' ', Qt::SkipEmptyParts );
-#endif
 
   for ( int i = 0, n = words.length(); i < n; ++i )
   {
@@ -550,6 +599,31 @@ void QgsFontUtils::addRecentFontFamily( const QString &family )
 
 QStringList QgsFontUtils::recentFontFamilies()
 {
-  QgsSettings settings;
+  const QgsSettings settings;
   return settings.value( QStringLiteral( "fonts/recent" ) ).toStringList();
+}
+
+void QgsFontUtils::setFontFamily( QFont &font, const QString &family )
+{
+  font.setFamily( family );
+  if ( !font.exactMatch() )
+  {
+    // some Qt versions struggle with fonts with certain unusual characters
+    // in their names, eg "ESRI Oil, Gas, & Water". Calling "setFamilies"
+    // can workaround these issues... (in some cases!)
+    font.setFamilies( { family } );
+  }
+}
+
+QFont QgsFontUtils::createFont( const QString &family, int pointSize, int weight, bool italic )
+{
+  QFont font( family, pointSize, weight, italic );
+  if ( !font.exactMatch() )
+  {
+    // some Qt versions struggle with fonts with certain unusual characters
+    // in their names, eg "ESRI Oil, Gas, & Water". Calling "setFamilies"
+    // can workaround these issues... (in some cases!)
+    font.setFamilies( { family } );
+  }
+  return font;
 }

@@ -22,16 +22,17 @@
 #include "qgssettings.h"
 #include "qgsapplication.h"
 #include "qgsstatusbarmagnifierwidget.h"
+#include "moc_qgsstatusbarmagnifierwidget.cpp"
 #include "qgsdoublespinbox.h"
 #include "qgsguiutils.h"
 
 QgsStatusBarMagnifierWidget::QgsStatusBarMagnifierWidget( QWidget *parent )
   : QWidget( parent )
 {
-  QgsSettings settings;
-  int minimumFactor = 100 * QgsGuiUtils::CANVAS_MAGNIFICATION_MIN;
-  int maximumFactor = 100 * QgsGuiUtils::CANVAS_MAGNIFICATION_MAX;
-  int defaultFactor = 100 * settings.value( QStringLiteral( "qgis/magnifier_factor_default" ), 1.0 ).toDouble();
+  const QgsSettings settings;
+  const int minimumFactor = 100 * QgsGuiUtils::CANVAS_MAGNIFICATION_MIN;
+  const int maximumFactor = 100 * QgsGuiUtils::CANVAS_MAGNIFICATION_MAX;
+  const int defaultFactor = 100 * settings.value( QStringLiteral( "qgis/magnifier_factor_default" ), 1.0 ).toDouble();
 
   // label
   mLabel = new QLabel();
@@ -54,7 +55,7 @@ QgsStatusBarMagnifierWidget::QgsStatusBarMagnifierWidget( QWidget *parent )
   mSpinBox->setClearValueMode( QgsDoubleSpinBox::CustomValue );
   mSpinBox->setClearValue( defaultFactor );
 
-  connect( mSpinBox, static_cast < void ( QgsDoubleSpinBox::* )( double ) > ( &QgsDoubleSpinBox::valueChanged ), this, &QgsStatusBarMagnifierWidget::setMagnification );
+  connect( mSpinBox, static_cast<void ( QgsDoubleSpinBox::* )( double )>( &QgsDoubleSpinBox::valueChanged ), this, &QgsStatusBarMagnifierWidget::setMagnification );
 
   mLockButton = new QToolButton();
   mLockButton->setIcon( QIcon( QgsApplication::getThemeIcon( "/lockedGray.svg" ) ) );

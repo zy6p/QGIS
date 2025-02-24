@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayoutviewtoolzoom.h"
+#include "moc_qgslayoutviewtoolzoom.cpp"
 #include "qgslayoutviewmouseevent.h"
 #include "qgslayoutview.h"
 #include "qgslayoutviewrubberband.h"
@@ -33,6 +34,11 @@ void QgsLayoutViewToolZoom::layoutPressEvent( QgsLayoutViewMouseEvent *event )
 {
   if ( event->button() != Qt::LeftButton )
   {
+    if ( mMarqueeZoom )
+    {
+      mMarqueeZoom = false;
+      mRubberBand->finish();
+    }
     event->ignore();
     return;
   }
@@ -41,13 +47,13 @@ void QgsLayoutViewToolZoom::layoutPressEvent( QgsLayoutViewMouseEvent *event )
   if ( event->modifiers() & Qt::AltModifier )
   {
     //zoom out action, so zoom out and recenter on clicked point
-    double scaleFactor = 2;
+    const double scaleFactor = 2;
     //get current visible part of scene
-    QRect viewportRect( 0, 0, view()->viewport()->width(), view()->viewport()->height() );
+    const QRect viewportRect( 0, 0, view()->viewport()->width(), view()->viewport()->height() );
     QgsRectangle visibleRect = QgsRectangle( view()->mapToScene( viewportRect ).boundingRect() );
 
     visibleRect.scale( scaleFactor, event->layoutPoint().x(), event->layoutPoint().y() );
-    QRectF boundsRect = visibleRect.toRectF();
+    const QRectF boundsRect = visibleRect.toRectF();
 
     //zoom view to fit desired bounds
     view()->fitInView( boundsRect, Qt::KeepAspectRatio );
@@ -87,9 +93,9 @@ void QgsLayoutViewToolZoom::layoutReleaseEvent( QgsLayoutViewMouseEvent *event )
   if ( !isClickAndDrag( mMousePressStartPos, event->pos() ) )
   {
     //just a click, so zoom to clicked point and recenter
-    double scaleFactor = 0.5;
+    const double scaleFactor = 0.5;
     //get current visible part of scene
-    QRect viewportRect( 0, 0, view()->viewport()->width(), view()->viewport()->height() );
+    const QRect viewportRect( 0, 0, view()->viewport()->width(), view()->viewport()->height() );
     QgsRectangle visibleRect = QgsRectangle( view()->mapToScene( viewportRect ).boundingRect() );
 
     visibleRect.scale( scaleFactor, event->layoutPoint().x(), event->layoutPoint().y() );
@@ -107,10 +113,7 @@ void QgsLayoutViewToolZoom::keyPressEvent( QKeyEvent *event )
   //respond to changes in the alt key status and update cursor accordingly
   if ( !event->isAutoRepeat() )
   {
-
-    view()->viewport()->setCursor( ( event->modifiers() & Qt::AltModifier ) ?
-                                   QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomOut ) :
-                                   QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomIn ) );
+    view()->viewport()->setCursor( ( event->modifiers() & Qt::AltModifier ) ? QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomOut ) : QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomIn ) );
   }
   event->ignore();
 }
@@ -120,10 +123,7 @@ void QgsLayoutViewToolZoom::keyReleaseEvent( QKeyEvent *event )
   //respond to changes in the alt key status and update cursor accordingly
   if ( !event->isAutoRepeat() )
   {
-
-    view()->viewport()->setCursor( ( event->modifiers() & Qt::AltModifier ) ?
-                                   QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomOut ) :
-                                   QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomIn ) );
+    view()->viewport()->setCursor( ( event->modifiers() & Qt::AltModifier ) ? QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomOut ) : QgsApplication::getThemeCursor( QgsApplication::Cursor::ZoomIn ) );
   }
   event->ignore();
 }

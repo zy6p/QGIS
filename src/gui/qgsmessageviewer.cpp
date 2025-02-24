@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgsmessageviewer.h"
+#include "moc_qgsmessageviewer.cpp"
 #include "qgssettings.h"
 #include "qgsgui.h"
 
@@ -66,7 +67,7 @@ void QgsMessageViewer::showMessage( bool blocking )
 {
   if ( blocking )
   {
-    QgsTemporaryCursorRestoreOverride override;
+    const QgsTemporaryCursorRestoreOverride override;
     exec();
   }
   else

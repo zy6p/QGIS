@@ -14,8 +14,6 @@
  ***************************************************************************/
 
 
-
-
 #include <QtTest/QTest>
 
 #include "qgsmapsettings.h"
@@ -30,20 +28,19 @@
 #include <QtTest/QSignalSpy>
 
 
-class TestQgsLayoutGui: public QObject
+class TestQgsLayoutGui : public QObject
 {
     Q_OBJECT
   private slots:
-    void initTestCase(); // will be called before the first testfunction is executed.
+    void initTestCase();    // will be called before the first testfunction is executed.
     void cleanupTestCase(); // will be called after the last testfunction was executed.
-    void init(); // will be called before each testfunction is executed.
-    void cleanup(); // will be called after every testfunction.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void itemTypeComboBox();
     void testProxyCrash();
 
   private:
-
 };
 
 void TestQgsLayoutGui::initTestCase()
@@ -73,8 +70,8 @@ void TestQgsLayoutGui::itemTypeComboBox()
   cb2->setItemType( QgsLayoutItemRegistry::LayoutShape );
 
   qRegisterMetaType<QgsLayoutItem *>();
-  QSignalSpy spy1( cb, &QgsLayoutItemComboBox::itemChanged );
-  QSignalSpy spy2( cb2, &QgsLayoutItemComboBox::itemChanged );
+  const QSignalSpy spy1( cb, &QgsLayoutItemComboBox::itemChanged );
+  const QSignalSpy spy2( cb2, &QgsLayoutItemComboBox::itemChanged );
 
   // add some items to layout
   QgsLayoutItemMap *item1 = new QgsLayoutItemMap( layout );
@@ -88,7 +85,7 @@ void TestQgsLayoutGui::itemTypeComboBox()
   QCOMPARE( cb->currentItem(), item1 );
   QVERIFY( !cb2->currentItem() );
 
-  int expectedSpy1Count = 2;// ideally only one, but we'll settle for 2
+  int expectedSpy1Count = 2; // ideally only one, but we'll settle for 2
   int expectedSpy2Count = 0;
   QCOMPARE( spy1.count(), 2 );
   QCOMPARE( qvariant_cast<QObject *>( spy1.at( 1 ).at( 0 ) ), item1 );
@@ -110,7 +107,7 @@ void TestQgsLayoutGui::itemTypeComboBox()
   QCOMPARE( cb2->currentItem(), item2 );
 
   QCOMPARE( spy1.count(), expectedSpy1Count ); // must be unchanged from earlier
-  expectedSpy2Count = 2;// ideally only one, but we'll settle for 2
+  expectedSpy2Count = 2;                       // ideally only one, but we'll settle for 2
   QCOMPARE( spy2.count(), expectedSpy2Count );
   QCOMPARE( qvariant_cast<QObject *>( spy2.at( 1 ).at( 0 ) ), item2 );
 

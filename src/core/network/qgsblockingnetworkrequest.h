@@ -57,6 +57,19 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
       ServerExceptionError, //!< An exception was raised by the server
     };
 
+    /**
+     * Request flags
+     *
+     * \since QGIS 3.40
+     */
+    enum class RequestFlag : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      EmptyResponseIsValid = 1 << 0, //!< Do not generate an error if getting an empty response (e.g. HTTP 204)
+    };
+    Q_ENUM( RequestFlag )
+    Q_DECLARE_FLAGS( RequestFlags, RequestFlag )
+    Q_FLAG( RequestFlags )
+
     //! Constructor for QgsBlockingNetworkRequest
     explicit QgsBlockingNetworkRequest();
 
@@ -74,6 +87,8 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
      *
      * The optional \a feedback argument can be used to abort ongoing requests.
      *
+     * The optional \a requestFlags argument can be used to modify the behavior (added in QGIS 3.40).
+     *
      * The method will return NoError if the get operation was successful. The contents of the reply can be retrieved
      * by calling reply().
      *
@@ -82,7 +97,7 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
      *
      * \see post()
      */
-    ErrorCode get( QNetworkRequest &request, bool forceRefresh = false, QgsFeedback *feedback = nullptr );
+    ErrorCode get( QNetworkRequest &request, bool forceRefresh = false, QgsFeedback *feedback = nullptr, RequestFlags requestFlags = QgsBlockingNetworkRequest::RequestFlags() );
 
     /**
      * Performs a "post" operation on the specified \a request, using the given \a data.
@@ -103,6 +118,14 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
      * can be retrieved by calling errorMessage().
      *
      * \see get()
+     * \since QGIS 3.22
+     */
+    ErrorCode post( QNetworkRequest &request, QIODevice *data, bool forceRefresh = false, QgsFeedback *feedback = nullptr );
+
+    /**
+     * This is an overloaded function.
+     *
+     * Performs a "post" operation on the specified \a request, using the given \a data.
      */
     ErrorCode post( QNetworkRequest &request, const QByteArray &data, bool forceRefresh = false, QgsFeedback *feedback = nullptr );
 
@@ -124,7 +147,7 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
      * If an error was encountered then a specific ErrorCode will be returned, and a detailed error message
      * can be retrieved by calling errorMessage().
      *
-     * \since 3.18
+     * \since QGIS 3.18
      */
     ErrorCode head( QNetworkRequest &request, bool forceRefresh = false, QgsFeedback *feedback = nullptr );
 
@@ -143,7 +166,15 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
      * If an error was encountered then a specific ErrorCode will be returned, and a detailed error message
      * can be retrieved by calling errorMessage().
      *
-     * \since 3.18
+     * \since QGIS 3.22
+     */
+    ErrorCode put( QNetworkRequest &request, QIODevice *data, QgsFeedback *feedback = nullptr );
+
+    /**
+     * This is an overloaded function.
+     *
+     * Performs a "put" operation on the specified \a request, using the given \a data.
+     * \since QGIS 3.18
      */
     ErrorCode put( QNetworkRequest &request, const QByteArray &data, QgsFeedback *feedback = nullptr );
 
@@ -162,17 +193,17 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
      * If an error was encountered then a specific ErrorCode will be returned, and a detailed error message
      * can be retrieved by calling errorMessage().
      *
-     * \since 3.18
+     * \since QGIS 3.18
      */
     ErrorCode deleteResource( QNetworkRequest &request, QgsFeedback *feedback = nullptr );
 
     /**
-     * Returns the error message string, after a get() or post() request has been made.\
+     * Returns the error message string, after a get(), post(), head() or put() request has been made.
      */
     QString errorMessage() const { return mErrorMessage; }
 
     /**
-     * Returns the content of the network reply, after a get() or post() request has been made.
+     * Returns the content of the network reply, after a get(), post(), head() or put() request has been made.
      */
     QgsNetworkReplyContent reply() const { return mReplyContent; }
 
@@ -200,12 +231,24 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
     /**
      * Emitted when when data arrives during a request.
      */
-    void downloadProgress( qint64, qint64 );
+    void downloadProgress( qint64 bytesReceived, qint64 bytesTotal );
 
     /**
      * Emitted once a request has finished downloading.
+     * \deprecated QGIS 3.40. Use the finished() signal instead.
      */
-    void downloadFinished();
+    Q_DECL_DEPRECATED void downloadFinished() SIP_DEPRECATED;
+
+    /**
+     * Emitted when when data are sent during a request.
+     * \since QGIS 3.22
+     */
+    void uploadProgress( qint64 bytesReceived, qint64 bytesTotal );
+
+    /**
+     * Emitted once a request has finished.
+     */
+    void finished();
 
   private slots:
     void replyProgress( qint64, qint64 );
@@ -227,7 +270,9 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
     QNetworkReply *mReply = nullptr;
 
     Method mMethod = Get;
-    QByteArray mPayloadData;
+
+    //! payload data used in PUT/POST request
+    QIODevice *mPayloadData;
 
     //! Authentication configuration ID
     QString mAuthCfg;
@@ -252,15 +297,20 @@ class CORE_EXPORT QgsBlockingNetworkRequest : public QObject
     //! Whether we already received bytes
     bool mGotNonEmptyResponse = false;
 
+    //! Request flags
+    RequestFlags mRequestFlags;
+
     int mExpirationSec = 30;
 
     QPointer< QgsFeedback > mFeedback;
 
-    ErrorCode doRequest( Method method, QNetworkRequest &request, bool forceRefresh, QgsFeedback *feedback = nullptr );
+    ErrorCode doRequest( Method method, QNetworkRequest &request, bool forceRefresh, QgsFeedback *feedback = nullptr, RequestFlags requestFlags = RequestFlags() );
 
     QString errorMessageFailedAuth();
 
     void sendRequestToNetworkAccessManager( const QNetworkRequest &request );
+
+    void abortIfNotPartialContentReturned();
 };
 
 ///@cond PRIVATE

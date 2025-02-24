@@ -35,7 +35,6 @@ class GUI_EXPORT QgsUuidWidgetWrapper : public QgsEditorWidgetWrapper
 {
     Q_OBJECT
   public:
-
     /**
      * Constructor for QgsUuidWidgetWrapper.
      *
@@ -48,7 +47,15 @@ class GUI_EXPORT QgsUuidWidgetWrapper : public QgsEditorWidgetWrapper
      */
     explicit QgsUuidWidgetWrapper( QgsVectorLayer *layer, int fieldIdx, QWidget *editor = nullptr, QWidget *parent = nullptr );
 
+    /**
+     * Creates a UUID value, respecting the specified maximum length.
+     *
+     * \since QGIS 3.22
+     */
+    static QString createUiid( int maxLength = 0 );
+
     // QgsEditorWidgetWrapper interface
+
   public:
     QVariant value() const override;
 
@@ -61,7 +68,7 @@ class GUI_EXPORT QgsUuidWidgetWrapper : public QgsEditorWidgetWrapper
     void setEnabled( bool enabled ) override;
 
   private:
-    void updateValues( const QVariant &value, const QVariantList  & = QVariantList() ) override;
+    void updateValues( const QVariant &value, const QVariantList & = QVariantList() ) override;
 
     QLabel *mLabel = nullptr;
     QLineEdit *mLineEdit = nullptr;

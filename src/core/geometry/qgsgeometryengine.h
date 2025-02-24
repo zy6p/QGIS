@@ -25,14 +25,63 @@ email                : marco.hugentobler at sourcepole dot com
 
 class QgsAbstractGeometry;
 
+#ifdef SIP_RUN
+% ModuleHeaderCode
+#include <qgsgeos.h>
+% End
+#endif
+
 /**
  * \ingroup core
  * \class QgsGeometryEngine
- * \brief Contains geometry relation and modification algorithms.
- * \since QGIS 2.10
+ * \brief A geometry engine is a low-level representation of a QgsAbstractGeometry object, optimised for use with external
+ * geometry libraries such as GEOS.
+ *
+ * QgsGeometryEngine objects provide a mechanism for optimized evaluation of geometric algorithms, including spatial relationships
+ * between geometries and operations such as buffers or clipping.
+ *
+ * QgsGeometryEngine objects are not created directly, but are instead created by calling QgsGeometry::createGeometryEngine().
+ *
+ * Many methods available in the QgsGeometryEngine class can benefit from pre-preparing geometries. For instance, whenever
+ * a large number of spatial relationships will be tested (such as calling intersects(), within(), etc) then the
+ * geometry should first be prepared by calling prepareGeometry() before performing the tests.
+ *
+ * ### Example
+ *
+ * \code{.py}
+ *   # polygon_geometry contains a complex polygon, with many vertices
+ *   polygon_geometry = QgsGeometry.fromWkt('Polygon((...))')
+ *
+ *   # create a QgsGeometryEngine representation of the polygon
+ *   polygon_geometry_engine = QgsGeometry.createGeometryEngine(polygon_geometry.constGet())
+ *
+ *   # since we'll be performing many intersects tests, we can speed up these tests considerably
+ *   # by first "preparing" the geometry engine
+ *   polygon_geometry_engine.prepareGeometry()
+ *
+ *   # now we are ready to quickly test intersection against many other objects
+ *   for feature in my_layer.getFeatures():
+ *       feature_geometry = feature.geometry()
+ *       # test whether the feature's geometry intersects our original complex polygon
+ *       if polygon_geometry_engine.intersects(feature_geometry.constGet()):
+ *           print('feature intersects the polygon!')
+ * \endcode
+ *
+ * QgsGeometryEngine operations are backed by the GEOS library (https://trac.osgeo.org/geos/).
+ *
  */
 class CORE_EXPORT QgsGeometryEngine
 {
+
+#ifdef SIP_RUN
+    SIP_CONVERT_TO_SUBCLASS_CODE
+    if ( dynamic_cast< QgsGeos * >( sipCpp ) != NULL )
+      sipType = sipType_QgsGeos;
+    else
+      sipType = NULL;
+    SIP_END
+#endif
+
   public:
 
     /**
@@ -74,46 +123,71 @@ class CORE_EXPORT QgsGeometryEngine
     /**
      * Calculate the intersection of this and \a geom.
      *
-     * \since QGIS 3.0 \a geom is a pointer
+     * \param geom geometry to perform the operation
+     * \param errorMsg Error message returned by GEOS
+     * \param parameters can be used to specify parameters which control the intersection results (since QGIS 3.28)
+     *
      */
-    virtual QgsAbstractGeometry *intersection( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
+    virtual QgsAbstractGeometry *intersection( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr, const QgsGeometryParameters &parameters = QgsGeometryParameters() ) const = 0 SIP_FACTORY;
 
     /**
      * Calculate the difference of this and \a geom.
      *
-     * \since QGIS 3.0 \a geom is a pointer
+     * \param geom geometry to perform the operation
+     * \param errorMsg Error message returned by GEOS
+     * \param parameters can be used to specify parameters which control the difference results (since QGIS 3.28)
+     *
      */
-    virtual QgsAbstractGeometry *difference( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
+    virtual QgsAbstractGeometry *difference( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr, const QgsGeometryParameters &parameters = QgsGeometryParameters() ) const = 0 SIP_FACTORY;
 
     /**
      * Calculate the combination of this and \a geom.
      *
-     * \since QGIS 3.0 \a geom is a pointer
+     * \param geom geometry to perform the operation
+     * \param errorMsg Error message returned by GEOS
+     * \param parameters can be used to specify parameters which control the union results (since QGIS 3.28)
+     *
+     *
      */
-    virtual QgsAbstractGeometry *combine( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
+    virtual QgsAbstractGeometry *combine( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr, const QgsGeometryParameters &parameters = QgsGeometryParameters() ) const = 0 SIP_FACTORY;
 
     /**
      * Calculate the combination of this and \a geometries.
      *
-     * \since QGIS 3.0 \a geom is a pointer
+     * \param geomList list of geometries to perform the operation
+     * \param errorMsg Error message returned by GEOS
+     * \param parameters can be used to specify parameters which control the combination results (since QGIS 3.28)
+     *
+     *
      */
-    virtual QgsAbstractGeometry *combine( const QVector<QgsAbstractGeometry *> &geomList, QString *errorMsg ) const = 0 SIP_FACTORY;
+    virtual QgsAbstractGeometry *combine( const QVector<QgsAbstractGeometry *> &geomList, QString *errorMsg, const QgsGeometryParameters &parameters = QgsGeometryParameters() ) const = 0 SIP_FACTORY;
 
     /**
      * Calculate the combination of this and \a geometries.
      *
-     * \since QGIS 3.0 \a geom is a pointer
+     * \param geometries list of geometries to perform the operation
+     * \param errorMsg Error message returned by GEOS
+     * \param parameters can be used to specify parameters which control the combination results (since QGIS 3.28)
+     *
      */
-    virtual QgsAbstractGeometry *combine( const QVector< QgsGeometry > &geometries, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
+    virtual QgsAbstractGeometry *combine( const QVector< QgsGeometry > &geometries, QString *errorMsg = nullptr, const QgsGeometryParameters &parameters = QgsGeometryParameters() ) const = 0 SIP_FACTORY;
 
     /**
      * Calculate the symmetric difference of this and \a geom.
      *
-     * \since QGIS 3.0 \a geom is a pointer
+     * \param geom geometry to perform the operation
+     * \param errorMsg Error message returned by GEOS
+     * \param parameters can be used to specify parameters which control the difference results (since QGIS 3.28)
+     *
+     *
      */
-    virtual QgsAbstractGeometry *symDifference( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
+    virtual QgsAbstractGeometry *symDifference( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr, const QgsGeometryParameters &parameters = QgsGeometryParameters() ) const = 0 SIP_FACTORY;
     virtual QgsAbstractGeometry *buffer( double distance, int segments, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
-    virtual QgsAbstractGeometry *buffer( double distance, int segments, int endCapStyle, int joinStyle, double miterLimit, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
+
+    /**
+     * Buffers a geometry.
+     */
+    virtual QgsAbstractGeometry *buffer( double distance, int segments, Qgis::EndCapStyle endCapStyle, Qgis::JoinStyle joinStyle, double miterLimit, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
     virtual QgsAbstractGeometry *simplify( double tolerance, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
     virtual QgsAbstractGeometry *interpolate( double distance, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
     virtual QgsAbstractGeometry *envelope( QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
@@ -122,7 +196,6 @@ class CORE_EXPORT QgsGeometryEngine
      * Calculates the centroid of this.
      * May return a `NULLPTR`.
      *
-     * \since QGIS 3.0 the centroid is returned
      */
     virtual QgsPoint *centroid( QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
 
@@ -130,7 +203,6 @@ class CORE_EXPORT QgsGeometryEngine
      * Calculate a point that is guaranteed to be on the surface of this.
      * May return a `NULLPTR`.
      *
-     * \since QGIS 3.0 the centroid is returned
      */
     virtual QgsPoint *pointOnSurface( QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
 
@@ -142,56 +214,55 @@ class CORE_EXPORT QgsGeometryEngine
     /**
      * Calculates the distance between this and \a geom.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual double distance( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
     /**
+     * Checks if \a geom is within \a maxdistance distance from this geometry
+     *
+     * \since QGIS 3.22
+     */
+    virtual bool distanceWithin( const QgsAbstractGeometry *geom, double maxdistance, QString *errorMsg = nullptr ) const = 0;
+
+    /**
      * Checks if \a geom intersects this.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool intersects( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
     /**
      * Checks if \a geom touches this.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool touches( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
     /**
      * Checks if \a geom crosses this.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool crosses( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
     /**
      * Checks if \a geom is within this.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool within( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
     /**
      * Checks if \a geom overlaps this.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool overlaps( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
     /**
      * Checks if \a geom contains this.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool contains( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
     /**
      * Checks if \a geom is disjoint from this.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool disjoint( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
@@ -201,7 +272,6 @@ class CORE_EXPORT QgsGeometryEngine
      * \param geom geometry to relate to
      * \param errorMsg destination storage for any error message
      * \returns DE-9IM string for relationship, or an empty string if an error occurred
-     * \since QGIS 2.12
      */
     virtual QString relate( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
 
@@ -212,7 +282,6 @@ class CORE_EXPORT QgsGeometryEngine
      * \param pattern DE-9IM pattern for match
      * \param errorMsg destination storage for any error message
      * \returns TRUE if geometry relationship matches with pattern
-     * \since QGIS 2.14
      */
     virtual bool relatePattern( const QgsAbstractGeometry *geom, const QString &pattern, QString *errorMsg = nullptr ) const = 0;
 
@@ -236,14 +305,12 @@ class CORE_EXPORT QgsGeometryEngine
      * Checks if this is equal to \a geom.
      * If both are Null geometries, `FALSE` is returned.
      *
-     * \since QGIS 3.0 \a geom is a pointer
      */
     virtual bool isEqual( const QgsAbstractGeometry *geom, QString *errorMsg = nullptr ) const = 0;
     virtual bool isEmpty( QString *errorMsg ) const = 0;
 
     /**
      * Determines whether the geometry is simple (according to OGC definition).
-     * \since QGIS 3.0
      */
     virtual bool isSimple( QString *errorMsg = nullptr ) const = 0;
 
@@ -272,7 +339,10 @@ class CORE_EXPORT QgsGeometryEngine
       return MethodNotImplemented;
     }
 
-    virtual QgsAbstractGeometry *offsetCurve( double distance, int segments, int joinStyle, double miterLimit, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
+    /**
+     * Offsets a curve.
+     */
+    virtual QgsAbstractGeometry *offsetCurve( double distance, int segments, Qgis::JoinStyle joinStyle, double miterLimit, QString *errorMsg = nullptr ) const = 0 SIP_FACTORY;
 
     /**
      * Sets whether warnings and errors encountered during the geometry operations should be logged.
@@ -299,7 +369,7 @@ class CORE_EXPORT QgsGeometryEngine
     {
       if ( mLogErrors )
       {
-        QgsDebugMsg( QStringLiteral( "%1 notice: %2" ).arg( engineName, message ) );
+        QgsDebugError( QStringLiteral( "%1 notice: %2" ).arg( engineName, message ) );
         qWarning( "%s exception: %s", engineName.toLocal8Bit().constData(), message.toLocal8Bit().constData() );
       }
     }
@@ -310,4 +380,3 @@ class CORE_EXPORT QgsGeometryEngine
 };
 
 #endif // QGSGEOMETRYENGINE_H
-

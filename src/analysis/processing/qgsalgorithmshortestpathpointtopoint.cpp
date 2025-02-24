@@ -52,7 +52,13 @@ void QgsShortestPathPointToPointAlgorithm::initAlgorithm( const QVariantMap & )
   addParameter( new QgsProcessingParameterPoint( QStringLiteral( "START_POINT" ), QObject::tr( "Start point" ) ) );
   addParameter( new QgsProcessingParameterPoint( QStringLiteral( "END_POINT" ), QObject::tr( "End point" ) ) );
 
-  addParameter( new QgsProcessingParameterFeatureSink( QStringLiteral( "OUTPUT" ), QObject::tr( "Shortest path" ), QgsProcessing::TypeVectorLine ) );
+  addParameter( new QgsProcessingParameterFeatureSink( QStringLiteral( "OUTPUT" ), QObject::tr( "Shortest path" ), Qgis::ProcessingSourceType::VectorLine ) );
+
+  std::unique_ptr<QgsProcessingParameterNumber> maxEndPointDistanceFromNetwork = std::make_unique<QgsProcessingParameterDistance>( QStringLiteral( "POINT_TOLERANCE" ), QObject::tr( "Maximum point distance from network" ), QVariant(), QStringLiteral( "INPUT" ), true, 0 );
+  maxEndPointDistanceFromNetwork->setFlags( maxEndPointDistanceFromNetwork->flags() | Qgis::ProcessingParameterFlag::Advanced );
+  maxEndPointDistanceFromNetwork->setHelp( QObject::tr( "Specifies an optional limit on the distance from the start and end points to the network layer. If either point is further from the network than this distance an error will be raised." ) );
+  addParameter( maxEndPointDistanceFromNetwork.release() );
+
   addOutput( new QgsProcessingOutputNumber( QStringLiteral( "TRAVEL_COST" ), QObject::tr( "Travel cost" ) ) );
 }
 
@@ -61,32 +67,69 @@ QVariantMap QgsShortestPathPointToPointAlgorithm::processAlgorithm( const QVaria
   loadCommonParams( parameters, context, feedback );
 
   QgsFields fields;
-  fields.append( QgsField( QStringLiteral( "start" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "end" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "cost" ), QVariant::Double ) );
+  fields.append( QgsField( QStringLiteral( "start" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "end" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "cost" ), QMetaType::Type::Double ) );
 
   QString dest;
-  std::unique_ptr< QgsFeatureSink > sink( parameterAsSink( parameters, QStringLiteral( "OUTPUT" ), context, dest, fields, QgsWkbTypes::LineString, mNetwork->sourceCrs() ) );
+  std::unique_ptr<QgsFeatureSink> sink( parameterAsSink( parameters, QStringLiteral( "OUTPUT" ), context, dest, fields, Qgis::WkbType::LineString, mNetwork->sourceCrs() ) );
   if ( !sink )
     throw QgsProcessingException( invalidSinkError( parameters, QStringLiteral( "OUTPUT" ) ) );
 
-  QgsPointXY startPoint = parameterAsPoint( parameters, QStringLiteral( "START_POINT" ), context, mNetwork->sourceCrs() );
-  QgsPointXY endPoint = parameterAsPoint( parameters, QStringLiteral( "END_POINT" ), context, mNetwork->sourceCrs() );
+  const QgsPointXY startPoint = parameterAsPoint( parameters, QStringLiteral( "START_POINT" ), context, mNetwork->sourceCrs() );
+  const QgsPointXY endPoint = parameterAsPoint( parameters, QStringLiteral( "END_POINT" ), context, mNetwork->sourceCrs() );
 
   feedback->pushInfo( QObject::tr( "Building graph…" ) );
-  QVector< QgsPointXY > points;
-  points << startPoint << endPoint;
-  QVector< QgsPointXY > snappedPoints;
-  mDirector->makeGraph( mBuilder.get(), points, snappedPoints, feedback );
+  QVector<QgsPointXY> snappedPoints;
+  mDirector->makeGraph( mBuilder.get(), { startPoint, endPoint }, snappedPoints, feedback );
+  const QgsPointXY snappedStartPoint = snappedPoints[0];
+  const QgsPointXY snappedEndPoint = snappedPoints[1];
+
+  // check distance for the snapped start/end points
+  if ( parameters.value( QStringLiteral( "POINT_TOLERANCE" ) ).isValid() )
+  {
+    const double pointDistanceThreshold = parameterAsDouble( parameters, QStringLiteral( "POINT_TOLERANCE" ), context );
+
+    double distanceStartPointToNetwork = 0;
+    try
+    {
+      distanceStartPointToNetwork = mBuilder->distanceArea()->measureLine( startPoint, snappedStartPoint );
+    }
+    catch ( QgsCsException & )
+    {
+      throw QgsProcessingException( QObject::tr( "An error occurred while calculating length" ) );
+    }
+
+    if ( distanceStartPointToNetwork > pointDistanceThreshold )
+    {
+      throw QgsProcessingException( QObject::tr( "Start point is too far from the network layer (%1, maximum permitted is %2)" ).arg( distanceStartPointToNetwork ).arg( pointDistanceThreshold ) );
+    }
+
+    double distanceEndPointToNetwork = 0;
+    try
+    {
+      distanceEndPointToNetwork = mBuilder->distanceArea()->measureLine( endPoint, snappedEndPoint );
+    }
+    catch ( QgsCsException & )
+    {
+      throw QgsProcessingException( QObject::tr( "An error occurred while calculating length" ) );
+    }
+
+    if ( distanceEndPointToNetwork > pointDistanceThreshold )
+    {
+      throw QgsProcessingException( QObject::tr( "End point is too far from the network layer (%1, maximum permitted is %2)" ).arg( distanceEndPointToNetwork ).arg( pointDistanceThreshold ) );
+    }
+  }
 
   feedback->pushInfo( QObject::tr( "Calculating shortest path…" ) );
-  QgsGraph *graph = mBuilder->graph();
-  int idxStart = graph->findVertex( snappedPoints[0] );
-  int idxEnd = graph->findVertex( snappedPoints[1] );
+  std::unique_ptr<QgsGraph> graph( mBuilder->takeGraph() );
 
-  QVector< int > tree;
-  QVector< double > costs;
-  QgsGraphAnalyzer::dijkstra( graph, idxStart, 0, &tree, &costs );
+  const int idxStart = graph->findVertex( snappedStartPoint );
+  int idxEnd = graph->findVertex( snappedEndPoint );
+
+  QVector<int> tree;
+  QVector<double> costs;
+  QgsGraphAnalyzer::dijkstra( graph.get(), idxStart, 0, &tree, &costs );
 
   if ( tree.at( idxEnd ) == -1 )
   {
@@ -95,7 +138,7 @@ QVariantMap QgsShortestPathPointToPointAlgorithm::processAlgorithm( const QVaria
 
   QVector<QgsPointXY> route;
   route.push_front( graph->vertex( idxEnd ).point() );
-  double cost = costs.at( idxEnd );
+  const double cost = costs.at( idxEnd );
   while ( idxEnd != idxStart )
   {
     idxEnd = graph->edge( tree.at( idxEnd ) ).fromVertex();
@@ -103,14 +146,17 @@ QVariantMap QgsShortestPathPointToPointAlgorithm::processAlgorithm( const QVaria
   }
 
   feedback->pushInfo( QObject::tr( "Writing results…" ) );
-  QgsGeometry geom = QgsGeometry::fromPolylineXY( route );
+  const QgsGeometry geom = QgsGeometry::fromPolylineXY( route );
   QgsFeature feat;
   feat.setFields( fields );
   QgsAttributes attributes;
   attributes << startPoint.toString() << endPoint.toString() << cost / mMultiplier;
   feat.setGeometry( geom );
   feat.setAttributes( attributes );
-  sink->addFeature( feat, QgsFeatureSink::FastInsert );
+  if ( !sink->addFeature( feat, QgsFeatureSink::FastInsert ) )
+    throw QgsProcessingException( writeFeatureError( sink.get(), parameters, QStringLiteral( "OUTPUT" ) ) );
+
+  sink->finalize();
 
   QVariantMap outputs;
   outputs.insert( QStringLiteral( "OUTPUT" ), dest );

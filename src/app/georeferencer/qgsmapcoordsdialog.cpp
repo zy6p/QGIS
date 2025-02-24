@@ -18,19 +18,19 @@
 #include "qgsmapcanvas.h"
 #include "qgsgeorefvalidators.h"
 #include "qgsmapcoordsdialog.h"
+#include "moc_qgsmapcoordsdialog.cpp"
 #include "qgssettings.h"
 #include "qgsmapmouseevent.h"
 #include "qgsgui.h"
 #include "qgsapplication.h"
 #include "qgsprojectionselectionwidget.h"
-#include "qgsproject.h"
-#include "qgsgcpcanvasitem.h"
+#include "qgsgeorefdatapoint.h"
 
-QgsMapCoordsDialog::QgsMapCoordsDialog( QgsMapCanvas *qgisCanvas, const QgsPointXY &pixelCoords, QgsCoordinateReferenceSystem &rasterCrs, QWidget *parent )
+QgsMapCoordsDialog::QgsMapCoordsDialog( QgsMapCanvas *qgisCanvas, QgsGeorefDataPoint *georefDataPoint, QgsCoordinateReferenceSystem &rasterCrs, QWidget *parent )
   : QDialog( parent, Qt::Dialog )
   , mQgisCanvas( qgisCanvas )
   , mRasterCrs( rasterCrs )
-  , mPixelCoords( pixelCoords )
+  , mNewlyAddedPoint( georefDataPoint )
 {
   setupUi( this );
   QgsGui::enableAutoGeometryRestore( this );
@@ -39,7 +39,7 @@ QgsMapCoordsDialog::QgsMapCoordsDialog( QgsMapCanvas *qgisCanvas, const QgsPoint
 
   setAttribute( Qt::WA_DeleteOnClose );
 
-  mPointFromCanvasPushButton = new QPushButton( QgsApplication::getThemeIcon( "georeferencer/mPushButtonPencil.png" ), tr( "From Map Canvas" ) );
+  mPointFromCanvasPushButton = new QPushButton( QgsApplication::getThemeIcon( "georeferencer/mPushButtonPencil.svg" ), tr( "From Map Canvas" ) );
   mPointFromCanvasPushButton->setCheckable( true );
   buttonBox->addButton( mPointFromCanvasPushButton, QDialogButtonBox::ActionRole );
   mPointFromCanvasPushButton->setFocus();
@@ -52,13 +52,12 @@ QgsMapCoordsDialog::QgsMapCoordsDialog( QgsMapCanvas *qgisCanvas, const QgsPoint
   mToolEmitPoint = new QgsGeorefMapToolEmitPoint( qgisCanvas );
   mToolEmitPoint->setButton( mPointFromCanvasPushButton );
 
-  QgsSettings settings;
+  const QgsSettings settings;
   mMinimizeWindowCheckBox->setChecked( settings.value( QStringLiteral( "/Plugin-GeoReferencer/Config/Minimize" ), QStringLiteral( "1" ) ).toBool() );
 
   connect( mPointFromCanvasPushButton, &QAbstractButton::clicked, this, &QgsMapCoordsDialog::setToolEmitPoint );
 
-  connect( mToolEmitPoint, &QgsGeorefMapToolEmitPoint::canvasClicked,
-           this, &QgsMapCoordsDialog::maybeSetXY );
+  connect( mToolEmitPoint, &QgsGeorefMapToolEmitPoint::canvasClicked, this, &QgsMapCoordsDialog::maybeSetXY );
   connect( mToolEmitPoint, &QgsGeorefMapToolEmitPoint::mouseReleased, this, &QgsMapCoordsDialog::setPrevTool );
 
   connect( leXCoord, &QLineEdit::textChanged, this, &QgsMapCoordsDialog::updateOK );
@@ -73,16 +72,13 @@ QgsMapCoordsDialog::~QgsMapCoordsDialog()
 {
   delete mToolEmitPoint;
 
-  delete mNewlyAddedPointItem;
-  mNewlyAddedPointItem = nullptr;
-
   QgsSettings settings;
   settings.setValue( QStringLiteral( "/Plugin-GeoReferencer/Config/Minimize" ), mMinimizeWindowCheckBox->isChecked() );
 }
 
 void QgsMapCoordsDialog::updateOK()
 {
-  bool enable = ( leXCoord->text().size() != 0 && leYCoord->text().size() != 0 );
+  const bool enable = ( leXCoord->text().size() != 0 && leYCoord->text().size() != 0 );
   QPushButton *okPushButton = buttonBox->button( QDialogButtonBox::Ok );
   okPushButton->setEnabled( enable );
 }
@@ -103,7 +99,7 @@ void QgsMapCoordsDialog::buttonBox_accepted()
   if ( !ok )
     y = dmsToDD( leYCoord->text() );
 
-  emit pointAdded( mPixelCoords, QgsPointXY( x, y ), mProjectionSelector->crs().isValid() ? mProjectionSelector->crs() : mRasterCrs );
+  emit pointAdded( mNewlyAddedPoint->sourcePoint(), QgsPointXY( x, y ), mProjectionSelector->crs().isValid() ? mProjectionSelector->crs() : mRasterCrs );
   close();
 }
 
@@ -112,20 +108,14 @@ void QgsMapCoordsDialog::maybeSetXY( const QgsPointXY &xy, Qt::MouseButton butto
   // Only LeftButton should set point
   if ( Qt::LeftButton == button )
   {
-    QgsPointXY mapCoordPoint = xy;
+    const QgsPointXY mapCoordPoint = xy;
 
     leXCoord->clear();
     leYCoord->clear();
     leXCoord->setText( qgsDoubleToString( mapCoordPoint.x() ) );
     leYCoord->setText( qgsDoubleToString( mapCoordPoint.y() ) );
 
-    delete mNewlyAddedPointItem;
-    mNewlyAddedPointItem = nullptr;
-
-    // show a temporary marker at the clicked source point
-    mNewlyAddedPointItem = new QgsGCPCanvasItem( mQgisCanvas, nullptr, true );
-    mNewlyAddedPointItem->setPointColor( QColor( 0, 200, 0 ) );
-    mNewlyAddedPointItem->setPos( mNewlyAddedPointItem->toCanvasCoordinates( mapCoordPoint ) );
+    mNewlyAddedPoint->setDestinationPoint( mapCoordPoint );
   }
 
   // only restore window if it was minimized
@@ -167,7 +157,7 @@ void QgsMapCoordsDialog::setToolEmitPoint( bool isEnable )
 
 double QgsMapCoordsDialog::dmsToDD( const QString &dms )
 {
-  QStringList list = dms.split( ' ' );
+  const QStringList list = dms.split( ' ' );
   QString tmpStr = list.at( 0 );
   double res = std::fabs( tmpStr.toDouble() );
 
@@ -185,6 +175,12 @@ double QgsMapCoordsDialog::dmsToDD( const QString &dms )
     return res;
 }
 
+void QgsMapCoordsDialog::updateSourceCoordinates( const QgsPointXY &sourceCoordinates )
+{
+  mNewlyAddedPoint->setSourcePoint( sourceCoordinates );
+}
+
+
 QgsGeorefMapToolEmitPoint::QgsGeorefMapToolEmitPoint( QgsMapCanvas *canvas )
   : QgsMapTool( canvas )
 {
@@ -198,7 +194,7 @@ void QgsGeorefMapToolEmitPoint::canvasMoveEvent( QgsMapMouseEvent *e )
 
 void QgsGeorefMapToolEmitPoint::canvasPressEvent( QgsMapMouseEvent *e )
 {
-  QgsPointLocator::Match m = mapPointMatch( e );
+  const QgsPointLocator::Match m = mapPointMatch( e );
   emit canvasClicked( m.isValid() ? m.point() : toMapCoordinates( e->pos() ), e->button() );
 }
 
@@ -217,6 +213,6 @@ void QgsGeorefMapToolEmitPoint::deactivate()
 
 QgsPointLocator::Match QgsGeorefMapToolEmitPoint::mapPointMatch( QMouseEvent *e )
 {
-  QgsPointXY pnt = toMapCoordinates( e->pos() );
+  const QgsPointXY pnt = toMapCoordinates( e->pos() );
   return canvas()->snappingUtils()->snapToMap( pnt );
 }

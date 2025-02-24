@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgssmartgroupeditordialog.h"
+#include "moc_qgssmartgroupeditordialog.cpp"
 
 #include "qgsstyle.h"
 #include "qgsapplication.h"
@@ -25,7 +26,8 @@
 // -------------------------- //
 // Condition Widget functions //
 // -------------------------- //
-QgsSmartGroupCondition::QgsSmartGroupCondition( int id, QWidget *parent ) : QWidget( parent )
+QgsSmartGroupCondition::QgsSmartGroupCondition( int id, QWidget *parent )
+  : QWidget( parent )
 {
   setupUi( this );
 
@@ -170,7 +172,7 @@ void QgsSmartGroupEditorDialog::setConditionMap( const QgsSmartConditionMap &map
   const auto constConstraints = constraints;
   for ( const QString &constr : constConstraints )
   {
-    QStringList params = map.values( constr );
+    const QStringList params = map.values( constr );
     const auto constParams = params;
     for ( const QString &param : constParams )
     {

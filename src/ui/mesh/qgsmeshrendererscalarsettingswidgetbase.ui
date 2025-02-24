@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>378</width>
-    <height>206</height>
+    <width>416</width>
+    <height>272</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -136,9 +136,12 @@
       </widget>
      </item>
      <item>
-      <widget class="QLineEdit" name="mScalarMinLineEdit">
-       <property name="text">
-        <string>0</string>
+      <widget class="QgsDoubleSpinBox" name="mScalarMinSpinBox">
+       <property name="minimum">
+        <double>-10000000000000.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>10000000000000.000000000000000</double>
        </property>
       </widget>
      </item>
@@ -150,18 +153,63 @@
       </widget>
      </item>
      <item>
-      <widget class="QLineEdit" name="mScalarMaxLineEdit">
-       <property name="text">
-        <string>1</string>
+      <widget class="QgsDoubleSpinBox" name="mScalarMaxSpinBox">
+       <property name="minimum">
+        <double>-10000000000000.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>10000000000000.000000000000000</double>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QPushButton" name="mScalarRecalculateMinMaxButton">
-       <property name="text">
+       <property name="toolTip">
         <string>Load</string>
        </property>
+       <property name="icon">
+        <iconset resource="../../../images/images.qrc">
+         <normaloff>:/images/themes/default/mActionRefresh.svg</normaloff>:/images/themes/default/mActionRefresh.svg</iconset>
+       </property>
       </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout_2">
+     <item>
+      <widget class="QRadioButton" name="mUserDefinedRadioButton">
+       <property name="text">
+        <string>Use&amp;r defined</string>
+       </property>
+       <attribute name="buttonGroup">
+        <string notr="true">mMinMaxTypeButtonGroup</string>
+       </attribute>
+      </widget>
+     </item>
+     <item>
+      <widget class="QRadioButton" name="mMinMaxRadioButton">
+       <property name="text">
+        <string>&amp;Min / max</string>
+       </property>
+       <attribute name="buttonGroup">
+        <string notr="true">mMinMaxTypeButtonGroup</string>
+       </attribute>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <item>
+      <widget class="QLabel" name="mMinMaxValueTypeLabel">
+       <property name="text">
+        <string>Statistics extent</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="mMinMaxValueTypeComboBox"/>
      </item>
     </layout>
    </item>
@@ -226,7 +274,7 @@
   <customwidget>
    <class>QgsColorRampShaderWidget</class>
    <extends>QWidget</extends>
-   <header>raster/qgscolorrampshaderwidget.h</header>
+   <header>qgscolorrampshaderwidget.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -241,11 +289,17 @@
   <tabstop>mScalarEdgeStrokeWidthVariableRadioButton</tabstop>
   <tabstop>mScalarEdgeStrokeWidthSpinBox</tabstop>
   <tabstop>mScalarEdgeStrokeWidthVariablePushButton</tabstop>
-  <tabstop>mScalarMinLineEdit</tabstop>
-  <tabstop>mScalarMaxLineEdit</tabstop>
+  <tabstop>mScalarEdgeStrokeWidthUnitSelectionWidget</tabstop>
+  <tabstop>mScalarMinSpinBox</tabstop>
+  <tabstop>mScalarMaxSpinBox</tabstop>
   <tabstop>mScalarRecalculateMinMaxButton</tabstop>
   <tabstop>mScalarInterpolationTypeComboBox</tabstop>
  </tabstops>
- <resources/>
+ <resources>
+  <include location="../../../images/images.qrc"/>
+ </resources>
  <connections/>
+ <buttongroups>
+  <buttongroup name="mMinMaxTypeButtonGroup"/>
+ </buttongroups>
 </ui>

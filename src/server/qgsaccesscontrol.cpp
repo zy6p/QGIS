@@ -25,7 +25,7 @@ void QgsAccessControl::resolveFilterFeatures( const QList<QgsMapLayer *> &layers
 {
   for ( QgsMapLayer *l : layers )
   {
-    if ( l->type() == QgsMapLayerType::VectorLayer )
+    if ( l->type() == Qgis::LayerType::Vector )
     {
       const QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( l );
       mFilterFeaturesExpressions[vl->id()] = resolveFilterFeatures( vl );
@@ -42,7 +42,7 @@ QString QgsAccessControl::resolveFilterFeatures( const QgsVectorLayer *layer ) c
 
   for ( acIterator = mPluginsAccessControls->constBegin(); acIterator != mPluginsAccessControls->constEnd(); ++acIterator )
   {
-    QString expression = acIterator.value()->layerFilterExpression( layer );
+    const QString expression = acIterator.value()->layerFilterExpression( layer );
     if ( !expression.isEmpty() )
     {
       expressions.append( expression );
@@ -58,10 +58,16 @@ QString QgsAccessControl::resolveFilterFeatures( const QgsVectorLayer *layer ) c
   return expression;
 }
 
+//! Clear feature's filter of layers
+void QgsAccessControl::unresolveFilterFeatures()
+{
+  mFilterFeaturesExpressions.clear();
+  mResolved = false;
+}
+
 //! Filter the features of the layer
 void QgsAccessControl::filterFeatures( const QgsVectorLayer *layer, QgsFeatureRequest &featureRequest ) const
 {
-
   QString expression;
 
   if ( mResolved && mFilterFeaturesExpressions.contains( layer->id() ) )
@@ -92,7 +98,7 @@ QString QgsAccessControl::extraSubsetString( const QgsVectorLayer *layer ) const
   QgsAccessControlFilterMap::const_iterator acIterator;
   for ( acIterator = mPluginsAccessControls->constBegin(); acIterator != mPluginsAccessControls->constEnd(); ++acIterator )
   {
-    QString sql = acIterator.value()->layerFilterSubsetString( layer );
+    const QString sql = acIterator.value()->layerFilterSubsetString( layer );
     if ( !sql.isEmpty() )
     {
       sqls.append( sql );
@@ -189,8 +195,8 @@ bool QgsAccessControl::fillCacheKey( QStringList &cacheKey ) const
   QgsAccessControlFilterMap::const_iterator acIterator;
   for ( acIterator = mPluginsAccessControls->constBegin(); acIterator != mPluginsAccessControls->constEnd(); ++acIterator )
   {
-    QString newKey = acIterator.value()->cacheKey();
-    if ( ! newKey.isEmpty() )
+    const QString newKey = acIterator.value()->cacheKey();
+    if ( !newKey.isEmpty() )
     {
       cacheKey.clear();
       return false;

@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/expression/qgsexpressionnodeimpl.h                          *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -31,6 +31,12 @@ A unary node is either negative as in boolean (not) or as in numbers (minus).
 A node unary operator is modifying the value of ``operand`` by negating it with ``op``.
 %End
     ~QgsExpressionNodeUnaryOperator();
+
+    SIP_PYOBJECT __repr__();
+%MethodCode
+    QString str = QStringLiteral( "<QgsExpressionNodeUnaryOperator: %1>" ).arg( sipCpp->text() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+%End
 
     QgsExpressionNodeUnaryOperator::UnaryOperator op() const;
 %Docstring
@@ -121,6 +127,12 @@ A binary expression operator, which operates on two values.
 Binary combination of the left and the right with op.
 %End
     ~QgsExpressionNodeBinaryOperator();
+
+    SIP_PYOBJECT __repr__();
+%MethodCode
+    QString str = QStringLiteral( "<QgsExpressionNodeBinaryOperator: %1>" ).arg( sipCpp->text() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+%End
 
     QgsExpressionNodeBinaryOperator::BinaryOperator op() const;
 %Docstring
@@ -238,6 +250,69 @@ Returns the index node, representing an array element index or map key.
 
 };
 
+class QgsExpressionNodeBetweenOperator: QgsExpressionNode
+{
+%Docstring(signature="appended")
+SQL-like BETWEEN and NOT BETWEEN predicates.
+
+.. versionadded:: 3.26
+%End
+
+%TypeHeaderCode
+#include "qgsexpressionnodeimpl.h"
+%End
+  public:
+
+    QgsExpressionNodeBetweenOperator( QgsExpressionNode *node /Transfer/, QgsExpressionNode *nodeLowerBound /Transfer/, QgsExpressionNode *nodeHigherBound /Transfer/, bool negate = false );
+%Docstring
+This node tests if the result of ``node`` is between the result of ``nodeLowerBound`` and ``nodeHigherBound`` nodes. Optionally it can be inverted with ``negate`` which by default is ``False``.
+%End
+
+    ~QgsExpressionNodeBetweenOperator();
+
+    QgsExpressionNode *node() const;
+%Docstring
+Returns the expression node.
+%End
+
+
+    virtual QgsExpressionNode::NodeType nodeType() const;
+
+    virtual bool prepareNode( QgsExpression *parent, const QgsExpressionContext *context );
+
+    virtual QVariant evalNode( QgsExpression *parent, const QgsExpressionContext *context );
+
+    virtual QString dump() const;
+
+
+    virtual QSet<QString> referencedColumns() const;
+
+    virtual QSet<QString> referencedVariables() const;
+
+    virtual QSet<QString> referencedFunctions() const;
+
+    virtual QgsExpressionNode *clone() const /Factory/;
+
+    virtual bool isStatic( QgsExpression *parent, const QgsExpressionContext *context ) const;
+
+
+    QgsExpressionNode *lowerBound() const;
+%Docstring
+Returns the lower bound expression node of the range.
+%End
+
+    QgsExpressionNode *higherBound() const;
+%Docstring
+Returns the higher bound expression node of the range.
+%End
+
+    bool negate() const;
+%Docstring
+Returns ``True`` if the predicate is an exclusion test (NOT BETWEEN).
+%End
+
+};
+
 class QgsExpressionNodeInOperator : QgsExpressionNode
 {
 %Docstring(signature="appended")
@@ -311,6 +386,22 @@ a list of arguments that will be passed to it.
 
     ~QgsExpressionNodeFunction();
 
+    SIP_PYOBJECT __repr__();
+%MethodCode
+    QString function;
+    if ( QgsExpressionFunction *fd = QgsExpression::QgsExpression::Functions()[sipCpp->fnIndex()] )
+    {
+      function = fd->name();
+    }
+    else
+    {
+      function = QString::number( sipCpp->fnIndex() );
+    }
+
+    QString str = QStringLiteral( "<QgsExpressionNodeFunction: %1>" ).arg( function );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+%End
+
     int fnIndex() const;
 %Docstring
 Returns the index of the node's function.
@@ -365,6 +456,12 @@ An expression node for literal values.
 Constructor for QgsExpressionNodeLiteral, with the specified literal ``value``.
 %End
 
+    SIP_PYOBJECT __repr__();
+%MethodCode
+    QString str = QStringLiteral( "<QgsExpressionNodeLiteral: %1>" ).arg( sipCpp->valueAsString() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+%End
+
     QVariant value() const;
 %Docstring
 The value of the literal.
@@ -391,6 +488,13 @@ The value of the literal.
     virtual bool isStatic( QgsExpression *parent, const QgsExpressionContext *context ) const;
 
 
+    QString valueAsString() const;
+%Docstring
+Returns a string representation of the node's literal value.
+
+.. versionadded:: 3.20
+%End
+
 };
 
 class QgsExpressionNodeColumnRef : QgsExpressionNode
@@ -408,6 +512,12 @@ An expression node which takes it value from a feature's field.
 %Docstring
 Constructor for QgsExpressionNodeColumnRef, referencing the column
 with the specified ``name``.
+%End
+
+    SIP_PYOBJECT __repr__();
+%MethodCode
+    QString str = QStringLiteral( "<QgsExpressionNodeColumnRef: \"%1\">" ).arg( sipCpp->name() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
 %End
 
     QString name() const;
@@ -547,5 +657,5 @@ The ELSE expression used for the condition.
  *                                                                      *
  * src/core/expression/qgsexpressionnodeimpl.h                          *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

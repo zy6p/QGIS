@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgssvgannotation.h"
+#include "moc_qgssvgannotation.cpp"
 
 #include "qgsreadwritecontext.h"
 #include "qgsproject.h"
@@ -33,7 +34,7 @@ QgsSvgAnnotation::QgsSvgAnnotation( QObject *parent )
 
 QgsSvgAnnotation *QgsSvgAnnotation::clone() const
 {
-  std::unique_ptr< QgsSvgAnnotation > c( new QgsSvgAnnotation() );
+  auto c = std::make_unique<QgsSvgAnnotation>();
   copyCommonProperties( c.get() );
   c->setFilePath( mFilePath );
   return c.release();
@@ -41,7 +42,7 @@ QgsSvgAnnotation *QgsSvgAnnotation::clone() const
 
 void QgsSvgAnnotation::writeXml( QDomElement &elem, QDomDocument &doc, const QgsReadWriteContext &context ) const
 {
-  QString filePath = QgsSymbolLayerUtils::svgSymbolPathToName( mFilePath, context.pathResolver() );
+  const QString filePath = QgsSymbolLayerUtils::svgSymbolPathToName( mFilePath, context.pathResolver() );
   QDomElement svgAnnotationElem = doc.createElement( QStringLiteral( "SVGAnnotationItem" ) );
   svgAnnotationElem.setAttribute( QStringLiteral( "file" ), filePath );
   _writeXml( svgAnnotationElem, doc, context );
@@ -50,9 +51,9 @@ void QgsSvgAnnotation::writeXml( QDomElement &elem, QDomDocument &doc, const Qgs
 
 void QgsSvgAnnotation::readXml( const QDomElement &itemElem, const QgsReadWriteContext &context )
 {
-  QString filePath = QgsSymbolLayerUtils::svgSymbolNameToPath( itemElem.attribute( QStringLiteral( "file" ) ), context.pathResolver() );
+  const QString filePath = QgsSymbolLayerUtils::svgSymbolNameToPath( itemElem.attribute( QStringLiteral( "file" ) ), context.pathResolver() );
   setFilePath( filePath );
-  QDomElement annotationElem = itemElem.firstChildElement( QStringLiteral( "AnnotationItem" ) );
+  const QDomElement annotationElem = itemElem.firstChildElement( QStringLiteral( "AnnotationItem" ) );
   if ( !annotationElem.isNull() )
   {
     _readXml( annotationElem, context );
@@ -62,17 +63,17 @@ void QgsSvgAnnotation::readXml( const QDomElement &itemElem, const QgsReadWriteC
 void QgsSvgAnnotation::renderAnnotation( QgsRenderContext &context, QSizeF size ) const
 {
   QPainter *painter = context.painter();
-  if ( !painter )
+  if ( !painter || ( context.feedback() && context.feedback()->isCanceled() ) )
   {
     return;
   }
 
   //keep width/height ratio of svg
-  QRect viewBox = mSvgRenderer.viewBox();
+  const QRect viewBox = mSvgRenderer.viewBox();
   if ( viewBox.isValid() )
   {
-    double widthRatio = size.width() / viewBox.width();
-    double heightRatio = size.height() / viewBox.height();
+    const double widthRatio = size.width() / viewBox.width();
+    const double heightRatio = size.height() / viewBox.height();
     double renderWidth = 0;
     double renderHeight = 0;
     if ( widthRatio <= heightRatio )

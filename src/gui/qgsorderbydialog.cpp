@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgsorderbydialog.h"
+#include "moc_qgsorderbydialog.cpp"
 
 #include "qgsexpressionbuilderdialog.h"
 #include "qgsfieldexpressionwidget.h"
@@ -62,24 +63,24 @@ QgsFeatureRequest::OrderBy QgsOrderByDialog::orderBy()
   for ( int i = 0; i < mOrderByTableWidget->rowCount(); ++i )
   {
     QString expressionText = static_cast<QgsFieldExpressionWidget *>( mOrderByTableWidget->cellWidget( i, 0 ) )->currentText();
-    bool isExpression = static_cast<QgsFieldExpressionWidget *>( mOrderByTableWidget->cellWidget( i, 0 ) )->isExpression();
+    const bool isExpression = static_cast<QgsFieldExpressionWidget *>( mOrderByTableWidget->cellWidget( i, 0 ) )->isExpression();
 
-    if ( ! expressionText.isEmpty() )
+    if ( !expressionText.isEmpty() )
     {
       bool asc = true;
-      int ascIndex = static_cast<QComboBox *>( mOrderByTableWidget->cellWidget( i, 1 ) )->currentIndex();
+      const int ascIndex = static_cast<QComboBox *>( mOrderByTableWidget->cellWidget( i, 1 ) )->currentIndex();
       if ( ascIndex == 1 )
         asc = false;
 
       bool nullsFirst = false;
-      int nullsFirstIndex = static_cast<QComboBox *>( mOrderByTableWidget->cellWidget( i, 2 ) )->currentIndex();
+      const int nullsFirstIndex = static_cast<QComboBox *>( mOrderByTableWidget->cellWidget( i, 2 ) )->currentIndex();
       if ( nullsFirstIndex == 1 )
         nullsFirst = true;
 
       if ( !isExpression )
         expressionText = QgsExpression::quotedColumnRef( expressionText );
 
-      QgsFeatureRequest::OrderByClause orderByClause( expressionText, asc, nullsFirst );
+      const QgsFeatureRequest::OrderByClause orderByClause( expressionText, asc, nullsFirst );
 
       orderBy << orderByClause;
     }
@@ -116,7 +117,7 @@ void QgsOrderByDialog::setRow( int row, const QgsFeatureRequest::OrderByClause &
   QgsFieldExpressionWidget *fieldExpression = new QgsFieldExpressionWidget();
   fieldExpression->setLayer( mLayer );
   fieldExpression->setField( orderByClause.expression().expression() );
-  connect( fieldExpression, static_cast < void ( QgsFieldExpressionWidget::* )( const QString & ) >( &QgsFieldExpressionWidget::fieldChanged ), this, &QgsOrderByDialog::onExpressionChanged );
+  connect( fieldExpression, static_cast<void ( QgsFieldExpressionWidget::* )( const QString & )>( &QgsFieldExpressionWidget::fieldChanged ), this, &QgsOrderByDialog::onExpressionChanged );
 
   QComboBox *ascComboBox = new QComboBox();
   ascComboBox->addItem( tr( "Ascending" ) );

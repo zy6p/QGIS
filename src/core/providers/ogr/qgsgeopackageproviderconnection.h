@@ -18,38 +18,12 @@
 #define QGSGEOPACKAGEPROVIDERCONNECTION_H
 
 #include "qgsabstractdatabaseproviderconnection.h"
-#include "qgsogrutils.h"
+#include "qgsogrproviderconnection.h"
 
 ///@cond PRIVATE
 #define SIP_NO_FILE
 
-
-
-struct QgsGeoPackageProviderResultIterator: public QgsAbstractDatabaseProviderConnection::QueryResult::QueryResultIterator
-{
-    QgsGeoPackageProviderResultIterator( gdal::ogr_datasource_unique_ptr hDS, OGRLayerH ogrLayer )
-      : mHDS( std::move( hDS ) )
-      , mOgrLayer( ogrLayer )
-    {}
-
-    ~QgsGeoPackageProviderResultIterator();
-
-    void setFields( const QgsFields &fields );
-
-  private:
-
-    gdal::ogr_datasource_unique_ptr mHDS;
-    OGRLayerH mOgrLayer;
-    QgsFields mFields;
-    QVariantList mNextRow;
-
-    QVariantList nextRowPrivate() override;
-    QVariantList nextRowInternal();
-    bool hasNextRowPrivate() const override;
-
-};
-
-class QgsGeoPackageProviderConnection : public QgsAbstractDatabaseProviderConnection
+class QgsGeoPackageProviderConnection : public QgsOgrProviderConnection
 {
   public:
 
@@ -59,29 +33,37 @@ class QgsGeoPackageProviderConnection : public QgsAbstractDatabaseProviderConnec
 
     // QgsAbstractProviderConnection interface
   public:
+
     void store( const QString &name ) const override;
     void remove( const QString &name ) const override;
+    QgsAbstractDatabaseProviderConnection::TableProperty table( const QString &schema, const QString &table, QgsFeedback *feedback = nullptr ) const override;
     QString tableUri( const QString &schema, const QString &name ) const override;
-    void createVectorTable( const QString &schema, const QString &name, const QgsFields &fields, QgsWkbTypes::Type wkbType, const QgsCoordinateReferenceSystem &srs, bool overwrite, const QMap<QString, QVariant> *options ) const override;
-    void dropVectorTable( const QString &schema, const QString &name ) const override;
     void dropRasterTable( const QString &schema, const QString &name ) const override;
     void renameVectorTable( const QString &schema, const QString &name, const QString &newName ) const override;
-    QueryResult execSql( const QString &sql, QgsFeedback *feedback = nullptr ) const override;
+#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,10,0)
+    void renameRasterTable( const QString &schema, const QString &name, const QString &newName ) const override;
+#endif
     void vacuum( const QString &schema, const QString &name ) const override;
     void createSpatialIndex( const QString &schema, const QString &name, const QgsAbstractDatabaseProviderConnection::SpatialIndexOptions &options = QgsAbstractDatabaseProviderConnection::SpatialIndexOptions() ) const override;
     bool spatialIndexExists( const QString &schema, const QString &name, const QString &geometryColumn ) const override;
     void deleteSpatialIndex( const QString &schema, const QString &name, const QString &geometryColumn ) const override;
     QList<QgsAbstractDatabaseProviderConnection::TableProperty> tables( const QString &schema = QString(),
-        const TableFlags &flags = TableFlags() ) const override;
+        const TableFlags &flags = TableFlags(), QgsFeedback *feedback = nullptr ) const override;
     QIcon icon() const override;
-    QList<QgsVectorDataProvider::NativeType> nativeTypes() const override;
+    QgsFields fields( const QString &schema, const QString &table, QgsFeedback *feedback = nullptr ) const override;
+    QMultiMap<Qgis::SqlKeywordCategory, QStringList> sqlDictionary() override;
+    QList< Qgis::FieldDomainType > supportedFieldDomainTypes() const override;
+    QList<QgsLayerMetadataProviderResult> searchLayerMetadata( const QgsMetadataSearchContext &searchContext, const QString &searchString, const QgsRectangle &geographicExtent, QgsFeedback *feedback ) const override;
+
+  protected:
+
+    QString databaseQueryLogIdentifier() const override;
+    QString primaryKeyColumnName( const QString &table ) const override;
 
   private:
 
     void setDefaultCapabilities();
-    //! Use GDAL to execute SQL
-    QueryResult executeGdalSqlPrivate( const QString &sql, QgsFeedback *feedback = nullptr ) const;
-
+    void renameTablePrivate( const QString &schema, const QString &name, const QString &newName ) const;
 
 };
 

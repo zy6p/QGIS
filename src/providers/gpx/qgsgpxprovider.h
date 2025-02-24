@@ -38,12 +38,12 @@ class QgsGPXFeatureIterator;
  * \brief Data provider for GPX (GPS eXchange) files
  * This provider adds the ability to load GPX files as vector layers.
 */
-class QgsGPXProvider final: public QgsVectorDataProvider
+class QgsGPXProvider final : public QgsVectorDataProvider
 {
     Q_OBJECT
 
   public:
-    explicit QgsGPXProvider( const QString &uri, const QgsDataProvider::ProviderOptions &providerOptions, QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() );
+    explicit QgsGPXProvider( const QString &uri, const QgsDataProvider::ProviderOptions &providerOptions, Qgis::DataProviderReadFlags flags = Qgis::DataProviderReadFlags() );
     ~QgsGPXProvider() override;
 
     /* Functions inherited from QgsVectorDataProvider */
@@ -51,13 +51,13 @@ class QgsGPXProvider final: public QgsVectorDataProvider
     QgsAbstractFeatureSource *featureSource() const override;
     QString storageType() const override;
     QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) const override;
-    QgsWkbTypes::Type wkbType() const override;
-    long featureCount() const override;
+    Qgis::WkbType wkbType() const override;
+    long long featureCount() const override;
     QgsFields fields() const override;
     bool addFeatures( QgsFeatureList &flist, QgsFeatureSink::Flags flags = QgsFeatureSink::Flags() ) override;
     bool deleteFeatures( const QgsFeatureIds &id ) override;
     bool changeAttributeValues( const QgsChangedAttributesMap &attr_map ) override;
-    QgsVectorDataProvider::Capabilities capabilities() const override;
+    Qgis::VectorProviderCapabilities capabilities() const override;
     QVariant defaultValue( int fieldId ) const override;
 
 
@@ -72,11 +72,12 @@ class QgsGPXProvider final: public QgsVectorDataProvider
 
     /* new functions */
 
-    void changeAttributeValues( QgsGpsObject &obj,
-                                const QgsAttributeMap &attrs );
+    void changeAttributeValues( QgsGpsObject &obj, const QgsAttributeMap &attrs );
 
     bool addFeature( QgsFeature &f, QgsFeatureSink::Flags flags = QgsFeatureSink::Flags() ) override;
 
+    static QString encodeUri( const QVariantMap &parts );
+    static QVariantMap decodeUri( const QString &uri );
 
     enum DataType
     {
@@ -89,38 +90,54 @@ class QgsGPXProvider final: public QgsVectorDataProvider
 
     };
 
-    enum Attribute { NameAttr = 0, EleAttr, SymAttr, NumAttr,
-                     CmtAttr, DscAttr, SrcAttr, URLAttr, URLNameAttr
-                   };
+    enum Attribute
+    {
+      NameAttr = 0,
+      EleAttr,
+      SymAttr,
+      NumAttr,
+      CmtAttr,
+      DscAttr,
+      SrcAttr,
+      URLAttr,
+      URLNameAttr,
+      TimeAttr
+    };
 
   private:
-
-    QgsGpsData *data = nullptr;
+    QgsGpsData *mData = nullptr;
 
     //! Fields
-    QgsFields attributeFields;
+    QgsFields mAttributeFields;
     //! map from field index to attribute
-    QVector<int> indexToAttr;
+    QVector<int> mIndexToAttr;
 
     QString mFileName;
 
     DataType mFeatureType = WaypointType;
 
-    static const char *ATTR[];
-    static QVariant::Type attrType[];
-    static DataType attrUsed[];
-    static const int ATTR_COUNT;
+    static const QStringList sAttributeNames;
+    static const QList<QMetaType::Type> sAttributeTypes;
+    static const QList<DataType> sAttributedUsedForLayerType;
 
     bool mValid = false;
 
     friend class QgsGPXFeatureSource;
 };
 
-class QgsGpxProviderMetadata final: public QgsProviderMetadata
+class QgsGpxProviderMetadata final : public QgsProviderMetadata
 {
+    Q_OBJECT
   public:
     QgsGpxProviderMetadata();
-    QgsDataProvider *createProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options, QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() ) override;
+    QIcon icon() const override;
+    QgsDataProvider *createProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options, Qgis::DataProviderReadFlags flags = Qgis::DataProviderReadFlags() ) override;
+    QgsProviderMetadata::ProviderCapabilities providerCapabilities() const override;
+    QString encodeUri( const QVariantMap &parts ) const override;
+    QVariantMap decodeUri( const QString &uri ) const override;
+    QString absoluteToRelativeUri( const QString &uri, const QgsReadWriteContext &context ) const override;
+    QString relativeToAbsoluteUri( const QString &uri, const QgsReadWriteContext &context ) const override;
+    QList<Qgis::LayerType> supportedLayerTypes() const override;
 };
 
 #endif

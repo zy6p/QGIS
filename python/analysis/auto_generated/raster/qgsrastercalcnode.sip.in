@@ -3,8 +3,9 @@
  *                                                                      *
  * src/analysis/raster/qgsrastercalcnode.h                              *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
+
 
 
 
@@ -25,7 +26,8 @@ Represents a node in a raster calculator.
       tOperator,
       tNumber,
       tRasterRef,
-      tMatrix
+      tMatrix,
+      tFunction
     };
 
     enum Operator
@@ -60,21 +62,19 @@ Represents a node in a raster calculator.
     };
 
     QgsRasterCalcNode();
-%Docstring
-Constructor for QgsRasterCalcNode.
-%End
 
     QgsRasterCalcNode( double number );
     QgsRasterCalcNode( QgsRasterMatrix *matrix );
     QgsRasterCalcNode( Operator op, QgsRasterCalcNode *left, QgsRasterCalcNode *right );
+    QgsRasterCalcNode( QString functionName, QVector<QgsRasterCalcNode *> functionArgs );
+%Docstring
+Constructor for the tFunction type
+%End
     QgsRasterCalcNode( const QString &rasterName );
     ~QgsRasterCalcNode();
 
 
     Type type() const;
-%Docstring
-QgsRasterCalcNode cannot be copied
-%End
 
     void setLeft( QgsRasterCalcNode *left );
     void setRight( QgsRasterCalcNode *right );
@@ -98,6 +98,25 @@ Returns a list of nodes of a specific ``type``
 
     static QgsRasterCalcNode *parseRasterCalcString( const QString &str, QString &parserErrorMsg ) /Factory/;
 
+    QStringList referencedLayerNames() const;
+%Docstring
+Returns a list of raster layer names that are referenced in the formula without the quotation marks.
+It uses QgsRasterCalcNode.cleanRasterReferences
+
+.. note::
+
+   since QGIS 3.22
+%End
+
+    QStringList cleanRasterReferences() const;
+%Docstring
+Returns a list of raster layer references that are addressed in the formula, without quotation marks.
+
+.. note::
+
+   since QGIS 3.22
+%End
+
   private:
     QgsRasterCalcNode( const QgsRasterCalcNode &rh );
 };
@@ -108,5 +127,5 @@ Returns a list of nodes of a specific ``type``
  *                                                                      *
  * src/analysis/raster/qgsrastercalcnode.h                              *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

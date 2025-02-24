@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgseditorwidgetwrapper.h"
+#include "moc_qgseditorwidgetwrapper.cpp"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
 #include "qgsfields.h"
@@ -52,8 +53,11 @@ QVariant QgsEditorWidgetWrapper::defaultValue() const
   return mDefaultValue;
 }
 
-QgsEditorWidgetWrapper *QgsEditorWidgetWrapper::fromWidget( QWidget *widget )
+QgsEditorWidgetWrapper *QgsEditorWidgetWrapper::fromWidget( QWidget *widget ) // cppcheck-suppress duplInheritedMember
 {
+  if ( !widget )
+    return nullptr;
+
   return qobject_cast<QgsEditorWidgetWrapper *>( widget->property( "EWV2Wrapper" ).value<QgsWidgetWrapper *>() );
 }
 
@@ -117,11 +121,11 @@ void QgsEditorWidgetWrapper::updateConstraintWidgetStatus()
         break;
 
       case ConstraintResultFailHard:
-        widget()->setStyleSheet( QStringLiteral( "background-color: #FFE0B2;" ) );
+        widget()->setStyleSheet( QStringLiteral( "QWidget { background-color: rgba(255, 150, 0, 0.3); } QCalendarWidget QWidget#qt_calendar_calendarview, QCalendarWidget QWidget#qt_calendar_navigationbar QWidget { color: rgb(0, 0, 0); background-color: rgba(255, 150, 0, 1); }" ) );
         break;
 
       case ConstraintResultFailSoft:
-        widget()->setStyleSheet( QStringLiteral( "background-color: #FFECB3;" ) );
+        widget()->setStyleSheet( QStringLiteral( "QWidget { background-color: rgba(255, 200, 45, 0.3); } QCalendarWidget QWidget#qt_calendar_calendarview, QCalendarWidget QWidget#qt_calendar_navigationbar QWidget { color: rgb(0, 0, 0); background-color: rgba(255, 200, 45, 1); }" ) );
         break;
     }
   }
@@ -180,12 +184,12 @@ void QgsEditorWidgetWrapper::updateConstraint( const QgsVectorLayer *layer, int 
   bool hardConstraintsOk( true );
   bool softConstraintsOk( true );
 
-  QgsField field = layer->fields().at( index );
-  QString expression = field.constraints().constraintExpression();
+  const QgsField field = layer->fields().at( index );
+  const QString expression = field.constraints().constraintExpression();
 
   if ( ft.isValid() )
   {
-    if ( ! expression.isEmpty() )
+    if ( !expression.isEmpty() )
     {
       expressions << expression;
       descriptions << field.constraints().constraintDescription();
@@ -227,7 +231,7 @@ void QgsEditorWidgetWrapper::updateConstraint( const QgsVectorLayer *layer, int 
   }
   else // invalid feature
   {
-    if ( ! expression.isEmpty() )
+    if ( !expression.isEmpty() )
     {
       hardConstraintsOk = true;
       softConstraintsOk = false;
@@ -245,22 +249,31 @@ void QgsEditorWidgetWrapper::updateConstraint( const QgsVectorLayer *layer, int 
 
   if ( toEmit )
   {
-    QString errStr = errors.isEmpty() ? tr( "Constraint checks passed" ) : mConstraintFailureReason;
+    const QString errStr = errors.isEmpty() ? tr( "Constraint checks passed" ) : mConstraintFailureReason;
 
-    QString description = descriptions.join( QLatin1String( ", " ) );
+    const QString description = descriptions.join( QLatin1String( ", " ) );
     QString expressionDesc;
     if ( expressions.size() > 1 )
       expressionDesc = "( " + expressions.join( QLatin1String( " ) AND ( " ) ) + " )";
     else if ( !expressions.isEmpty() )
       expressionDesc = expressions.at( 0 );
 
-    ConstraintResult result = !hardConstraintsOk ? ConstraintResultFailHard
-                              : ( !softConstraintsOk ? ConstraintResultFailSoft : ConstraintResultPass );
+    const ConstraintResult result = !hardConstraintsOk ? ConstraintResultFailHard
+                                                       : ( !softConstraintsOk ? ConstraintResultFailSoft : ConstraintResultPass );
     //set the constraint result
     mConstraintResult = result;
     updateConstraintWidgetStatus();
     emit constraintStatusChanged( expressionDesc, description, errStr, result );
   }
+}
+
+void QgsEditorWidgetWrapper::updateConstraint( QgsEditorWidgetWrapper::ConstraintResult constraintResult, const QString &constraintFailureReason )
+{
+  mValidConstraint = constraintResult == ConstraintResultPass;
+  mIsBlockingCommit = constraintResult == ConstraintResultFailHard;
+  mConstraintFailureReason = constraintResult != ConstraintResultPass ? constraintFailureReason : QString();
+  mConstraintResult = constraintResult;
+  updateConstraintWidgetStatus();
 }
 
 bool QgsEditorWidgetWrapper::isValidConstraint() const
@@ -281,12 +294,15 @@ QString QgsEditorWidgetWrapper::constraintFailureReason() const
 
 bool QgsEditorWidgetWrapper::isInTable( const QWidget *parent )
 {
-  if ( !parent ) return false;
-  if ( qobject_cast<const QTableView *>( parent ) ) return true;
+  if ( !parent )
+    return false;
+  if ( qobject_cast<const QTableView *>( parent ) )
+    return true;
   return isInTable( parent->parentWidget() );
 }
 
 void QgsEditorWidgetWrapper::setHint( const QString &hintText )
 {
-  widget()->setToolTip( hintText );
+  if ( QWidget *w = widget() )
+    w->setToolTip( hintText );
 }

@@ -26,7 +26,6 @@ class TestQgsKeyValueWidget : public QObject
 {
     Q_OBJECT
   public:
-
   private slots:
     void initTestCase() // will be called before the first testfunction is executed.
     {
@@ -44,9 +43,9 @@ class TestQgsKeyValueWidget : public QObject
       const QgsKeyValueWidgetFactory factory( QStringLiteral( "testKeyValue" ) );
       QgsEditorWidgetWrapper *wrapper = factory.create( nullptr, 0, nullptr, nullptr );
       QVERIFY( wrapper );
-      QSignalSpy spy( wrapper, SIGNAL( valueChanged( const QVariant & ) ) );
+      const QSignalSpy spy( wrapper, SIGNAL( valueChanged( const QVariant & ) ) );
 
-      QgsKeyValueWidget *widget = qobject_cast< QgsKeyValueWidget * >( wrapper->widget() );
+      QgsKeyValueWidget *widget = qobject_cast<QgsKeyValueWidget *>( wrapper->widget() );
       QVERIFY( widget );
 
       QVariantMap initial;
@@ -55,7 +54,7 @@ class TestQgsKeyValueWidget : public QObject
       wrapper->setValues( initial, QVariantList() );
 
       const QVariant value = wrapper->value();
-      QCOMPARE( int( value.type() ), int( QVariant::Map ) );
+      QCOMPARE( int( static_cast<QMetaType::Type>( value.userType() ) ), int( QMetaType::Type::QVariantMap ) );
       QCOMPARE( value.toMap(), initial );
       QCOMPARE( spy.count(), 0 );
 
@@ -65,11 +64,17 @@ class TestQgsKeyValueWidget : public QObject
 
       QVariantMap expected = initial;
       expected[QStringLiteral( "1" )] = "hello";
-      QVariant eventValue = spy.at( 0 ).at( 0 ).value<QVariant>();
-      QCOMPARE( int( eventValue.type() ), int( QVariant::Map ) );
+      const QVariant eventValue = spy.at( 0 ).at( 0 ).value<QVariant>();
+      QCOMPARE( int( static_cast<QMetaType::Type>( eventValue.userType() ) ), int( QMetaType::Type::QVariantMap ) );
       QCOMPARE( eventValue.toMap(), expected );
       QCOMPARE( wrapper->value().toMap(), expected );
       QCOMPARE( spy.count(), 1 );
+
+      const QSignalSpy rowSpy( wrapper, &QgsEditorWidgetWrapper::valuesChanged );
+      model->removeRow( 0, QModelIndex() );
+      QCOMPARE( rowSpy.count(), 1 );
+      model->insertRow( 0, QModelIndex() );
+      QCOMPARE( rowSpy.count(), 2 );
     }
 };
 

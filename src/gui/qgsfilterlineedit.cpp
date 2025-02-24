@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgsfilterlineedit.h"
+#include "moc_qgsfilterlineedit.cpp"
 #include "qgsapplication.h"
 #include "qgsanimatedicon.h"
 #include "qgis.h"
@@ -31,13 +32,12 @@ QgsFilterLineEdit::QgsFilterLineEdit( QWidget *parent, const QString &nullValue 
   , mNullValue( nullValue )
 {
   // icon size is about 2/3 height of text, but minimum size of 16
-  int iconSize = std::floor( std::max( Qgis::UI_SCALE_FACTOR * fontMetrics().height() * 0.75, 16.0 ) );
+  const int iconSize = std::floor( std::max( Qgis::UI_SCALE_FACTOR * fontMetrics().height() * 0.75, 16.0 ) );
 
   mClearIcon.addPixmap( QgsApplication::getThemeIcon( "/mIconClearText.svg" ).pixmap( QSize( iconSize, iconSize ) ), QIcon::Normal, QIcon::On );
   mClearIcon.addPixmap( QgsApplication::getThemeIcon( "/mIconClearTextHover.svg" ).pixmap( QSize( iconSize, iconSize ) ), QIcon::Selected, QIcon::On );
 
-  connect( this, &QLineEdit::textChanged, this,
-           &QgsFilterLineEdit::onTextChanged );
+  connect( this, &QLineEdit::textChanged, this, &QgsFilterLineEdit::onTextChanged );
 }
 
 void QgsFilterLineEdit::setShowClearButton( bool visible )
@@ -50,7 +50,7 @@ void QgsFilterLineEdit::setShowSearchIcon( bool visible )
 {
   if ( visible && !mSearchAction )
   {
-    QIcon searchIcon = QgsApplication::getThemeIcon( "/search.svg" );
+    const QIcon searchIcon = QgsApplication::getThemeIcon( "/search.svg" );
     mSearchAction = new QAction( searchIcon, QString(), this );
     mSearchAction->setCheckable( false );
     addAction( mSearchAction, QLineEdit::LeadingPosition );
@@ -62,9 +62,18 @@ void QgsFilterLineEdit::setShowSearchIcon( bool visible )
   }
 }
 
+void QgsFilterLineEdit::setDefaultValue( const QString &defaultValue )
+{
+  if ( defaultValue == mDefaultValue )
+    return;
+
+  mDefaultValue = defaultValue;
+  updateClearIcon();
+}
+
 void QgsFilterLineEdit::updateClearIcon()
 {
-  bool showClear = shouldShowClear();
+  const bool showClear = shouldShowClear();
   if ( showClear && !mClearAction )
   {
     mClearAction = new QAction( mClearIcon, QString(), this );
@@ -168,7 +177,6 @@ bool QgsFilterLineEdit::showSpinner() const
 
 void QgsFilterLineEdit::setShowSpinner( bool showSpinner )
 {
-
   if ( showSpinner == mShowSpinner )
     return;
 

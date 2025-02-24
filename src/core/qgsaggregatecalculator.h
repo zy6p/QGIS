@@ -20,8 +20,6 @@
 
 #include "qgis_core.h"
 #include "qgsstatisticalsummary.h"
-#include "qgsdatetimestatisticalsummary.h"
-#include "qgsstringstatisticalsummary.h"
 #include "qgsfeaturerequest.h"
 #include <QVariant>
 #include "qgsfeatureid.h"
@@ -35,11 +33,11 @@ class QgsExpressionContext;
 /**
  * \ingroup core
  * \class QgsAggregateCalculator
- * \brief Utility class for calculating aggregates for a field (or expression) over the features
- * from a vector layer. It is recommended that QgsVectorLayer::aggregate() is used rather then
+ * \brief Utility class for calculating aggregates for a field (or expression) over the features from a vector layer.
+ *
+ * \note It is recommended that QgsVectorLayer::aggregate() is used rather then
  * directly using this class, as the QgsVectorLayer method can handle delegating aggregate calculation
  * to a data provider for remote calculation.
- * \since QGIS 2.16
  */
 class CORE_EXPORT QgsAggregateCalculator
 {
@@ -48,43 +46,15 @@ class CORE_EXPORT QgsAggregateCalculator
     /**
      * Structured information about the available aggregates.
      *
-     * \since QGIS 3.0
      */
     struct AggregateInfo
     {
-      QString function; //!< The expression function
-      QString name; //!< A translated, human readable name
-      QSet<QVariant::Type> supportedTypes; //!< This aggregate function can only be used with these datatypes
-    };
-
-    /**
-     * Available aggregates to calculate. Not all aggregates are available for all field
-     * types.
-     */
-    enum Aggregate
-    {
-      Count,  //!< Count
-      CountDistinct,  //!< Number of distinct values
-      CountMissing,  //!< Number of missing (null) values
-      Min,  //!< Min of values
-      Max,  //!< Max of values
-      Sum,  //!< Sum of values
-      Mean,  //!< Mean of values (numeric fields only)
-      Median, //!< Median of values (numeric fields only)
-      StDev, //!< Standard deviation of values (numeric fields only)
-      StDevSample, //!< Sample standard deviation of values (numeric fields only)
-      Range, //!< Range of values (max - min) (numeric and datetime fields only)
-      Minority, //!< Minority of values
-      Majority, //!< Majority of values
-      FirstQuartile, //!< First quartile (numeric fields only)
-      ThirdQuartile, //!< Third quartile (numeric fields only)
-      InterQuartileRange, //!< Inter quartile range (IQR) (numeric fields only)
-      StringMinimumLength, //!< Minimum length of string (string fields only)
-      StringMaximumLength, //!< Maximum length of string (string fields only)
-      StringConcatenate, //!< Concatenate values with a joining string (string fields only). Specify the delimiter using setDelimiter().
-      GeometryCollect, //!< Create a multipart geometry from aggregated geometries
-      ArrayAggregate, //!< Create an array of values
-      StringConcatenateUnique //!< Concatenate unique values with a joining string (string fields only). Specify the delimiter using setDelimiter().
+      //! The expression function
+      QString function;
+      //! A translated, human readable name
+      QString name;
+      //! This aggregate function can only be used with these datatypes
+      QSet<QMetaType::Type> supportedTypes;
     };
 
     //! A bundle of parameters controlling aggregate calculation
@@ -118,6 +88,13 @@ class CORE_EXPORT QgsAggregateCalculator
      * \param layer vector layer to calculate aggregate from
      */
     QgsAggregateCalculator( const QgsVectorLayer *layer );
+
+    /**
+     * Returns the last error encountered during the aggregate calculation.
+     *
+     * \since QGIS 3.22
+     */
+    QString lastError() const { return mLastError; }
 
     /**
      * Returns the associated vector layer.
@@ -170,11 +147,13 @@ class CORE_EXPORT QgsAggregateCalculator
      * \param fieldOrExpression source field or expression to use as basis for aggregated values.
      * If an expression is used, then the context parameter must be set.
      * \param context expression context for evaluating expressions
-     * \param ok if specified, will be set to TRUE if aggregate calculation was successful
+     * \param ok if specified, will be set to TRUE if aggregate calculation was successful. If \a ok is FALSE then lastError() can be used to retrieve a descriptive error message.
+     * \param feedback optional feedback argument for early cancellation (since QGIS 3.22). If set, this will take precedence over any feedback object
+     * set on the expression \a context.
      * \returns calculated aggregate value
      */
-    QVariant calculate( Aggregate aggregate, const QString &fieldOrExpression,
-                        QgsExpressionContext *context = nullptr, bool *ok = nullptr ) const;
+    QVariant calculate( Qgis::Aggregate aggregate, const QString &fieldOrExpression,
+                        QgsExpressionContext *context = nullptr, bool *ok = nullptr, QgsFeedback *feedback = nullptr ) const;
 
     /**
      * Converts a string to a aggregate type.
@@ -182,7 +161,13 @@ class CORE_EXPORT QgsAggregateCalculator
      * \param ok if specified, will be set to TRUE if conversion was successful
      * \returns aggregate type
      */
-    static Aggregate stringToAggregate( const QString &string, bool *ok = nullptr );
+    static Qgis::Aggregate stringToAggregate( const QString &string, bool *ok = nullptr );
+
+    /**
+     * Returns the friendly display name for a \a aggregate.
+     * \since QGIS 3.22
+     */
+    static QString displayName( Qgis::Aggregate aggregate );
 
     /**
      * Structured information for available aggregates.
@@ -211,31 +196,33 @@ class CORE_EXPORT QgsAggregateCalculator
     //trigger variable
     bool mFidsSet = false;
 
-    static QgsStatisticalSummary::Statistic numericStatFromAggregate( Aggregate aggregate, bool *ok = nullptr );
-    static QgsStringStatisticalSummary::Statistic stringStatFromAggregate( Aggregate aggregate, bool *ok = nullptr );
-    static QgsDateTimeStatisticalSummary::Statistic dateTimeStatFromAggregate( Aggregate aggregate, bool *ok = nullptr );
+    mutable QString mLastError;
+
+    static Qgis::Statistic numericStatFromAggregate( Qgis::Aggregate aggregate, bool *ok = nullptr );
+    static Qgis::StringStatistic stringStatFromAggregate( Qgis::Aggregate aggregate, bool *ok = nullptr );
+    static Qgis::DateTimeStatistic dateTimeStatFromAggregate( Qgis::Aggregate aggregate, bool *ok = nullptr );
 
     static QVariant calculateNumericAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
-        QgsExpressionContext *context, QgsStatisticalSummary::Statistic stat );
+        QgsExpressionContext *context, Qgis::Statistic stat );
 
     static QVariant calculateStringAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
-        QgsExpressionContext *context, QgsStringStatisticalSummary::Statistic stat );
+        QgsExpressionContext *context, Qgis::StringStatistic stat );
 
     static QVariant calculateDateTimeAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
-        QgsExpressionContext *context, QgsDateTimeStatisticalSummary::Statistic stat );
+        QgsExpressionContext *context, Qgis::DateTimeStatistic stat );
     static QVariant calculateGeometryAggregate( QgsFeatureIterator &fit, QgsExpression *expression, QgsExpressionContext *context );
 
     static QVariant calculateArrayAggregate( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
         QgsExpressionContext *context );
 
-    static QVariant calculate( Aggregate aggregate, QgsFeatureIterator &fit, QVariant::Type resultType,
+    static QVariant calculate( Qgis::Aggregate aggregate, QgsFeatureIterator &fit, QMetaType::Type resultType, int userType,
                                int attr, QgsExpression *expression,
                                const QString &delimiter,
-                               QgsExpressionContext *context, bool *ok = nullptr );
+                               QgsExpressionContext *context, bool *ok = nullptr, QString *error = nullptr );
     static QVariant concatenateStrings( QgsFeatureIterator &fit, int attr, QgsExpression *expression,
                                         QgsExpressionContext *context, const QString &delimiter, bool unique = false );
 
-    QVariant defaultValue( Aggregate aggregate ) const;
+    QVariant defaultValue( Qgis::Aggregate aggregate ) const;
 };
 
 #endif //QGSAGGREGATECALCULATOR_H

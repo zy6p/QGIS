@@ -16,16 +16,18 @@
  ***************************************************************************/
 
 #include "qgsproxyprogresstask.h"
+#include "moc_qgsproxyprogresstask.cpp"
 #include "qgsapplication.h"
+#include <QThreadPool>
 
-QgsProxyProgressTask::QgsProxyProgressTask( const QString &description )
-  : QgsTask( description, QgsTask::Flags() )
+QgsProxyProgressTask::QgsProxyProgressTask( const QString &description, bool canCancel )
+  : QgsTask( description, canCancel ? QgsTask::CanCancel : QgsTask::Flags() )
 {
 }
 
 void QgsProxyProgressTask::finalize( bool result )
 {
-  QMutexLocker lock( &mNotFinishedMutex );
+  const QMutexLocker lock( &mNotFinishedMutex );
   mAlreadyFinished = true;
 
   mResult = result;
@@ -34,6 +36,7 @@ void QgsProxyProgressTask::finalize( bool result )
 
 bool QgsProxyProgressTask::run()
 {
+  QgsApplication::taskManager()->threadPool()->releaseThread();
   mNotFinishedMutex.lock();
   if ( !mAlreadyFinished )
   {
@@ -41,12 +44,20 @@ bool QgsProxyProgressTask::run()
   }
   mNotFinishedMutex.unlock();
 
+  QgsApplication::taskManager()->threadPool()->reserveThread();
   return mResult;
 }
 
 void QgsProxyProgressTask::setProxyProgress( double progress )
 {
   QMetaObject::invokeMethod( this, "setProgress", Qt::AutoConnection, Q_ARG( double, progress ) );
+}
+
+void QgsProxyProgressTask::cancel()
+{
+  emit canceled();
+
+  QgsTask::cancel();
 }
 
 //

@@ -22,6 +22,7 @@
 
 #include "qgsauthconfig.h"
 #include "qgsauthmethod.h"
+#include "qgsauthmethodmetadata.h"
 
 
 class QgsAuthIdentCertMethod : public QgsAuthMethod
@@ -29,6 +30,10 @@ class QgsAuthIdentCertMethod : public QgsAuthMethod
     Q_OBJECT
 
   public:
+    static const QString AUTH_METHOD_KEY;
+    static const QString AUTH_METHOD_DESCRIPTION;
+    static const QString AUTH_METHOD_DISPLAY_DESCRIPTION;
+
     explicit QgsAuthIdentCertMethod();
     ~QgsAuthIdentCertMethod() override;
 
@@ -39,18 +44,20 @@ class QgsAuthIdentCertMethod : public QgsAuthMethod
 
     QString displayDescription() const override;
 
-    bool updateNetworkRequest( QNetworkRequest &request, const QString &authcfg,
-                               const QString &dataprovider = QString() ) override;
+    bool updateNetworkRequest( QNetworkRequest &request, const QString &authcfg, const QString &dataprovider = QString() ) override;
 
-    bool updateDataSourceUriItems( QStringList &connectionItems, const QString &authcfg,
-                                   const QString &dataprovider = QString() ) override;
+    bool updateDataSourceUriItems( QStringList &connectionItems, const QString &authcfg, const QString &dataprovider = QString() ) override;
 
     void clearCachedConfig( const QString &authcfg ) override;
 
     void updateMethodConfig( QgsAuthMethodConfig &mconfig ) override;
 
-  private:
+#ifdef HAVE_GUI
+    QWidget *editWidget( QWidget *parent ) const override;
+#endif
 
+  private:
+#ifndef QT_NO_SSL
     QgsPkiConfigBundle *getPkiConfigBundle( const QString &authcfg );
 
     void putPkiConfigBundle( const QString &authcfg, QgsPkiConfigBundle *pkibundle );
@@ -58,7 +65,18 @@ class QgsAuthIdentCertMethod : public QgsAuthMethod
     void removePkiConfigBundle( const QString &authcfg );
 
     static QMap<QString, QgsPkiConfigBundle *> sPkiConfigBundleCache;
+#endif
+};
 
+
+class QgsAuthIdentCertMethodMetadata : public QgsAuthMethodMetadata
+{
+  public:
+    QgsAuthIdentCertMethodMetadata()
+      : QgsAuthMethodMetadata( QgsAuthIdentCertMethod::AUTH_METHOD_KEY, QgsAuthIdentCertMethod::AUTH_METHOD_DESCRIPTION )
+    {}
+    QgsAuthIdentCertMethod *createAuthMethod() const override { return new QgsAuthIdentCertMethod; }
+    //QStringList supportedDataProviders() const override;
 };
 
 #endif // QGSAUTHIDENTCERTMETHOD_H

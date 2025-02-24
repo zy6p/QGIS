@@ -29,7 +29,6 @@ SIP_IF_MODULE( HAVE_QSCI_SIP )
  * \brief A SQL editor based on QScintilla2. Adds syntax highlighting and
  * code autocompletion.
  * \note may not be available in Python bindings, depending on platform support
- * \since QGIS 2.6
  */
 class GUI_EXPORT QgsCodeEditorSQL : public QgsCodeEditor
 {
@@ -39,12 +38,51 @@ class GUI_EXPORT QgsCodeEditorSQL : public QgsCodeEditor
     //! Constructor for QgsCodeEditorSQL
     QgsCodeEditorSQL( QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
+    Qgis::ScriptLanguage language() const override;
+
+    virtual ~QgsCodeEditorSQL();
+
     /**
      * Set field names to be added to the lexer API.
      *
      * \since QGIS 3.14
      */
     void setFields( const QgsFields &fields );
+
+    /**
+     * Set field names to \a fieldNames to be added to the lexer API.
+     *
+     * \since QGIS 3.18
+     */
+    void setFieldNames( const QStringList &fieldNames );
+
+    /**
+     * Returns field names from the lexer API.
+     * \since QGIS 3.22
+     */
+    QStringList fieldNames() const;
+
+    /**
+     * Set extra keywords to \a extraKeywords.
+     *
+     * Extra keywords are usually added
+     * from provider connections and represent function and other provider specific
+     * keywords.
+     *
+     * \since QGIS 3.22
+     */
+    void setExtraKeywords( const QStringList &extraKeywords );
+
+    /**
+     * Returns the extra keywords.
+     *
+     * Extra keywords are usually added
+     * from provider connections and represent function and other provider specific
+     * keywords.
+     *
+     * \since QGIS 3.22
+     */
+    QStringList extraKeywords() const;
 
   protected:
     void initializeLexer() override;
@@ -53,8 +91,11 @@ class GUI_EXPORT QgsCodeEditorSQL : public QgsCodeEditor
     void updateApis();
     QsciAPIs *mApis = nullptr;
     QsciLexerSQL *mSqlLexer = nullptr;
+    QSet<QString> mExtraKeywords;
 
-    QStringList mFieldNames;
+    QSet<QString> mFieldNames;
+
+    friend class TestQgsQueryResultWidget;
 };
 
 #ifndef SIP_RUN
@@ -69,13 +110,14 @@ class GUI_EXPORT QgsCodeEditorSQL : public QgsCodeEditor
  * \note not available in Python bindings
  * \ingroup gui
 */
-class QgsCaseInsensitiveLexerSQL: public QsciLexerSQL
+class QgsCaseInsensitiveLexerSQL : public QsciLexerSQL
 {
     Q_OBJECT
 
   public:
     //! constructor
-    explicit QgsCaseInsensitiveLexerSQL( QObject *parent = nullptr ) : QsciLexerSQL( parent ) {}
+    explicit QgsCaseInsensitiveLexerSQL( QObject *parent = nullptr )
+      : QsciLexerSQL( parent ) {}
 
     bool caseSensitive() const override { return false; }
 };

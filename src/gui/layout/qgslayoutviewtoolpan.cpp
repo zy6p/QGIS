@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayoutviewtoolpan.h"
+#include "moc_qgslayoutviewtoolpan.cpp"
 #include "qgslayoutviewmouseevent.h"
 #include "qgslayoutview.h"
 #include <QScrollBar>
@@ -36,7 +37,7 @@ void QgsLayoutViewToolPan::layoutPressEvent( QgsLayoutViewMouseEvent *event )
 
   mIsPanning = true;
   mLastMousePos = event->pos();
-  view()->setCursor( Qt::ClosedHandCursor );
+  view()->viewport()->setCursor( Qt::ClosedHandCursor );
 }
 
 void QgsLayoutViewToolPan::layoutMoveEvent( QgsLayoutViewMouseEvent *event )
@@ -55,18 +56,18 @@ void QgsLayoutViewToolPan::layoutMoveEvent( QgsLayoutViewMouseEvent *event )
 
 void QgsLayoutViewToolPan::layoutReleaseEvent( QgsLayoutViewMouseEvent *event )
 {
-  bool clickOnly = !isClickAndDrag( mMousePressStartPos, event->pos() );
+  const bool clickOnly = !isClickAndDrag( mMousePressStartPos, event->pos() );
 
   if ( event->button() == Qt::MiddleButton && clickOnly )
   {
     //middle mouse button click = recenter on point
 
     //get current visible part of scene
-    QRect viewportRect( 0, 0, view()->viewport()->width(), view()->viewport()->height() );
+    const QRect viewportRect( 0, 0, view()->viewport()->width(), view()->viewport()->height() );
     QgsRectangle visibleRect = QgsRectangle( view()->mapToScene( viewportRect ).boundingRect() );
-    QPointF scenePoint = event->layoutPoint();
+    const QPointF scenePoint = event->layoutPoint();
     visibleRect.scale( 1, scenePoint.x(), scenePoint.y() );
-    QRectF boundsRect = visibleRect.toRectF();
+    const QRectF boundsRect = visibleRect.toRectF();
 
     //zoom view to fit desired bounds
     view()->fitInView( boundsRect, Qt::KeepAspectRatio );
@@ -84,7 +85,7 @@ void QgsLayoutViewToolPan::layoutReleaseEvent( QgsLayoutViewMouseEvent *event )
   }
 
   mIsPanning = false;
-  view()->setCursor( Qt::OpenHandCursor );
+  view()->viewport()->setCursor( Qt::OpenHandCursor );
 }
 
 void QgsLayoutViewToolPan::deactivate()

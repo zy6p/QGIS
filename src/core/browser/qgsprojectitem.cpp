@@ -16,15 +16,16 @@
  ***************************************************************************/
 
 #include "qgsprojectitem.h"
+#include "moc_qgsprojectitem.cpp"
 #include <QDir>
 
 QgsProjectItem::QgsProjectItem( QgsDataItem *parent, const QString &name,
                                 const QString &path, const QString &providerKey )
-  : QgsDataItem( QgsDataItem::Project, parent, name, path, providerKey )
+  : QgsDataItem( Qgis::BrowserItemType::Project, parent, name, path, providerKey )
 {
   mIconName = QStringLiteral( ":/images/icons/qgis_icon.svg" );
   setToolTip( QDir::toNativeSeparators( path ) );
-  setState( Populated ); // no more children
+  setState( Qgis::BrowserItemState::Populated ); // no more children
 }
 
 QgsMimeDataUtils::UriList QgsProjectItem::mimeUris() const
@@ -33,6 +34,12 @@ QgsMimeDataUtils::UriList QgsProjectItem::mimeUris() const
   u.layerType = QStringLiteral( "project" );
   u.name = mName;
   u.uri = mPath;
+
+  if ( capabilities2() & Qgis::BrowserItemCapability::ItemRepresentsFile )
+  {
+    u.filePath = path();
+  }
+
   return { u };
 }
 

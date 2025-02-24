@@ -67,13 +67,11 @@ class CORE_EXPORT QgsMeshSpatialIndex
      */
     explicit QgsMeshSpatialIndex( const QgsMesh &mesh, QgsFeedback *feedback = nullptr, QgsMesh::ElementType elementType = QgsMesh::ElementType::Face );
 
-    //! Copy constructor
     QgsMeshSpatialIndex( const QgsMeshSpatialIndex &other );
 
     //! Destructor finalizes work with spatial index
     ~QgsMeshSpatialIndex();
 
-    //! Implement assignment operator
     QgsMeshSpatialIndex &operator=( const QgsMeshSpatialIndex &other );
 
     /**
@@ -99,6 +97,17 @@ class CORE_EXPORT QgsMeshSpatialIndex
      * \since QGIS 3.14
      */
     QgsMesh::ElementType elementType() const;
+
+    /**
+     * Adds a face with \a faceIndex from the \a mesh in the spatial index
+     */
+    void addFace( int faceIndex, const QgsMesh &mesh );
+
+    /**
+     * Removes a face with \a faceIndex from the \a mesh in the spatial index
+     */
+    void removeFace( int faceIndex, const QgsMesh &mesh );
+
 
   private:
     QgsMesh::ElementType mElementType = QgsMesh::ElementType::Face;

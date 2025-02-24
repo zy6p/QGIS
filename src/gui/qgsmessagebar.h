@@ -57,12 +57,11 @@ class QgsMessageBarItem;
  * The class also supports pushing custom widgets to the notification stack via
  * the pushWidget() method.
  */
-class GUI_EXPORT QgsMessageBar: public QFrame
+class GUI_EXPORT QgsMessageBar : public QFrame
 {
     Q_OBJECT
 
   public:
-
     //! Constructor for QgsMessageBar
     QgsMessageBar( QWidget *parent SIP_TRANSFERTHIS = nullptr );
 
@@ -79,11 +78,11 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * and putting it in a stack.
      *
      * \param widget message widget to display
-     * \param level is Qgis::Info, Warning, Critical or Success
+     * \param level is Qgis::MessageLevel::Info, Warning, Critical or Success
      * \param duration timeout duration of message in seconds, 0 value indicates no timeout (i.e.
      * the message must be manually cleared by the user).
      */
-    QgsMessageBarItem *pushWidget( QWidget *widget SIP_TRANSFER, Qgis::MessageLevel level = Qgis::Info, int duration = 0 );
+    QgsMessageBarItem *pushWidget( QWidget *widget SIP_TRANSFER, Qgis::MessageLevel level = Qgis::MessageLevel::Info, int duration = 0 );
 
     /**
      * Remove the specified \a item from the bar, and display the next most recent one in the stack.
@@ -134,7 +133,7 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * is set to 0, then the message must be manually dismissed by the user. Since QGIS 3.18, a duration of -1 indicates that
      * the default timeout for the message \a level should be used.
      */
-    void pushMessage( const QString &text, Qgis::MessageLevel level = Qgis::Info, int duration = -1 );
+    void pushMessage( const QString &text, Qgis::MessageLevel level = Qgis::MessageLevel::Info, int duration = -1 );
 
     /**
      * A convenience method for pushing a message with the specified \a title and \a text to the bar.
@@ -146,7 +145,7 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * is set to 0, then the message must be manually dismissed by the user. Since QGIS 3.18, a duration of -1 indicates that
      * the default timeout for the message \a level should be used.
      */
-    void pushMessage( const QString &title, const QString &text, Qgis::MessageLevel level = Qgis::Info, int duration = -1 );
+    void pushMessage( const QString &title, const QString &text, Qgis::MessageLevel level = Qgis::MessageLevel::Info, int duration = -1 );
 
     /**
      * A convenience method for pushing a message with the specified \a title and \a text to the bar. Additional
@@ -159,7 +158,7 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * is set to 0, then the message must be manually dismissed by the user. Since QGIS 3.18, a duration of -1 indicates that
      * the default timeout for the message \a level should be used.
      */
-    void pushMessage( const QString &title, const QString &text, const QString &showMore, Qgis::MessageLevel level = Qgis::Info, int duration = -1 );
+    void pushMessage( const QString &title, const QString &text, const QString &showMore, Qgis::MessageLevel level = Qgis::MessageLevel::Info, int duration = -1 );
 
     /**
      * Returns the current visible item, or NULLPTR if no item is shown.
@@ -177,7 +176,7 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * Returns the default timeout in seconds for timed messages of the specified \a level.
      * \since QGIS 3.18
      */
-    static int defaultMessageTimeout( Qgis::MessageLevel level = Qgis::None );
+    static int defaultMessageTimeout( Qgis::MessageLevel level = Qgis::MessageLevel::NoLevel );
 
   signals:
 
@@ -214,7 +213,6 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * \param title title string for message
      * \param message The message to be displayed
      *
-     * \since QGIS 2.8
      */
     void pushSuccess( const QString &title, const QString &message );
 
@@ -224,7 +222,6 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * \param title title string for message
      * \param message The message to be displayed
      *
-     * \since QGIS 2.8
      */
     void pushInfo( const QString &title, const QString &message );
 
@@ -234,7 +231,6 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * \param title title string for message
      * \param message The message to be displayed
      *
-     * \since QGIS 2.8
      */
     void pushWarning( const QString &title, const QString &message );
 
@@ -244,7 +240,6 @@ class GUI_EXPORT QgsMessageBar: public QFrame
      * \param title title string for message
      * \param message The message to be displayed
      *
-     * \since QGIS 2.8
      */
     void pushCritical( const QString &title, const QString &message );
 
@@ -264,7 +259,7 @@ class GUI_EXPORT QgsMessageBar: public QFrame
     QTimer *mCountdownTimer = nullptr;
     QProgressBar *mCountProgress = nullptr;
     QString mCountStyleSheet;
-    Qgis::MessageLevel mPrevLevel = Qgis::MessageLevel::None;
+    Qgis::MessageLevel mPrevLevel = Qgis::MessageLevel::NoLevel;
 
     static constexpr int MAX_ITEMS = 100;
 

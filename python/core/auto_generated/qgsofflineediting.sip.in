@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/qgsofflineediting.h                                         *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -12,6 +12,9 @@
 
 class QgsOfflineEditing : QObject
 {
+%Docstring(signature="appended")
+Handles logic relating to synchronizing online and offline copies of layer data.
+%End
 
 %TypeHeaderCode
 #include "qgsofflineediting.h"
@@ -53,9 +56,12 @@ Convert current project for offline editing
 Returns ``True`` if current project is offline
 %End
 
-    void synchronize();
+
+    void synchronize( bool useTransaction = false );
 %Docstring
 Synchronize to remote layers
+
+:param useTransaction: enforce the remote layer modifications with the same source to be in a transaction group
 %End
 
   signals:
@@ -73,7 +79,7 @@ comparing the index of the current ``layer`` to the total amount
 ``numLayers``.
 %End
 
-    void progressModeSet( QgsOfflineEditing::ProgressMode mode, int maximum );
+    void progressModeSet( QgsOfflineEditing::ProgressMode mode, long long maximum );
 %Docstring
 Emitted when the mode for the progress of the current operation is
 set.
@@ -82,7 +88,7 @@ set.
 :param maximum: total number of entities to process in the current operation
 %End
 
-    void progressUpdated( int progress );
+    void progressUpdated( long long progress );
 %Docstring
 Emitted with the progress of the current mode
 
@@ -109,5 +115,5 @@ Emitted when a warning needs to be displayed.
  *                                                                      *
  * src/core/qgsofflineediting.h                                         *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

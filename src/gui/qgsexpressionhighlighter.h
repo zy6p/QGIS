@@ -21,6 +21,7 @@
 #include <QHash>
 #include <QTextCharFormat>
 #include <QStringList>
+#include <QRegularExpression>
 #include "qgis_gui.h"
 
 class QTextDocument;
@@ -43,8 +44,8 @@ class GUI_EXPORT QgsExpressionHighlighter : public QSyntaxHighlighter
   private:
     struct HighlightingRule
     {
-      QRegExp pattern;
-      QTextCharFormat format;
+        QRegularExpression pattern;
+        QTextCharFormat format;
     };
     QVector<HighlightingRule> highlightingRules;
 

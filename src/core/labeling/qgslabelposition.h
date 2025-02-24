@@ -71,8 +71,16 @@ class CORE_EXPORT QgsLabelPosition
       , isUnplaced( isUnplaced )
     {}
 
-    //! Constructor for QgsLabelPosition
     QgsLabelPosition() = default;
+
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    const QString text = sipCpp->labelText;
+    QString str = QStringLiteral( "<QgsLabelPosition: \"%1\"%2>" ).arg( text, sipCpp->isUnplaced ? QStringLiteral( " (unplaced)" ) : QString() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
 
     /**
      * ID of feature associated with this label.
@@ -135,7 +143,6 @@ class CORE_EXPORT QgsLabelPosition
 
     /**
      * ID of the associated label provider.
-     * \since QGIS 2.14
      */
     QString providerID;
 
@@ -144,6 +151,13 @@ class CORE_EXPORT QgsLabelPosition
      * \since QGIS 3.10
      */
     bool isUnplaced = false;
+
+    /**
+     * If non zero, indicates that the label position is part of a group of label positions (i.e. a character in a curved label).
+     *
+     * All other linked positions will share the same groupedLabelId.
+     */
+    long long groupedLabelId = 0;
 };
 
 #endif // QGSLABELPOSITION_H

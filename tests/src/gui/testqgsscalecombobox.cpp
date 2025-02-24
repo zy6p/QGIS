@@ -18,6 +18,7 @@
 #include "qgsapplication.h"
 #include "qgslogger.h"
 #include "qgsscalecombobox.h"
+#include "qgssettingsregistrycore.h"
 #include <QObject>
 #include <QLineEdit>
 #include <QComboBox>
@@ -31,10 +32,10 @@ class TestQgsScaleComboBox : public QObject
     TestQgsScaleComboBox() = default;
 
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init();// will be called before each testfunction is executed.
-    void cleanup();// will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
     void basic();
     void slot_test();
     void min_test();
@@ -53,7 +54,6 @@ void TestQgsScaleComboBox::initTestCase()
 {
   QgsApplication::init();
   QgsApplication::initQgis();
-
 }
 
 void TestQgsScaleComboBox::cleanupTestCase()
@@ -65,11 +65,19 @@ void TestQgsScaleComboBox::init()
 {
   // Create a combobox, and init with predefined scales.
   s = new QgsScaleComboBox();
-  QgsDebugMsg( QStringLiteral( "Initial scale is %1" ).arg( s->scaleString() ) );
+  QgsDebugMsgLevel( QStringLiteral( "Initial scale is %1" ).arg( s->scaleString() ), 1 );
 }
 
 void TestQgsScaleComboBox::basic()
 {
+  const QStringList scales = QgsSettingsRegistryCore::settingsMapScales->value();
+  QCOMPARE( scales.count(), s->count() );
+  for ( int i = 0; i < s->count(); i++ )
+  {
+    int denominator = QLocale().toInt( scales[i].split( ':' )[1] );
+    QCOMPARE( s->itemText( i ), QString( "1:%1" ).arg( QLocale().toString( denominator ) ) );
+  }
+
   // Testing conversion from "1:nnn".
   enterScale( QStringLiteral( "1:2345" ) );
   QCOMPARE( s->scaleString(), QString( "1:%1" ).arg( QLocale().toString( 2345 ) ) );
@@ -94,7 +102,7 @@ void TestQgsScaleComboBox::basic()
   // Testing conversion from number to "1:x,000" with wonky separators
   //(e.g., four digits between thousands, which should be fixed automatically)
   str = QStringLiteral( "1%010000%01000" ).arg( QLocale().groupSeparator() );
-  QString fixedStr = QStringLiteral( "10%01000%01000" ).arg( QLocale().groupSeparator() );
+  const QString fixedStr = QStringLiteral( "10%01000%01000" ).arg( QLocale().groupSeparator() );
   enterScale( str );
   QCOMPARE( s->scaleString(), QString( "1:%1" ).arg( fixedStr ) );
   QCOMPARE( s->scale(), 10000000.0 );
@@ -121,15 +129,14 @@ void TestQgsScaleComboBox::basic()
   s->setScaleString( QStringLiteral( "1:2" ) + QLocale().decimalPoint() + "4" );
   QCOMPARE( s->scaleString(), QString( "1:%1" ).arg( QLocale().toString( 240 ) ) );
   QCOMPARE( s->scale(), 240.0 );
-
 }
 
 void TestQgsScaleComboBox::slot_test()
 {
   QLineEdit *l = s->lineEdit();
 
-  QSignalSpy spyScaleChanged( s, SIGNAL( scaleChanged( double ) ) );
-  QSignalSpy spyFixup( l, SIGNAL( editingFinished() ) );
+  const QSignalSpy spyScaleChanged( s, SIGNAL( scaleChanged( double ) ) );
+  const QSignalSpy spyFixup( l, SIGNAL( editingFinished() ) );
 
   enterScale( 0.02 );
   QCOMPARE( spyFixup.count(), 2 ); // Qt emits twice!?
@@ -159,7 +166,7 @@ void TestQgsScaleComboBox::toString()
   QCOMPARE( QgsScaleComboBox::toString( 100.02134234 ), QStringLiteral( "1:100" ) );
   QCOMPARE( QgsScaleComboBox::toString( 1 ), QStringLiteral( "1:1" ) );
   QCOMPARE( QgsScaleComboBox::toString( 1.0 / 100 ), QStringLiteral( "100:1" ) );
-  QCOMPARE( QgsScaleComboBox::toString( std::numeric_limits< double >::quiet_NaN() ), QString() );
+  QCOMPARE( QgsScaleComboBox::toString( std::numeric_limits<double>::quiet_NaN() ), QString() );
 }
 
 void TestQgsScaleComboBox::toDouble()
@@ -197,7 +204,7 @@ void TestQgsScaleComboBox::allowNull()
   QCOMPARE( s->scale(), 50.0 );
   QVERIFY( !s->isNull() );
 
-  QSignalSpy spyScaleChanged( s, &QgsScaleComboBox::scaleChanged );
+  const QSignalSpy spyScaleChanged( s, &QgsScaleComboBox::scaleChanged );
   s->setAllowNull( true );
   QVERIFY( s->allowNull() );
 
@@ -276,8 +283,8 @@ void TestQgsScaleComboBox::testLocale()
   QLocale::setDefault( QLocale::German );
   QCOMPARE( s->toString( 1e8 ), QString( "1:100.000.000" ) );
   QLocale customGerman( QLocale::German );
-  customFrench.setNumberOptions( QLocale::NumberOption::OmitGroupSeparator );
-  QLocale::setDefault( customFrench );
+  customGerman.setNumberOptions( QLocale::NumberOption::OmitGroupSeparator );
+  QLocale::setDefault( customGerman );
   QCOMPARE( s->toString( 1e8 ), QString( "1:100000000" ) );
 }
 

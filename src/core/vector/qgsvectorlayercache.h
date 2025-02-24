@@ -24,7 +24,8 @@
 #include "qgsfield.h"
 #include "qgsfeaturerequest.h"
 #include "qgsfeatureiterator.h"
-
+#include <unordered_set>
+#include <deque>
 #include <QCache>
 
 class QgsVectorLayer;
@@ -53,7 +54,7 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
      * will inform the cache, when it has been deleted, so indexes can be
      * updated that the wrapped feature needs to be fetched again if needed.
      */
-    class QgsCachedFeature
+    class CORE_EXPORT QgsCachedFeature
     {
       public:
 
@@ -62,9 +63,11 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
          *
          * \param feat     The feature to cache. A copy will be made.
          * \param vlCache  The cache to inform when the feature has been removed from the cache.
+         * \param allAttributesFetched TRUE if the feature was fetched with all attributes (and not a subset)
          */
-        QgsCachedFeature( const QgsFeature &feat, QgsVectorLayerCache *vlCache )
+        QgsCachedFeature( const QgsFeature &feat, QgsVectorLayerCache *vlCache, bool allAttributesFetched )
           : mCache( vlCache )
+          , mAllAttributesFetched( allAttributesFetched )
         {
           mFeature = new QgsFeature( feat );
         }
@@ -79,9 +82,12 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
 
         inline const QgsFeature *feature() { return mFeature; }
 
+        bool allAttributesFetched() const;
+
       private:
         QgsFeature *mFeature = nullptr;
         QgsVectorLayerCache *mCache = nullptr;
+        bool mAllAttributesFetched = true;
 
         friend class QgsVectorLayerCache;
         Q_DISABLE_COPY( QgsCachedFeature )
@@ -119,16 +125,25 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
     /**
      * Returns TRUE if the cache will fetch and cache feature geometries.
      * \see setCacheGeometry()
-     * \since QGIS 3.0
      */
     bool cacheGeometry() const { return mCacheGeometry; }
 
     /**
-     * Set the subset of attributes to be cached
+     * Set the list (possibly a subset) of attributes to be cached.
      *
+     * \note By default the cache will store all layer's attributes.
      * \param attributes   The attributes to be cached
      */
     void setCacheSubsetOfAttributes( const QgsAttributeList &attributes );
+
+    /**
+     * Returns the list (possibly a subset) of cached attributes.
+     *
+     * \note By default the cache will store all layer's attributes.
+     * \see setCacheSubsetOfAttributes()
+     * \since QGIS 3.32
+     */
+    QgsAttributeList cacheSubsetOfAttributes( ) const;
 
     /**
      * If this is enabled, the subset of cached attributes will automatically be extended
@@ -158,7 +173,6 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
      * a result of a call to setFullCache() or by through a feature request which resulted in
      * all available features being cached.
      * \see setFullCache()
-     * \since QGIS 3.0
      */
     bool hasFullCache() const { return mFullCache; }
 
@@ -229,9 +243,8 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
     /**
      * Returns the set of feature IDs for features which are cached.
      * \see isFidCached()
-     * \since QGIS 3.0
      */
-    QgsFeatureIds cachedFeatureIds() const { return qgis::listToSet( mCache.keys() ); }
+    QgsFeatureIds cachedFeatureIds() const;
 
     /**
      * Gets the feature at the given feature id. Considers the changed, added, deleted and permanent features
@@ -241,6 +254,21 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
      * \returns TRUE in case of success
      */
     bool featureAtId( QgsFeatureId featureId, QgsFeature &feature, bool skipCache = false );
+
+    /**
+     * Gets the feature at the given feature id with all attributes, if the cached feature
+     * already contains all attributes, calling this function has the same effect as calling
+     * featureAtId().
+     *
+     * Considers the changed, added, deleted and permanent features
+     * \param featureId The id of the feature to query
+     * \param feature   The result of the operation will be written to this feature
+     * \param skipCache Will query the layer regardless if the feature is in the cache already
+     * \returns TRUE in case of success
+     * \see featureAtId()
+     * \since QGIS 3.32
+     */
+    bool featureAtIdWithAllAttributes( QgsFeatureId featureId, QgsFeature &feature, bool skipCache = false );
 
     /**
      * Removes the feature identified by fid from the cache if present.
@@ -267,7 +295,7 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
     /**
      * Returns the geometry type for features in the cache.
      */
-    QgsWkbTypes::Type wkbType() const;
+    Qgis::WkbType wkbType() const;
 
 #ifdef SIP_RUN
 
@@ -291,7 +319,7 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
      * Returns the number of features contained in the source, or -1
      * if the feature count is unknown.
      */
-    long featureCount() const;
+    long long featureCount() const;
 
   protected:
 
@@ -389,17 +417,25 @@ class CORE_EXPORT QgsVectorLayerCache : public QObject
 
     void connectJoinedLayers() const;
 
-    inline void cacheFeature( QgsFeature &feat )
+    inline void cacheFeature( QgsFeature &feat, bool allAttributesFetched )
     {
-      QgsCachedFeature *cachedFeature = new QgsCachedFeature( feat, this );
+      QgsCachedFeature *cachedFeature = new QgsCachedFeature( feat, this, allAttributesFetched );
       mCache.insert( feat.id(), cachedFeature );
-      if ( !mCacheOrderedKeys.contains( feat.id() ) )
-        mCacheOrderedKeys << feat.id();
+      if ( mCacheUnorderedKeys.find( feat.id() ) == mCacheUnorderedKeys.end() )
+      {
+        mCacheUnorderedKeys.insert( feat.id() );
+        mCacheOrderedKeys.emplace_back( feat.id() );
+      }
     }
 
     QgsVectorLayer *mLayer = nullptr;
     QCache< QgsFeatureId, QgsCachedFeature > mCache;
-    QList< QgsFeatureId > mCacheOrderedKeys;
+
+    // we need two containers here. One is used for efficient tracking of the IDs which have been added to the cache, the other
+    // is used to store the order of the incoming feature ids, so that we can correctly iterate through features in the original order.
+    // the ordered list alone is far too slow to handle this -- searching for existing items in a list is magnitudes slower than the unordered_set
+    std::unordered_set< QgsFeatureId > mCacheUnorderedKeys;
+    std::deque< QgsFeatureId > mCacheOrderedKeys;
 
     bool mCacheGeometry = true;
     bool mFullCache = false;

@@ -35,7 +35,7 @@ QgsInvertedPolygonRenderer::QgsInvertedPolygonRenderer( QgsFeatureRenderer *subR
 {
   if ( !subRenderer )
   {
-    mSubRenderer.reset( QgsFeatureRenderer::defaultRenderer( QgsWkbTypes::PolygonGeometry ) );
+    mSubRenderer.reset( QgsFeatureRenderer::defaultRenderer( Qgis::GeometryType::Polygon ) );
   }
   mOperation = InvertOnly;
 }
@@ -65,7 +65,7 @@ QgsInvertedPolygonRenderer *QgsInvertedPolygonRenderer::clone() const
   return newRenderer;
 }
 
-QgsFeatureRenderer *QgsInvertedPolygonRenderer::create( QDomElement &element, const QgsReadWriteContext &context )
+QgsFeatureRenderer *QgsInvertedPolygonRenderer::create( QDomElement &element, const QgsReadWriteContext &context ) // cppcheck-suppress duplInheritedMember
 {
   QgsInvertedPolygonRenderer *r = new QgsInvertedPolygonRenderer();
   //look for an embedded renderer <renderer-v2>
@@ -86,29 +86,19 @@ QDomElement QgsInvertedPolygonRenderer::save( QDomDocument &doc, const QgsReadWr
   QDomElement rendererElem = doc.createElement( RENDERER_TAG_NAME );
   rendererElem.setAttribute( QStringLiteral( "type" ), QStringLiteral( "invertedPolygonRenderer" ) );
   rendererElem.setAttribute( QStringLiteral( "preprocessing" ), preprocessingEnabled() ? QStringLiteral( "1" ) : QStringLiteral( "0" ) );
-  rendererElem.setAttribute( QStringLiteral( "forceraster" ), ( mForceRaster ? QStringLiteral( "1" ) : QStringLiteral( "0" ) ) );
 
   if ( mSubRenderer )
   {
-    QDomElement embeddedRendererElem = mSubRenderer->save( doc, context );
+    const QDomElement embeddedRendererElem = mSubRenderer->save( doc, context );
     rendererElem.appendChild( embeddedRendererElem );
   }
 
-  if ( mPaintEffect && !QgsPaintEffectRegistry::isDefaultStack( mPaintEffect ) )
-    mPaintEffect->saveProperties( doc, rendererElem );
-
-  if ( !mOrderBy.isEmpty() )
-  {
-    QDomElement orderBy = doc.createElement( QStringLiteral( "orderby" ) );
-    mOrderBy.save( orderBy );
-    rendererElem.appendChild( orderBy );
-  }
-  rendererElem.setAttribute( QStringLiteral( "enableorderby" ), ( mOrderByEnabled ? QStringLiteral( "1" ) : QStringLiteral( "0" ) ) );
+  saveRendererData( doc, rendererElem, context );
 
   return rendererElem;
 }
 
-QgsInvertedPolygonRenderer *QgsInvertedPolygonRenderer::convertFromRenderer( const QgsFeatureRenderer *renderer )
+QgsInvertedPolygonRenderer *QgsInvertedPolygonRenderer::convertFromRenderer( const QgsFeatureRenderer *renderer ) // cppcheck-suppress duplInheritedMember
 {
   if ( renderer->type() == QLatin1String( "invertedPolygonRenderer" ) )
   {
@@ -119,11 +109,15 @@ QgsInvertedPolygonRenderer *QgsInvertedPolygonRenderer::convertFromRenderer( con
             renderer->type() == QLatin1String( "graduatedSymbol" ) ||
             renderer->type() == QLatin1String( "RuleRenderer" ) )
   {
-    return new QgsInvertedPolygonRenderer( renderer->clone() );
+    auto res = std::make_unique< QgsInvertedPolygonRenderer >( renderer->clone() );
+    renderer->copyRendererData( res.get() );
+    return res.release();
   }
   else if ( renderer->type() == QLatin1String( "mergedFeatureRenderer" ) )
   {
-    return new QgsInvertedPolygonRenderer( renderer->embeddedRenderer() ? renderer->embeddedRenderer()->clone() : nullptr );
+    auto res = std::make_unique< QgsInvertedPolygonRenderer >( renderer->embeddedRenderer() ? renderer->embeddedRenderer()->clone() : nullptr );
+    renderer->copyRendererData( res.get() );
+    return res.release();
   }
   return nullptr;
 }

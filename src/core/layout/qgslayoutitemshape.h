@@ -26,7 +26,6 @@
  * \ingroup core
  * \class QgsLayoutItemShape
  * \brief Layout item for basic filled shapes (e.g. rectangles, ellipses).
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsLayoutItemShape : public QgsLayoutItem
 {
@@ -125,8 +124,11 @@ class CORE_EXPORT QgsLayoutItemShape : public QgsLayoutItem
     /**
      * Should be called after the shape's symbol is changed. Redraws the shape and recalculates
      * its selection bounds.
+     *
+     * If \a redraw is FALSE than the symbol bounds will be recalculated only, without redrawing
+     * the item.
     */
-    void refreshSymbol();
+    void refreshSymbol( bool redraw );
 
     //! Updates the bounding rect of this item
     void updateBoundingRect();

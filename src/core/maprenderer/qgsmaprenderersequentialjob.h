@@ -28,7 +28,6 @@ class QgsMapRendererCustomPainterJob;
  * The resulting map image can be retrieved with renderedImage() function.
  * It is safe to call that function while rendering is active to see preview of the map.
  *
- * \since QGIS 2.4
  */
 class CORE_EXPORT QgsMapRendererSequentialJob : public QgsMapRendererQImageJob
 {
@@ -37,7 +36,6 @@ class CORE_EXPORT QgsMapRendererSequentialJob : public QgsMapRendererQImageJob
     QgsMapRendererSequentialJob( const QgsMapSettings &settings );
     ~QgsMapRendererSequentialJob() override;
 
-    void start() override;
     void cancel() override;
     void cancelWithoutBlocking() override;
     void waitForFinished() override;
@@ -54,6 +52,8 @@ class CORE_EXPORT QgsMapRendererSequentialJob : public QgsMapRendererQImageJob
     void internalFinished();
 
   private:
+
+    void startPrivate() override;
 
     QgsMapRendererCustomPainterJob *mInternalJob = nullptr;
     QImage mImage;

@@ -15,6 +15,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#ifndef QGSDWGIMPORTER_H
+#define QGSDWGIMPORTER_H
+
 #include "drw_interface.h"
 
 #include <QCoreApplication>
@@ -211,7 +214,7 @@ class QgsDwgImporter : public DRW_Interface
     int mSplineSegs;
     int mBlockHandle;
     int mCrs;
-    OGRSpatialReferenceH mCrsH;
+    OGRSpatialReferenceH mCrsH = nullptr;
     bool mUseCurves;
 
     QHash<QString, QString> mLayerColor;
@@ -226,3 +229,5 @@ class QgsDwgImporter : public DRW_Interface
     QTextCodec *mCodec = nullptr;
     QElapsedTimer mTime;
 };
+
+#endif // QGSDWGIMPORTER_H

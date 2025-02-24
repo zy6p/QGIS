@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/raster/qgshuesaturationfilter.h                             *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -49,6 +49,22 @@ Color and saturation filter pipe for rasters.
     void setSaturation( int saturation );
     int saturation() const;
 
+    void setInvertColors( bool invertColors );
+%Docstring
+Sets whether the filter will invert colors.
+
+:param invertColors: Set to ``True`` to invert colors.
+
+.. versionadded:: 3.22
+%End
+
+    bool invertColors() const;
+%Docstring
+Returns ``True`` if the filter inverts colors.
+
+.. versionadded:: 3.22
+%End
+
     void setGrayscaleMode( QgsHueSaturationFilter::GrayscaleMode grayscaleMode );
     QgsHueSaturationFilter::GrayscaleMode grayscaleMode() const;
 
@@ -75,5 +91,5 @@ Sets base class members from xml. Usually called from :py:func:`~QgsHueSaturatio
  *                                                                      *
  * src/core/raster/qgshuesaturationfilter.h                             *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

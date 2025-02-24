@@ -20,7 +20,6 @@
 #include "qgis_sip.h"
 #include "qgis_core.h"
 #include "qgis.h"
-#include "qgswkbtypes.h"
 
 class QgsMapLayer;
 class QIcon;
@@ -38,7 +37,13 @@ class CORE_EXPORT QgsIconUtils
     /**
      * Returns the icon for a vector layer whose geometry \a type is provided.
      */
-    static QIcon iconForWkbType( QgsWkbTypes::Type type );
+    static QIcon iconForWkbType( Qgis::WkbType type );
+
+    /**
+     * Returns the icon for a vector layer whose geometry \a typeGroup is provided.
+     * \since QGIS 3.28
+     */
+    static QIcon iconForGeometryType( Qgis::GeometryType typeGroup );
 
     /**
      * Returns an icon representing point geometries.
@@ -54,6 +59,13 @@ class CORE_EXPORT QgsIconUtils
      * Returns an icon representing polygon geometries.
      */
     static QIcon iconPolygon();
+
+    /**
+     * Returns an icon representing geometry collections.
+     *
+     * \since QGIS 3.22
+     */
+    static QIcon iconGeometryCollection();
 
     /**
      * Returns an icon representing non-spatial layers (tables).
@@ -86,9 +98,23 @@ class CORE_EXPORT QgsIconUtils
     static QIcon iconPointCloud();
 
     /**
+     * Returns an icon representing tiled scene layers.
+     *
+     * \since QGIS 3.34
+     */
+    static QIcon iconTiledScene();
+
+    /**
      * Returns the icon corresponding to a specified map \a layer.
      */
     static QIcon iconForLayer( const QgsMapLayer *layer );
+
+    /**
+     * Returns the default icon for the specified layer \a type.
+     *
+     * \since QGIS 3.22
+     */
+    static QIcon iconForLayerType( Qgis::LayerType type );
 
 };
 

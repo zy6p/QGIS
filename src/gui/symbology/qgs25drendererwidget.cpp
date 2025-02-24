@@ -14,10 +14,11 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgs25drendererwidget.h"
+#include "moc_qgs25drendererwidget.cpp"
 #include "qgs25drenderer.h"
 #include "qgsvectorlayer.h"
-#include "qgsmaplayerstylemanager.h"
 #include "qgsexpressioncontextutils.h"
+#include "qgssymbol.h"
 
 Qgs25DRendererWidget::Qgs25DRendererWidget( QgsVectorLayer *layer, QgsStyle *style, QgsFeatureRenderer *renderer )
   : QgsRendererWidget( layer, style )
@@ -26,14 +27,15 @@ Qgs25DRendererWidget::Qgs25DRendererWidget( QgsVectorLayer *layer, QgsStyle *sty
   if ( !layer )
     return;
 
-  // the renderer only applies to point vector layers
-  if ( layer->geometryType() != QgsWkbTypes::PolygonGeometry )
+  // the renderer only applies to polygon vector layers
+  if ( layer->geometryType() != Qgis::GeometryType::Polygon )
   {
     //setup blank dialog
     QGridLayout *layout = new QGridLayout( this );
     QLabel *label = new QLabel( tr( "The 2.5D renderer only can be used with polygon layers. \n"
                                     "'%1' is not a polygon layer and cannot be rendered in 2.5D." )
-                                .arg( layer->name() ), this );
+                                  .arg( layer->name() ),
+                                this );
     layout->addWidget( label );
     return;
   }
@@ -54,18 +56,18 @@ Qgs25DRendererWidget::Qgs25DRendererWidget( QgsVectorLayer *layer, QgsStyle *sty
 
   if ( renderer )
   {
-    mRenderer = Qgs25DRenderer::convertFromRenderer( renderer );
+    mRenderer.reset( Qgs25DRenderer::convertFromRenderer( renderer ) );
   }
 
   mHeightWidget->setLayer( layer );
 
   QgsExpressionContextScope *scope = QgsExpressionContextUtils::layerScope( mLayer );
-  QVariant height = scope->variable( QStringLiteral( "qgis_25d_height" ) );
-  QVariant angle = scope->variable( QStringLiteral( "qgis_25d_angle" ) );
+  const QVariant height = scope->variable( QStringLiteral( "qgis_25d_height" ) );
+  const QVariant angle = scope->variable( QStringLiteral( "qgis_25d_angle" ) );
   delete scope;
 
-  mHeightWidget->setField( height.isNull() ? QStringLiteral( "10" ) : height.toString() );
-  mAngleWidget->setValue( angle.isNull() ? 70 : angle.toDouble() );
+  mHeightWidget->setField( QgsVariantUtils::isNull( height ) ? QStringLiteral( "10" ) : height.toString() );
+  mAngleWidget->setValue( QgsVariantUtils::isNull( angle ) ? 70 : angle.toDouble() );
   mAngleWidget->setClearValue( 70 );
   mWallColorButton->setColor( mRenderer->wallColor() );
   mRoofColorButton->setColor( mRenderer->roofColor() );
@@ -75,19 +77,21 @@ Qgs25DRendererWidget::Qgs25DRendererWidget( QgsVectorLayer *layer, QgsStyle *sty
   mShadowSizeWidget->setClearValue( 4 );
   mWallExpositionShading->setChecked( mRenderer->wallShadingEnabled() );
 
-  connect( mAngleWidget, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), this, &Qgs25DRendererWidget::updateRenderer );
-  connect( mHeightWidget, static_cast < void ( QgsFieldExpressionWidget::* )( const QString & ) > ( &QgsFieldExpressionWidget::fieldChanged ), this, &Qgs25DRendererWidget::updateRenderer );
+  connect( mAngleWidget, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, &Qgs25DRendererWidget::updateRenderer );
+  connect( mHeightWidget, static_cast<void ( QgsFieldExpressionWidget::* )( const QString & )>( &QgsFieldExpressionWidget::fieldChanged ), this, &Qgs25DRendererWidget::updateRenderer );
   connect( mWallColorButton, &QgsColorButton::colorChanged, this, &Qgs25DRendererWidget::updateRenderer );
   connect( mRoofColorButton, &QgsColorButton::colorChanged, this, &Qgs25DRendererWidget::updateRenderer );
   connect( mShadowColorButton, &QgsColorButton::colorChanged, this, &Qgs25DRendererWidget::updateRenderer );
   connect( mShadowEnabledWidget, &QGroupBox::toggled, this, &Qgs25DRendererWidget::updateRenderer );
-  connect( mShadowSizeWidget, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ), this, &Qgs25DRendererWidget::updateRenderer );
+  connect( mShadowSizeWidget, static_cast<void ( QDoubleSpinBox::* )( double )>( &QDoubleSpinBox::valueChanged ), this, &Qgs25DRendererWidget::updateRenderer );
   connect( mWallExpositionShading, &QAbstractButton::toggled, this, &Qgs25DRendererWidget::updateRenderer );
 }
 
+Qgs25DRendererWidget::~Qgs25DRendererWidget() = default;
+
 QgsFeatureRenderer *Qgs25DRendererWidget::renderer()
 {
-  return mRenderer;
+  return mRenderer.get();
 }
 
 void Qgs25DRendererWidget::updateRenderer()

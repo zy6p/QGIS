@@ -14,7 +14,9 @@
  ***************************************************************************/
 
 #include "qgssnaptogridcanvasitem.h"
+#include "moc_qgssnaptogridcanvasitem.cpp"
 #include "qgsmapcanvas.h"
+#include "qgsrendercontext.h"
 
 QgsSnapToGridCanvasItem::QgsSnapToGridCanvasItem( QgsMapCanvas *mapCanvas )
   : QgsMapCanvasItem( mapCanvas )
@@ -29,13 +31,13 @@ void QgsSnapToGridCanvasItem::paint( QPainter *painter )
   if ( !mEnabled || !mAvailableByZoomFactor )
     return;
 
-  QgsScopedQPainterState painterState( painter );
-  QgsRectangle mapRect = mMapCanvas->extent();
+  const QgsScopedQPainterState painterState( painter );
+  const QgsRectangle mapRect = mMapCanvas->extent();
 
   painter->setRenderHints( QPainter::Antialiasing );
   painter->setCompositionMode( QPainter::CompositionMode_Difference );
 
-  double scaleFactor = painter->fontMetrics().xHeight() * .2;
+  const double scaleFactor = painter->fontMetrics().xHeight() * .2;
 
   mGridPen.setWidth( scaleFactor );
   mCurrentPointPen.setWidth( scaleFactor * 3 );
@@ -43,17 +45,19 @@ void QgsSnapToGridCanvasItem::paint( QPainter *painter )
 
   try
   {
-    const QgsRectangle layerExtent = mTransform.transformBoundingBox( mapRect, QgsCoordinateTransform::ReverseTransform );
-    const QgsPointXY layerPt = mTransform.transform( mPoint, QgsCoordinateTransform::ReverseTransform );
+    QgsCoordinateTransform extentTransform = mTransform;
+    extentTransform.setBallparkTransformsAreAppropriate( true );
+    const QgsRectangle layerExtent = extentTransform.transformBoundingBox( mapRect, Qgis::TransformDirection::Reverse );
+    const QgsPointXY layerPt = mTransform.transform( mPoint, Qgis::TransformDirection::Reverse );
 
     const double gridXMin = std::ceil( layerExtent.xMinimum() / mPrecision ) * mPrecision;
     const double gridXMax = std::ceil( layerExtent.xMaximum() / mPrecision ) * mPrecision;
     const double gridYMin = std::ceil( layerExtent.yMinimum() / mPrecision ) * mPrecision;
     const double gridYMax = std::ceil( layerExtent.yMaximum() / mPrecision ) * mPrecision;
 
-    for ( double x = gridXMin ; x < gridXMax; x += mPrecision )
+    for ( double x = gridXMin; x < gridXMax; x += mPrecision )
     {
-      for ( double y = gridYMin ; y < gridYMax; y += mPrecision )
+      for ( double y = gridYMin; y < gridYMax; y += mPrecision )
       {
         const QgsPointXY pt = mTransform.transform( x, y );
         const QPointF canvasPt = toCanvasCoordinates( pt );
@@ -68,7 +72,6 @@ void QgsSnapToGridCanvasItem::paint( QPainter *painter )
         }
         painter->drawLine( canvasPt.x() - gridMarkerLength, canvasPt.y(), canvasPt.x() + gridMarkerLength, canvasPt.y() );
         painter->drawLine( canvasPt.x(), canvasPt.y() - gridMarkerLength, canvasPt.x(), canvasPt.y() + gridMarkerLength );
-
       }
     }
   }
@@ -131,7 +134,6 @@ void QgsSnapToGridCanvasItem::updateMapCanvasCrs()
 }
 
 
-
 void QgsSnapToGridCanvasItem::updateZoomFactor()
 {
   if ( !isVisible() )
@@ -148,13 +150,11 @@ void QgsSnapToGridCanvasItem::updateZoomFactor()
     const QgsPointXY centerPoint = mMapCanvas->extent().center();
     const QPointF canvasCenter = toCanvasCoordinates( centerPoint );
 
-    const QgsPointXY pt1 = mMapCanvas->mapSettings().mapToPixel().toMapCoordinates( static_cast<int>( canvasCenter.x() - threshold ),
-                           static_cast<int>( canvasCenter.y() - threshold ) );
-    const QgsPointXY pt2 = mMapCanvas->mapSettings().mapToPixel().toMapCoordinates( static_cast<int>( canvasCenter.x() + threshold ),
-                           static_cast<int>( canvasCenter.y() + threshold ) );
+    const QgsPointXY pt1 = mMapCanvas->mapSettings().mapToPixel().toMapCoordinates( static_cast<int>( canvasCenter.x() - threshold ), static_cast<int>( canvasCenter.y() - threshold ) );
+    const QgsPointXY pt2 = mMapCanvas->mapSettings().mapToPixel().toMapCoordinates( static_cast<int>( canvasCenter.x() + threshold ), static_cast<int>( canvasCenter.y() + threshold ) );
 
-    const QgsPointXY layerPt1 = mTransform.transform( pt1, QgsCoordinateTransform::ReverseTransform );
-    const QgsPointXY layerPt2 = mTransform.transform( pt2, QgsCoordinateTransform::ReverseTransform );
+    const QgsPointXY layerPt1 = mTransform.transform( pt1, Qgis::TransformDirection::Reverse );
+    const QgsPointXY layerPt2 = mTransform.transform( pt2, Qgis::TransformDirection::Reverse );
 
     const double dist = layerPt1.distance( layerPt2 );
 

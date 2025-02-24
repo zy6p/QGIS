@@ -19,10 +19,11 @@
 #include "qgsfeatureiterator.h"
 #include "qgsfeature.h"
 #include "qgsexpressioncontext.h"
+#include "qgscoordinatetransform.h"
 
 #include "qgsdelimitedtextprovider.h"
 
-class QgsDelimitedTextFeatureSource final: public QgsAbstractFeatureSource
+class QgsDelimitedTextFeatureSource final : public QgsAbstractFeatureSource
 {
   public:
     explicit QgsDelimitedTextFeatureSource( const QgsDelimitedTextProvider *p );
@@ -31,33 +32,34 @@ class QgsDelimitedTextFeatureSource final: public QgsAbstractFeatureSource
 
   private:
     QgsDelimitedTextProvider::GeomRepresentationType mGeomRep;
-    std::unique_ptr< QgsExpression > mSubsetExpression;
+    std::unique_ptr<QgsExpression> mSubsetExpression;
     QgsExpressionContext mExpressionContext;
-    QgsRectangle mExtent;
+    QgsBox3D mExtent;
     bool mUseSpatialIndex;
-    std::unique_ptr< QgsSpatialIndex > mSpatialIndex;
+    std::unique_ptr<QgsSpatialIndex> mSpatialIndex;
     bool mUseSubsetIndex;
     QList<quintptr> mSubsetIndex;
-    std::unique_ptr< QgsDelimitedTextFile > mFile;
+    std::unique_ptr<QgsDelimitedTextFile> mFile;
     QgsFields mFields;
-    int mFieldCount;  // Note: this includes field count for wkt field
+    int mFieldCount; // Note: this includes field count for wkt field
     int mXFieldIndex;
     int mYFieldIndex;
     int mZFieldIndex;
     int mMFieldIndex;
     int mWktFieldIndex;
     bool mWktHasPrefix;
-    QgsWkbTypes::GeometryType mGeometryType;
+    Qgis::GeometryType mGeometryType;
     QString mDecimalPoint;
     bool mXyDms;
     QList<int> attributeColumns;
     QgsCoordinateReferenceSystem mCrs;
+    QMap<int, QPair<QString, QString>> mFieldBooleanLiterals;
 
     friend class QgsDelimitedTextFeatureIterator;
 };
 
 
-class QgsDelimitedTextFeatureIterator final: public QgsAbstractFeatureIteratorFromSource<QgsDelimitedTextFeatureSource>
+class QgsDelimitedTextFeatureIterator final : public QgsAbstractFeatureIteratorFromSource<QgsDelimitedTextFeatureSource>
 {
     enum IteratorMode
     {
@@ -65,6 +67,7 @@ class QgsDelimitedTextFeatureIterator final: public QgsAbstractFeatureIteratorFr
       SubsetIndex,
       FeatureIds
     };
+
   public:
     QgsDelimitedTextFeatureIterator( QgsDelimitedTextFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
 
@@ -73,15 +76,22 @@ class QgsDelimitedTextFeatureIterator final: public QgsAbstractFeatureIteratorFr
     bool rewind() override;
     bool close() override;
 
-    // Tests whether the geometry is required, given that testGeometry is true.
-    bool wantGeometry( const QgsPointXY &point ) const;
-    bool wantGeometry( const QgsGeometry &geom ) const;
+    /**
+     * Check to see if the point is within the selection rectangle or within
+     * the desired distance from the reference geometry.
+     */
+    bool testSpatialFilter( const QgsPointXY &point ) const;
+
+    /**
+     * Check to see if the geometry is within the selection rectangle or within
+     * the desired distance from the reference geometry.
+     */
+    bool testSpatialFilter( const QgsGeometry &geom ) const;
 
   protected:
     bool fetchFeature( QgsFeature &feature ) override;
 
   private:
-
     bool setNextFeatureId( qint64 fid );
 
     bool nextFeatureInternal( QgsFeature &feature );
@@ -98,6 +108,9 @@ class QgsDelimitedTextFeatureIterator final: public QgsAbstractFeatureIteratorFr
     bool mLoadGeometry = false;
     QgsRectangle mFilterRect;
     QgsCoordinateTransform mTransform;
+
+    QgsGeometry mDistanceWithinGeom;
+    std::unique_ptr<QgsGeometryEngine> mDistanceWithinEngine;
 };
 
 
