@@ -20,18 +20,19 @@
 #include <QToolButton>
 
 #include "qgsattributetabledelegate.h"
+#include "moc_qgsattributetabledelegate.cpp"
 #include "qgsattributetablefiltermodel.h"
 #include "qgsattributetablemodel.h"
 #include "qgsattributetableview.h"
 #include "qgseditorwidgetregistry.h"
 #include "qgseditorwidgetwrapper.h"
 #include "qgsfeatureselectionmodel.h"
-#include "qgslogger.h"
 #include "qgsvectordataprovider.h"
 #include "qgsactionmanager.h"
 #include "qgsgui.h"
 #include "qgsvectorlayerjoininfo.h"
 #include "qgsvectorlayerjoinbuffer.h"
+#include "qgsrendercontext.h"
 
 QgsVectorLayer *QgsAttributeTableDelegate::layer( const QAbstractItemModel *model )
 {
@@ -66,11 +67,11 @@ QWidget *QgsAttributeTableDelegate::createEditor( QWidget *parent, const QStyleO
   if ( !vl )
     return nullptr;
 
-  int fieldIdx = index.model()->data( index, QgsAttributeTableModel::FieldIndexRole ).toInt();
+  const int fieldIdx = index.model()->data( index, static_cast<int>( QgsAttributeTableModel::CustomRole::FieldIndex ) ).toInt();
   QgsAttributeEditorContext context( masterModel( index.model() )->editorContext(), QgsAttributeEditorContext::Popup );
 
   // Update the editor form context with the feature being edited
-  QgsFeatureId fid( index.model()->data( index, QgsAttributeTableModel::FeatureIdRole ).toLongLong() );
+  const QgsFeatureId fid( index.model()->data( index, static_cast<int>( QgsAttributeTableModel::CustomRole::FeatureId ) ).toLongLong() );
   context.setFormFeature( vl->getFeature( fid ) );
 
   QgsEditorWidgetWrapper *eww = QgsGui::editorWidgetRegistry()->create( vl, fieldIdx, nullptr, parent, context );
@@ -79,9 +80,9 @@ QWidget *QgsAttributeTableDelegate::createEditor( QWidget *parent, const QStyleO
   w->setAutoFillBackground( true );
   w->setFocusPolicy( Qt::StrongFocus ); // to make sure QMouseEvents are propagated to the editor widget
 
-  const int fieldOrigin = vl->fields().fieldOrigin( fieldIdx );
+  const Qgis::FieldOrigin fieldOrigin = vl->fields().fieldOrigin( fieldIdx );
   bool readOnly = true;
-  if ( fieldOrigin == QgsFields::OriginJoin )
+  if ( fieldOrigin == Qgis::FieldOrigin::Join )
   {
     int srcFieldIndex;
     const QgsVectorLayerJoinInfo *info = vl->joinBuffer()->joinForFieldIndex( fieldIdx, vl->fields(), srcFieldIndex );
@@ -103,9 +104,9 @@ void QgsAttributeTableDelegate::setModelData( QWidget *editor, QAbstractItemMode
   if ( !vl )
     return;
 
-  int fieldIdx = model->data( index, QgsAttributeTableModel::FieldIndexRole ).toInt();
-  QgsFeatureId fid = model->data( index, QgsAttributeTableModel::FeatureIdRole ).toLongLong();
-  QVariant oldValue = model->data( index, Qt::EditRole );
+  const int fieldIdx = model->data( index, static_cast<int>( QgsAttributeTableModel::CustomRole::FieldIndex ) ).toInt();
+  const QgsFeatureId fid = model->data( index, static_cast<int>( QgsAttributeTableModel::CustomRole::FeatureId ) ).toLongLong();
+  const QVariant oldValue = model->data( index, Qt::EditRole );
 
   QgsEditorWidgetWrapper *eww = QgsEditorWidgetWrapper::fromWidget( editor );
   if ( !eww )
@@ -121,12 +122,12 @@ void QgsAttributeTableDelegate::setModelData( QWidget *editor, QAbstractItemMode
   newValues.append( eww->additionalFieldValues() );
 
   if ( ( oldValue != newValues.at( 0 ) && newValues.at( 0 ).isValid() )
-       || oldValue.isNull() != newValues.at( 0 ).isNull()
+       || QgsVariantUtils::isNull( oldValue ) != QgsVariantUtils::isNull( newValues.at( 0 ) )
        || newValues.count() > 1 )
   {
     // This fixes https://github.com/qgis/QGIS/issues/24398
     QgsFeatureRequest request( fid );
-    request.setFlags( QgsFeatureRequest::NoGeometry );
+    request.setFlags( Qgis::FeatureRequestFlag::NoGeometry );
     QgsFeature feature;
     vl->getFeatures( request ).nextFeature( feature );
     if ( feature.isValid() )
@@ -145,7 +146,7 @@ void QgsAttributeTableDelegate::setEditorData( QWidget *editor, const QModelInde
   if ( !eww )
     return;
 
-  QVariant value = index.model()->data( index, Qt::EditRole );
+  const QVariant value = index.model()->data( index, Qt::EditRole );
   const QStringList additionalFields = eww->additionalFields();
 
   if ( !additionalFields.empty() )
@@ -153,9 +154,9 @@ void QgsAttributeTableDelegate::setEditorData( QWidget *editor, const QModelInde
     const QgsAttributeTableModel *model = masterModel( index.model() );
     if ( model )
     {
-      QgsFeature feat = model->feature( index );
+      const QgsFeature feat = model->feature( index );
       QVariantList additionalFieldValues;
-      for ( QString fieldName : additionalFields )
+      for ( const QString &fieldName : additionalFields )
       {
         additionalFieldValues << feat.attribute( fieldName );
       }
@@ -175,7 +176,7 @@ void QgsAttributeTableDelegate::setFeatureSelectionModel( QgsFeatureSelectionMod
 
 void QgsAttributeTableDelegate::paint( QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index ) const
 {
-  QgsAttributeTableFilterModel::ColumnType columnType = static_cast<QgsAttributeTableFilterModel::ColumnType>( index.model()->data( index, QgsAttributeTableFilterModel::TypeRole ).toInt() );
+  const QgsAttributeTableFilterModel::ColumnType columnType = static_cast<QgsAttributeTableFilterModel::ColumnType>( index.model()->data( index, static_cast<int>( QgsAttributeTableFilterModel::CustomRole::Type ) ).toInt() );
 
   if ( columnType == QgsAttributeTableFilterModel::ColumnTypeActionButton )
   {
@@ -183,11 +184,11 @@ void QgsAttributeTableDelegate::paint( QPainter *painter, const QStyleOptionView
   }
   else
   {
-    QgsFeatureId fid = index.model()->data( index, QgsAttributeTableModel::FeatureIdRole ).toLongLong();
+    const QgsFeatureId fid = index.model()->data( index, static_cast<int>( QgsAttributeTableModel::CustomRole::FeatureId ) ).toLongLong();
 
     QStyleOptionViewItem myOpt = option;
 
-    if ( index.model()->data( index, Qt::EditRole ).isNull() )
+    if ( QgsVariantUtils::isNull( index.model()->data( index, Qt::EditRole ) ) )
     {
       myOpt.font.setItalic( true );
       myOpt.palette.setColor( QPalette::Text, QColor( "gray" ) );
@@ -200,9 +201,9 @@ void QgsAttributeTableDelegate::paint( QPainter *painter, const QStyleOptionView
 
     if ( option.state & QStyle::State_HasFocus )
     {
-      QRect r = option.rect.adjusted( 1, 1, -1, -1 );
-      QPen p( QBrush( QColor( 0, 255, 127 ) ), 2 );
-      QgsScopedQPainterState painterState( painter );
+      const QRect r = option.rect.adjusted( 1, 1, -1, -1 );
+      const QPen p( QBrush( QColor( 0, 255, 127 ) ), 2 );
+      const QgsScopedQPainterState painterState( painter );
       painter->setPen( p );
       painter->drawRect( r );
     }

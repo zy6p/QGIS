@@ -19,7 +19,7 @@ QgsPropertiesDefinition QgsAbstractMaterialSettings::sPropertyDefinitions;
 
 void QgsAbstractMaterialSettings::readXml( const QDomElement &element, const QgsReadWriteContext & )
 {
-  QDomElement elemDataDefinedProperties = element.firstChildElement( QStringLiteral( "data-defined-properties" ) );
+  const QDomElement elemDataDefinedProperties = element.firstChildElement( QStringLiteral( "data-defined-properties" ) );
   if ( !elemDataDefinedProperties.isNull() )
     mDataDefinedProperties.readXml( elemDataDefinedProperties, propertyDefinitions() );
 }
@@ -36,7 +36,7 @@ void QgsAbstractMaterialSettings::setDataDefinedProperties( const QgsPropertyCol
   mDataDefinedProperties = collection;
 }
 
-QgsPropertyCollection QgsAbstractMaterialSettings::dataDefinedProperties() const {return mDataDefinedProperties;}
+QgsPropertyCollection QgsAbstractMaterialSettings::dataDefinedProperties() const { return mDataDefinedProperties; }
 
 const QgsPropertiesDefinition &QgsAbstractMaterialSettings::propertyDefinitions() const
 {
@@ -51,7 +51,11 @@ QByteArray QgsAbstractMaterialSettings::dataDefinedVertexColorsAsByte( const Qgs
   return QByteArray();
 }
 
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
 void QgsAbstractMaterialSettings::applyDataDefinedToGeometry( Qt3DRender::QGeometry *geometry, int vertexCount, const QByteArray &dataDefinedBytes ) const
+#else
+void QgsAbstractMaterialSettings::applyDataDefinedToGeometry( Qt3DCore::QGeometry *geometry, int vertexCount, const QByteArray &dataDefinedBytes ) const
+#endif
 {
   Q_UNUSED( geometry )
   Q_UNUSED( vertexCount )
@@ -63,14 +67,13 @@ void QgsAbstractMaterialSettings::initPropertyDefinitions() const
   if ( !sPropertyDefinitions.isEmpty() )
     return;
 
-  QString origin = QStringLiteral( "material3d" );
+  const QString origin = QStringLiteral( "material3d" );
 
-  sPropertyDefinitions = QgsPropertiesDefinition
-  {
-    { Diffuse, QgsPropertyDefinition( "diffuse", QObject::tr( "Diffuse" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
-    { Ambient, QgsPropertyDefinition( "ambient", QObject::tr( "Ambient" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
-    { Warm, QgsPropertyDefinition( "warm", QObject::tr( "Warm" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
-    { Cool, QgsPropertyDefinition( "cool", QObject::tr( "Cool" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
-    { Specular, QgsPropertyDefinition( "specular", QObject::tr( "Specular" ), QgsPropertyDefinition::ColorNoAlpha, origin ) }
+  sPropertyDefinitions = QgsPropertiesDefinition {
+    { static_cast<int>( Property::Diffuse ), QgsPropertyDefinition( "diffuse", QObject::tr( "Diffuse" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
+    { static_cast<int>( Property::Ambient ), QgsPropertyDefinition( "ambient", QObject::tr( "Ambient" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
+    { static_cast<int>( Property::Warm ), QgsPropertyDefinition( "warm", QObject::tr( "Warm" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
+    { static_cast<int>( Property::Cool ), QgsPropertyDefinition( "cool", QObject::tr( "Cool" ), QgsPropertyDefinition::ColorNoAlpha, origin ) },
+    { static_cast<int>( Property::Specular ), QgsPropertyDefinition( "specular", QObject::tr( "Specular" ), QgsPropertyDefinition::ColorNoAlpha, origin ) }
   };
 }

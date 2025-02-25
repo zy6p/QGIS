@@ -23,14 +23,11 @@
 #include <QNetworkRequest>
 #include <QStringList>
 #include <QUrl>
-#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
-#include <QMutex>
-#else
 #include <QRecursiveMutex>
-#endif
 
-
+#include "qgsconfig.h"
 #include "qgis_core.h"
+#include "qgis_sip.h"
 
 class QgsAuthMethodConfig;
 
@@ -52,7 +49,7 @@ class CORE_EXPORT QgsAuthMethod : public QObject
      * \note When adding an 'update' member function, also add the corresponding Expansion flag.
      * \note These flags will be added to as new update points are added
      */
-    enum Expansion
+    enum Expansion SIP_ENUM_BASETYPE( IntFlag )
     {
       // TODO: Figure out all different authentication expansions current layer providers use
       NetworkRequest       = 0x1,
@@ -75,6 +72,18 @@ class CORE_EXPORT QgsAuthMethod : public QObject
 
     //! Increment this if method is significantly updated, allow updater code to be written for previously stored authcfg
     int version() const { return mVersion; }
+
+
+#ifdef HAVE_GUI
+    SIP_IF_FEATURE( HAVE_GUI )
+
+    /**
+     * Constructs the configuration for the authentication method
+     * \since QGIS 3.22
+     */
+    virtual QWidget *editWidget( QWidget *parent ) const;
+    SIP_END
+#endif
 
     /**
      * Flags that represent the update points (where authentication configurations are expanded)
@@ -193,11 +202,7 @@ class CORE_EXPORT QgsAuthMethod : public QObject
     QgsAuthMethod::Expansions mExpansions = QgsAuthMethod::Expansions();
     QStringList mDataProviders;
     int mVersion = 0;
-#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
-    QMutex mMutex;
-#else
     QRecursiveMutex mMutex;
-#endif
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS( QgsAuthMethod::Expansions )
 

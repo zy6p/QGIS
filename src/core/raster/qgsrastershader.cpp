@@ -33,7 +33,7 @@ QgsRasterShader::QgsRasterShader( double minimumValue, double maximumValue )
   QgsDebugMsgLevel( QStringLiteral( "called." ), 4 );
 }
 
-bool QgsRasterShader::shade( double value, int *returnRedValue, int *returnGreenValue, int *returnBlueValue, int *returnAlpha )
+bool QgsRasterShader::shade( double value, int *returnRedValue, int *returnGreenValue, int *returnBlueValue, int *returnAlpha ) const
 {
   if ( mRasterShaderFunction )
   {
@@ -43,7 +43,7 @@ bool QgsRasterShader::shade( double value, int *returnRedValue, int *returnGreen
   return false;
 }
 
-bool QgsRasterShader::shade( double redValue, double greenValue, double blueValue, double alphaValue, int *returnRedValue, int *returnGreenValue, int *returnBlueValue, int *returnAlphaValue )
+bool QgsRasterShader::shade( double redValue, double greenValue, double blueValue, double alphaValue, int *returnRedValue, int *returnGreenValue, int *returnBlueValue, int *returnAlphaValue ) const
 {
   if ( mRasterShaderFunction )
   {
@@ -107,7 +107,7 @@ void QgsRasterShader::writeXml( QDomDocument &doc, QDomElement &parent, const Qg
 void QgsRasterShader::readXml( const QDomElement &elem, const QgsReadWriteContext &context )
 {
   //only colorrampshader
-  QDomElement colorRampShaderElem = elem.firstChildElement( QStringLiteral( "colorrampshader" ) );
+  const QDomElement colorRampShaderElem = elem.firstChildElement( QStringLiteral( "colorrampshader" ) );
   if ( !colorRampShaderElem.isNull() )
   {
     QgsColorRampShader *colorRampShader = new QgsColorRampShader();

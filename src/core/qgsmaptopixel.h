@@ -20,12 +20,10 @@
 #include "qgis_core.h"
 #include "qgis_sip.h"
 #include <QTransform>
-#include <vector>
-#include "qgsunittypes.h"
+#include "qgis.h"
 #include "qgspointxy.h"
 
 #include <cassert>
-#include <memory>
 
 class QPoint;
 
@@ -40,6 +38,13 @@ class CORE_EXPORT QgsMapToPixel
   public:
 
     /**
+     * Constructor for an invalid QgsMapToPixel.
+     *
+     * A manual call to setParameters() is required to initialize the object.
+     */
+    QgsMapToPixel();
+
+    /**
      * Constructor
      * \param mapUnitsPerPixel Map units per pixel
      * \param centerX X coordinate of map center, in geographical units
@@ -47,7 +52,6 @@ class CORE_EXPORT QgsMapToPixel
      * \param widthPixels Output width, in pixels
      * \param heightPixels Output height, in pixels
      * \param rotation clockwise rotation in degrees
-     * \since QGIS 2.8
      */
     QgsMapToPixel( double mapUnitsPerPixel, double centerX, double centerY, int widthPixels, int heightPixels, double rotation );
 
@@ -63,19 +67,19 @@ class CORE_EXPORT QgsMapToPixel
      * \param dpi screen DPI
      * \param mapUnits map units
      * \returns matching QgsMapToPixel
-     * \since QGIS 3.0
      */
-    static QgsMapToPixel fromScale( double scale, QgsUnitTypes::DistanceUnit mapUnits, double dpi = 96 );
+    static QgsMapToPixel fromScale( double scale, Qgis::DistanceUnit mapUnits, double dpi = 96 );
 
     /**
-     * Constructor
+     * Returns TRUE if the object is valid (i.e. it has parameters set), or FALSE if the object is default constructed
+     * with no parameters set.
      *
-     * Use setParameters to fill
+     * \since QGIS 3.22
      */
-    QgsMapToPixel();
+    bool isValid() const { return mValid; }
 
     /**
-     * Transform the point \a p from map (world) coordinates to device coordinates.
+     * Transforms a point \a p from map (world) coordinates to device coordinates.
      * \param p Point to transform
      * \returns QgsPointXY in device coordinates
      */
@@ -88,7 +92,7 @@ class CORE_EXPORT QgsMapToPixel
     }
 
     /**
-     * Transform the point \a p from map (world) coordinates to device coordinates in place.
+     * Transforms a point \a p from map (world) coordinates to device coordinates in place.
      */
     void transform( QgsPointXY *p ) const
     {
@@ -99,9 +103,9 @@ class CORE_EXPORT QgsMapToPixel
     }
 
     /**
-     * Transform the point specified by x,y from map (world)
-     * coordinates to device coordinates
-     * \param x x coordinate o point to transform
+     * Transforms the point specified by x,y from map (world) coordinates to device coordinates.
+     *
+     * \param x x coordinate of point to transform
      * \param y y coordinate of point to transform
      * \returns QgsPointXY in device coordinates
      */
@@ -112,8 +116,9 @@ class CORE_EXPORT QgsMapToPixel
     }
 
     /**
-     * Transforms device coordinates to map coordinates. Modifies the
-     * given coordinates in place. Intended as a fast way to do the
+     * Transforms map coordinates to device coordinates.
+     *
+     * This method modifies the given coordinates in place. It is intended as a fast way to do the
      * transform.
      */
     void transformInPlace( double &x, double &y ) const
@@ -125,9 +130,41 @@ class CORE_EXPORT QgsMapToPixel
     }
 
     /**
-     * Transforms device coordinates to map coordinates. Modifies the
-     * given coordinates in place. Intended as a fast way to do the
+     * Transforms a bounding box from map coordinates to device coordinates.
+     *
+     * The returns bounding box will always completely enclose the transformed input bounding box (i.e. this
+     * method will grow the bounds wherever required).
+     *
+     * \since QGIS 3.40
+     */
+    QRectF transformBounds( const QRectF &bounds ) const
+    {
+      QPointF topLeft = bounds.topLeft();
+      QPointF topRight = bounds.topRight();
+      QPointF bottomLeft = bounds.bottomLeft();
+      QPointF bottomRight = bounds.bottomRight();
+
+      transformInPlace( topLeft.rx(), topLeft.ry() );
+      transformInPlace( topRight.rx(), topRight.ry() );
+      transformInPlace( bottomLeft.rx(), bottomLeft.ry() );
+      transformInPlace( bottomRight.rx(), bottomRight.ry() );
+
+      auto minMaxX = std::minmax( { topLeft.x(), topRight.x(), bottomLeft.x(), bottomRight.x() } );
+      auto minMaxY = std::minmax( { topLeft.y(), topRight.y(), bottomLeft.y(), bottomRight.y() } );
+
+      const double left = minMaxX.first;
+      const double right = minMaxX.second;
+      const double top = minMaxY.first;
+      const double bottom = minMaxY.second;
+      return QRectF( left, top, right - left, bottom - top );
+    }
+
+    /**
+     * Transforms map coordinates to device coordinates.
+     *
+     * This method modifies the given coordinates in place. It is intended as a fast way to do the
      * transform.
+     *
      * \note Not available in Python bindings
      */
     void transformInPlace( float &x, float &y ) const SIP_SKIP
@@ -141,8 +178,9 @@ class CORE_EXPORT QgsMapToPixel
 #ifndef SIP_RUN
 
     /**
-     * Transform device coordinates to map coordinates. Modifies the
-     * given coordinates in place. Intended as a fast way to do the
+     * Transforms map coordinates to device coordinates.
+     *
+     * This method modifies the given coordinates in place. It is intended as a fast way to do the
      * transform.
      * \note not available in Python bindings
      */
@@ -150,22 +188,29 @@ class CORE_EXPORT QgsMapToPixel
     void transformInPlace( QVector<T> &x, QVector<T> &y ) const
     {
       assert( x.size() == y.size() );
-      for ( int i = 0; i < x.size(); ++i )
-        transformInPlace( x[i], y[i] );
+      T *xData = x.data();
+      T *yData = y.data();
+      const auto size = x.size();
+      for ( int i = 0; i < size; ++i )
+        transformInPlace( *xData++, *yData++ );
     }
 #endif
 
-    //! Transform device coordinates to map (world) coordinates
+    /**
+     * Transforms device coordinates to map (world) coordinates.
+     */
     QgsPointXY toMapCoordinates( int x, int y ) const
     {
       return toMapCoordinates( static_cast<double>( x ), static_cast<double>( y ) );
     }
 
-    //! Transform device coordinates to map (world) coordinates
+    /**
+     * Transforms device coordinates to map (world) coordinates.
+     */
     QgsPointXY toMapCoordinates( double x, double y ) const SIP_PYNAME( toMapCoordinatesF )
     {
       bool invertible;
-      QTransform matrix = mMatrix.inverted( &invertible );
+      const QTransform matrix = mMatrix.inverted( &invertible );
       assert( invertible );
       qreal mx, my;
       matrix.map( static_cast< qreal >( x ), static_cast< qreal >( y ), &mx, &my );
@@ -173,19 +218,21 @@ class CORE_EXPORT QgsMapToPixel
     }
 
     /**
-     * Transform device coordinates to map (world) coordinates
+     * Transforms device coordinates to map (world) coordinates.
+     *
      * \param p Point to be converted to map cooordinates
      * \returns QgsPointXY in map coorndiates
      */
     QgsPointXY toMapCoordinates( QPoint p ) const
     {
-      QgsPointXY mapPt = toMapCoordinates( static_cast<double>( p.x() ), static_cast<double>( p.y() ) );
+      const QgsPointXY mapPt = toMapCoordinates( static_cast<double>( p.x() ), static_cast<double>( p.y() ) );
       return QgsPointXY( mapPt );
     }
 
     /**
-     * Transform device coordinates to map (world) coordinates
-     * \deprecated since QGIS 3.4 use toMapCoordinates instead
+     * Transforms device coordinates to map (world) coordinates.
+     *
+     * \deprecated QGIS 3.4. Use toMapCoordinates() instead.
      */
     Q_DECL_DEPRECATED QgsPointXY toMapPoint( double x, double y ) const SIP_DEPRECATED
     {
@@ -193,55 +240,95 @@ class CORE_EXPORT QgsMapToPixel
     }
 
     /**
-     * Set map units per pixel
+     * Sets the map units per pixel.
+     *
+     * Calling this method will automatically set the object as valid.
+     *
      * \param mapUnitsPerPixel Map units per pixel
+     *
+     * \see mapUnitsPerPixel()
      */
     void setMapUnitsPerPixel( double mapUnitsPerPixel );
 
-    //! Returns current map units per pixel
+    /**
+     * Returns the current map units per pixel.
+     *
+     * \see setMapUnitsPerPixel()
+     */
     double mapUnitsPerPixel() const { return mMapUnitsPerPixel; }
 
     /**
-     * Returns current map width in pixels
-     * The information is only known if setRotation was used
-     * \since QGIS 2.8
+     * Returns the current map width in pixels.
+     *
+     * The information is only known if setRotation was used.
+     *
+     * \see mapHeight()
      */
     int mapWidth() const { return mWidth; }
 
     /**
      * Returns current map height in pixels
-     * \since QGIS 2.8
+     *
+     * \see mapWidth()
      */
     int mapHeight() const { return mHeight; }
 
     /**
-     * Set map rotation in degrees (clockwise)
+     * Sets map rotation in \a degrees (clockwise).
+     *
+     * Calling this method will automatically set the object as valid.
+     *
      * \param degrees clockwise rotation in degrees
      * \param cx X ordinate of map center in geographical units
      * \param cy Y ordinate of map center in geographical units
-     * \since QGIS 2.8
+     *
+     * \see mapRotation()
      */
     void setMapRotation( double degrees, double cx, double cy );
 
     /**
-     * Returns current map rotation in degrees (clockwise)
-     * \since QGIS 2.8
+     * Returns the current map rotation in degrees (clockwise).
+     *
+     * \see setMapRotation()
      */
     double mapRotation() const { return mRotation; }
 
     /**
-     * Set parameters for use in transforming coordinates
+     * Sets parameters for use in transforming coordinates.
+     *
+     * Calling this method will automatically set the object as valid.
+     *
      * \param mapUnitsPerPixel Map units per pixel
      * \param centerX X coordinate of map center, in geographical units
      * \param centerY Y coordinate of map center, in geographical units
      * \param widthPixels Output width, in pixels
      * \param heightPixels Output height, in pixels
      * \param rotation clockwise rotation in degrees
-     * \since QGIS 2.8
+     *
+     * \note if the specified parameters result in an invalid transform then no changes will be applied to the object
      */
     void setParameters( double mapUnitsPerPixel, double centerX, double centerY, int widthPixels, int heightPixels, double rotation );
 
-    //! String representation of the parameters used in the transform
+    /**
+     * Sets parameters for use in transforming coordinates.
+     *
+     * Calling this method will automatically set the object as valid.
+     *
+     * \param mapUnitsPerPixel Map units per pixel
+     * \param centerX X coordinate of map center, in geographical units
+     * \param centerY Y coordinate of map center, in geographical units
+     * \param widthPixels Output width, in pixels
+     * \param heightPixels Output height, in pixels
+     * \param rotation clockwise rotation in degrees
+     * \param ok will be set to TRUE if the specified parameters result in a valid transform, otherwise the changes are ignored and ok will be set to FALSE.
+     *
+     * \since QGIS 3.20
+     */
+    void setParameters( double mapUnitsPerPixel, double centerX, double centerY, int widthPixels, int heightPixels, double rotation, bool *ok ) SIP_SKIP;
+
+    /**
+     * Returns a string representation of the parameters used in the transform.
+     */
     QString showParameters() const;
 
     /**
@@ -252,20 +339,19 @@ class CORE_EXPORT QgsMapToPixel
     /**
      * Returns the center x-coordinate for the transform.
      * \see yCenter()
-     * \since QGIS 3.0
      */
     double xCenter() const { return mXCenter; }
 
     /**
      * Returns the center y-coordinate for the transform.
      * \see xCenter()
-     * \since QGIS 3.0
      */
     double yCenter() const { return mYCenter; }
 
     bool operator==( const QgsMapToPixel &other ) const
     {
-      return mMapUnitsPerPixel == other.mMapUnitsPerPixel
+      return mValid == other.mValid
+             && mMapUnitsPerPixel == other.mMapUnitsPerPixel
              && mWidth == other.mWidth
              && mHeight == other.mHeight
              && mRotation == other.mRotation
@@ -281,6 +367,7 @@ class CORE_EXPORT QgsMapToPixel
     }
 
   private:
+    bool mValid = false;
     double mMapUnitsPerPixel = 1;
     int mWidth = 1;
     int mHeight = 1;

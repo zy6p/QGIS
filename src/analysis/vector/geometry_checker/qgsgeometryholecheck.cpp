@@ -24,8 +24,8 @@ void QgsGeometryHoleCheck::collectErrors( const QMap<QString, QgsFeaturePool *> 
 {
   Q_UNUSED( messages )
 
-  QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
-  QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext );
+  const QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
+  const QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext );
   for ( const QgsGeometryCheckerUtils::LayerFeature &layerFeature : layerFeatures )
   {
     const QgsAbstractGeometry *geom = layerFeature.geometry().constGet();
@@ -39,8 +39,7 @@ void QgsGeometryHoleCheck::collectErrors( const QMap<QString, QgsFeaturePool *> 
       // Rings after the first one are interiors
       for ( int iRing = 1, nRings = poly->ringCount( iPart ); iRing < nRings; ++iRing )
       {
-
-        QgsPoint pos = poly->interiorRing( iRing - 1 )->centroid();
+        const QgsPoint pos = poly->interiorRing( iRing - 1 )->centroid();
         errors.append( new QgsGeometryCheckError( this, layerFeature, pos, QgsVertexId( iPart, iRing ) ) );
       }
     }
@@ -49,16 +48,16 @@ void QgsGeometryHoleCheck::collectErrors( const QMap<QString, QgsFeaturePool *> 
 
 void QgsGeometryHoleCheck::fixError( const QMap<QString, QgsFeaturePool *> &featurePools, QgsGeometryCheckError *error, int method, const QMap<QString, int> & /*mergeAttributeIndices*/, Changes &changes ) const
 {
-  QgsFeaturePool *featurePool = featurePools[ error->layerId() ];
+  QgsFeaturePool *featurePool = featurePools[error->layerId()];
   QgsFeature feature;
   if ( !featurePool->getFeature( error->featureId(), feature ) )
   {
     error->setObsolete();
     return;
   }
-  QgsGeometry featureGeom = feature.geometry();
+  const QgsGeometry featureGeom = feature.geometry();
   const QgsAbstractGeometry *geom = featureGeom.constGet();
-  QgsVertexId vidx = error->vidx();
+  const QgsVertexId vidx = error->vidx();
 
   // Check if ring still exists
   if ( !vidx.isValid( geom ) )
@@ -85,6 +84,6 @@ void QgsGeometryHoleCheck::fixError( const QMap<QString, QgsFeaturePool *> &feat
 
 QStringList QgsGeometryHoleCheck::resolutionMethods() const
 {
-  static QStringList methods = QStringList() << tr( "Remove hole" ) << tr( "No action" );
+  static const QStringList methods = QStringList() << tr( "Remove hole" ) << tr( "No action" );
   return methods;
 }

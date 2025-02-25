@@ -55,6 +55,14 @@ class CORE_EXPORT QgsFieldsItem : public QgsDataItem
 
     ~QgsFieldsItem() override;
 
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    QString str = QStringLiteral( "<QgsFieldsItem: %1>" ).arg( sipCpp->path() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
+
     QVector<QgsDataItem *> createChildren() override;
 
     QIcon icon() override;
@@ -75,21 +83,29 @@ class CORE_EXPORT QgsFieldsItem : public QgsDataItem
     QString connectionUri() const;
 
     /**
-     * Creates and returns a (possibly NULL) layer from the connection URI and schema/table information
+     * Creates and returns a (possibly NULLPTR) layer from the connection URI and schema/table information
      */
     QgsVectorLayer *layer() SIP_FACTORY;
 
     /**
-     * Returns the (possibly NULL) properties of the table this fields belong to.
+     * Returns the (possibly NULLPTR) properties of the table this fields belong to.
      * \since QGIS 3.16
      */
     QgsAbstractDatabaseProviderConnection::TableProperty *tableProperty() const;
+
+    /**
+     * Returns TRUE if the connection supports renaming fields.
+     *
+     * \since QGIS 3.28
+     */
+    bool canRenameFields() const { return mCanRename; }
 
   private:
 
     QString mSchema;
     QString mTableName;
     QString mConnectionUri;
+    bool mCanRename = false;
     std::unique_ptr<QgsAbstractDatabaseProviderConnection::TableProperty> mTableProperty;
 
 };
@@ -97,9 +113,10 @@ class CORE_EXPORT QgsFieldsItem : public QgsDataItem
 
 /**
  * \ingroup core
- * \brief A layer field item, information about the connection URI, the schema and the
- * table as well as the layer instance the field belongs to can be retrieved
- * from the parent QgsFieldsItem object.
+ * \brief A data item representing a single field from a layer.
+ *
+ * Information about the connection URI, the schema and the table as well as the layer
+ * instance the field belongs to can be retrieved from the parent QgsFieldsItem object.
  * \since QGIS 3.16
 */
 class CORE_EXPORT QgsFieldItem : public QgsDataItem
@@ -116,10 +133,24 @@ class CORE_EXPORT QgsFieldItem : public QgsDataItem
 
     ~QgsFieldItem() override;
 
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    QString str = QStringLiteral( "<QgsFieldItem: %1>" ).arg( sipCpp->name() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
+
     QIcon icon() override;
 
-    //QgsField field() const;
+    /**
+     * Returns the field definition.
+     *
+     * \since QGIS 3.26
+     */
+    QgsField field() const { return mField; }
 
+    bool equal( const QgsDataItem *other ) override;
 
   private:
 

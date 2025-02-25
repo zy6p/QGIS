@@ -13,6 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsfeaturepickermodel.h"
+#include "moc_qgsfeaturepickermodel.cpp"
 #include "qgsfeatureexpressionvaluesgatherer.h"
 
 #include "qgsvectorlayer.h"
@@ -27,7 +28,7 @@ QgsFeaturePickerModel::QgsFeaturePickerModel( QObject *parent )
   setFetchGeometry( true );
   setExtraIdentifierValueUnguarded( nullIdentifier() );
 
-  connect( this, &QgsFeaturePickerModelBase::extraIdentifierValueIndexChanged, this, [ = ]() {emit featureChanged( feature() );} );
+  connect( this, &QgsFeaturePickerModelBase::extraIdentifierValueIndexChanged, this, [this]() {emit featureChanged( feature() );} );
 }
 
 void QgsFeaturePickerModel::requestToReloadCurrentFeature( QgsFeatureRequest &request )
@@ -42,7 +43,7 @@ QVariant QgsFeaturePickerModel::entryIdentifier( const QgsFeatureExpressionValue
 
 QgsFeatureExpressionValuesGatherer::Entry QgsFeaturePickerModel::createEntry( const QVariant &identifier ) const
 {
-  QgsFeatureId fid = identifier.value<QgsFeatureId>();
+  const QgsFeatureId fid = identifier.value<QgsFeatureId>();
   return QgsFeatureExpressionValuesGatherer::Entry( fid, QStringLiteral( "(%1)" ).arg( fid ), sourceLayer() );
 }
 

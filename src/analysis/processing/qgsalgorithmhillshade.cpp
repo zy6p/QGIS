@@ -61,12 +61,9 @@ QgsHillshadeAlgorithm *QgsHillshadeAlgorithm::createInstance() const
 void QgsHillshadeAlgorithm::initAlgorithm( const QVariantMap & )
 {
   addParameter( new QgsProcessingParameterRasterLayer( QStringLiteral( "INPUT" ), QObject::tr( "Elevation layer" ) ) );
-  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "Z_FACTOR" ), QObject::tr( "Z factor" ),
-                QgsProcessingParameterNumber::Double, 1, false, 0 ) );
-  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "AZIMUTH" ), QObject::tr( "Azimuth (horizontal angle)" ),
-                QgsProcessingParameterNumber::Double, 300, false, 0, 360 ) );
-  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "V_ANGLE" ), QObject::tr( "Vertical angle" ),
-                QgsProcessingParameterNumber::Double, 40, false, 0, 90 ) );
+  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "Z_FACTOR" ), QObject::tr( "Z factor" ), Qgis::ProcessingNumberParameterType::Double, 1, false, 0 ) );
+  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "AZIMUTH" ), QObject::tr( "Azimuth (horizontal angle)" ), Qgis::ProcessingNumberParameterType::Double, 300, false, 0, 360 ) );
+  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "V_ANGLE" ), QObject::tr( "Vertical angle" ), Qgis::ProcessingNumberParameterType::Double, 40, false, 0, 90 ) );
 
   addParameter( new QgsProcessingParameterRasterDestination( QStringLiteral( "OUTPUT" ), QObject::tr( "Hillshade" ) ) );
 }
@@ -78,12 +75,12 @@ QVariantMap QgsHillshadeAlgorithm::processAlgorithm( const QVariantMap &paramete
   if ( !inputLayer )
     throw QgsProcessingException( invalidRasterError( parameters, QStringLiteral( "INPUT" ) ) );
 
-  double zFactor = parameterAsDouble( parameters, QStringLiteral( "Z_FACTOR" ), context );
-  double azimuth = parameterAsDouble( parameters, QStringLiteral( "AZIMUTH" ), context );
-  double vAngle = parameterAsDouble( parameters, QStringLiteral( "V_ANGLE" ), context );
+  const double zFactor = parameterAsDouble( parameters, QStringLiteral( "Z_FACTOR" ), context );
+  const double azimuth = parameterAsDouble( parameters, QStringLiteral( "AZIMUTH" ), context );
+  const double vAngle = parameterAsDouble( parameters, QStringLiteral( "V_ANGLE" ), context );
 
   const QString outputFile = parameterAsOutputLayer( parameters, QStringLiteral( "OUTPUT" ), context );
-  QFileInfo fi( outputFile );
+  const QFileInfo fi( outputFile );
   const QString outputFormat = QgsRasterFileWriter::driverForExtension( fi.suffix() );
 
   QgsHillshadeFilter hillshade( inputLayer->source(), outputFile, outputFormat, azimuth, vAngle );

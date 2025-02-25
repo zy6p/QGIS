@@ -17,6 +17,7 @@
 
 #include "qgsapplication.h"
 #include "qgsmessagebaritem.h"
+#include "moc_qgsmessagebaritem.cpp"
 #include "qgsmessagebar.h"
 #include "qgsgui.h"
 #include "qgsnative.h"
@@ -98,13 +99,13 @@ void QgsMessageBarItem::writeContent()
     QString msgIcon( QStringLiteral( "/mIconInfo.svg" ) );
     switch ( mLevel )
     {
-      case Qgis::Critical:
+      case Qgis::MessageLevel::Critical:
         msgIcon = QStringLiteral( "/mIconCritical.svg" );
         break;
-      case Qgis::Warning:
+      case Qgis::MessageLevel::Warning:
         msgIcon = QStringLiteral( "/mIconWarning.svg" );
         break;
-      case Qgis::Success:
+      case Qgis::MessageLevel::Success:
         msgIcon = QStringLiteral( "/mIconSuccess.svg" );
         break;
       default:
@@ -118,25 +119,25 @@ void QgsMessageBarItem::writeContent()
 
   // STYLESHEETS
   QString contentStyleSheet;
-  if ( mLevel == Qgis::Success )
+  if ( mLevel == Qgis::MessageLevel::Success )
   {
     mStyleSheet = QStringLiteral( "QgsMessageBar { background-color: #dff0d8; border: 1px solid #8e998a; } "
                                   "QLabel,QTextEdit { color: black; } " );
     contentStyleSheet = QStringLiteral( "<style> a, a:visited, a:hover { color:#268300; } </style>" );
   }
-  else if ( mLevel == Qgis::Critical )
+  else if ( mLevel == Qgis::MessageLevel::Critical )
   {
     mStyleSheet = QStringLiteral( "QgsMessageBar { background-color: #d65253; border: 1px solid #9b3d3d; } "
                                   "QLabel,QTextEdit { color: white; } " );
     contentStyleSheet = QStringLiteral( "<style>a, a:visited, a:hover { color:#4e0001; }</style>" );
   }
-  else if ( mLevel == Qgis::Warning )
+  else if ( mLevel == Qgis::MessageLevel::Warning )
   {
     mStyleSheet = QStringLiteral( "QgsMessageBar { background-color: #ffc800; border: 1px solid #e0aa00; } "
                                   "QLabel,QTextEdit { color: black; } " );
     contentStyleSheet = QStringLiteral( "<style>a, a:visited, a:hover { color:#945a00; }</style>" );
   }
-  else if ( mLevel == Qgis::Info )
+  else if ( mLevel == Qgis::MessageLevel::Info )
   {
     mStyleSheet = QStringLiteral( "QgsMessageBar { background-color: #e7f5fe; border: 1px solid #b9cfe4; } "
                                   "QLabel,QTextEdit { color: #2554a1; } " );
@@ -165,7 +166,7 @@ void QgsMessageBarItem::writeContent()
       connect( mTextBrowser, &QTextBrowser::anchorClicked, this, &QgsMessageBarItem::urlClicked );
 
       mTextBrowser->setFrameShape( QFrame::NoFrame );
-      // stylesheet set here so Qt-style substitued scrollbar arrows can show within limited height
+      // stylesheet set here so Qt-style substituted scrollbar arrows can show within limited height
       // adjusts to height of font set in app options
       mTextBrowser->setStyleSheet( "QTextEdit { background-color: rgba(0,0,0,0); margin-top: 0.25em; max-height: 1.75em; min-height: 1.75em; } "
                                    "QScrollBar { background-color: rgba(0,0,0,0); } "
@@ -287,9 +288,9 @@ void QgsMessageBarItem::dismiss()
 
 void QgsMessageBarItem::urlClicked( const QUrl &url )
 {
-  QFileInfo file( url.toLocalFile() );
+  const QFileInfo file( url.toLocalFile() );
   if ( file.exists() && !file.isDir() )
-    QgsGui::instance()->nativePlatformInterface()->openFileExplorerAndSelectFile( url.toLocalFile() );
+    QgsGui::nativePlatformInterface()->openFileExplorerAndSelectFile( url.toLocalFile() );
   else
     QDesktopServices::openUrl( url );
   dismiss();

@@ -13,7 +13,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "qgsgeometrycheckcontext.h"
 #include "qgsgeometrymultipartcheck.h"
 #include "qgsfeaturepool.h"
 
@@ -22,7 +21,7 @@ QList<QgsSingleGeometryCheckError *> QgsGeometryMultipartCheck::processGeometry(
   QList<QgsSingleGeometryCheckError *> errors;
 
   const QgsAbstractGeometry *geom = geometry.constGet();
-  QgsWkbTypes::Type type = geom->wkbType();
+  const Qgis::WkbType type = geom->wkbType();
   if ( geom->partCount() == 1 && QgsWkbTypes::isMultiType( type ) )
   {
     errors.append( new QgsSingleGeometryCheckError( this, geometry, geometry ) );
@@ -32,14 +31,14 @@ QList<QgsSingleGeometryCheckError *> QgsGeometryMultipartCheck::processGeometry(
 
 void QgsGeometryMultipartCheck::fixError( const QMap<QString, QgsFeaturePool *> &featurePools, QgsGeometryCheckError *error, int method, const QMap<QString, int> & /*mergeAttributeIndices*/, Changes &changes ) const
 {
-  QgsFeaturePool *featurePool = featurePools[ error->layerId() ];
+  QgsFeaturePool *featurePool = featurePools[error->layerId()];
   QgsFeature feature;
   if ( !featurePool->getFeature( error->featureId(), feature ) )
   {
     error->setObsolete();
     return;
   }
-  QgsGeometry featureGeom = feature.geometry();
+  const QgsGeometry featureGeom = feature.geometry();
   const QgsAbstractGeometry *geom = featureGeom.constGet();
 
   // Check if error still applies
@@ -75,9 +74,9 @@ void QgsGeometryMultipartCheck::fixError( const QMap<QString, QgsFeaturePool *> 
 
 QStringList QgsGeometryMultipartCheck::resolutionMethods() const
 {
-  static QStringList methods = QStringList()
-                               << tr( "Convert to single part feature" )
-                               << tr( "Delete feature" )
-                               << tr( "No action" );
+  static const QStringList methods = QStringList()
+                                     << tr( "Convert to single part feature" )
+                                     << tr( "Delete feature" )
+                                     << tr( "No action" );
   return methods;
 }

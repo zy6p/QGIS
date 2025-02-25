@@ -28,6 +28,7 @@
 #include "qgis_core.h"
 #include "qgspoint.h"
 #include "qgsdataprovider.h"
+#include "qgsprovidermetadata.h"
 #include "qgsmeshdataset.h"
 #include "qgsmeshdataprovidertemporalcapabilities.h"
 
@@ -113,6 +114,10 @@ struct CORE_EXPORT QgsMesh
   QVector<QgsMeshFace> faces SIP_SKIP;
 };
 
+// we need to declare metatype so QgsMesh can be passed as QVariant for expressions
+Q_DECLARE_METATYPE( QgsMesh );
+
+
 /**
  * \ingroup core
  *
@@ -134,7 +139,7 @@ struct CORE_EXPORT QgsMesh
 class CORE_EXPORT QgsMeshDataSourceInterface SIP_ABSTRACT
 {
   public:
-    //! Dtor
+
     virtual ~QgsMeshDataSourceInterface() = default;
 
     /**
@@ -164,10 +169,31 @@ class CORE_EXPORT QgsMeshDataSourceInterface SIP_ABSTRACT
     virtual int edgeCount() const = 0;
 
     /**
+     * \brief Returns the maximum number of vertices per face supported by the current mesh,
+     * if returns 0, the number of vertices is unlimited
+     *
+     * \returns Maximum number of vertices per face
+     *
+     * \since QGIS 3.22
+     */
+    virtual int maximumVerticesCountPerFace() const {return 0;};
+
+    /**
      * Populates the mesh vertices, edges and faces
      * \since QGIS 3.6
      */
     virtual void populateMesh( QgsMesh *mesh ) const = 0;
+
+    /**
+     * Saves the \a mesh frame to the source.
+     *
+     * \param mesh the mesh to save
+     *
+     * \returns TRUE on success
+     *
+     * \since QGIS 3.22
+     */
+    virtual bool saveMeshFrame( const QgsMesh &mesh ) = 0;
 };
 
 /**
@@ -189,7 +215,6 @@ class CORE_EXPORT QgsMeshDatasetSourceInterface SIP_ABSTRACT
 {
   public:
     QgsMeshDatasetSourceInterface();
-    //! Dtor
     virtual ~QgsMeshDatasetSourceInterface() = default;
 
     /**
@@ -271,7 +296,7 @@ class CORE_EXPORT QgsMeshDatasetSourceInterface SIP_ABSTRACT
      *
      * \since QGIS 3.12
      */
-    virtual QgsMesh3dDataBlock dataset3dValues( QgsMeshDatasetIndex index, int faceIndex, int count ) const = 0;
+    virtual QgsMesh3DDataBlock dataset3dValues( QgsMeshDatasetIndex index, int faceIndex, int count ) const = 0;
 
     /**
      * \brief Returns whether the face is active for particular dataset
@@ -365,7 +390,7 @@ class CORE_EXPORT QgsMeshDatasetSourceInterface SIP_ABSTRACT
                                     ) = 0;
 
     /**
-     * Returns the dataset index of the dataset in a specific dataet group at \a time from the \a reference time
+     * Returns the dataset index of the dataset in a specific dataset group at \a time from the \a reference time
      *
      * \param referenceTime the reference time from where to find the dataset
      * \param groupIndex the index of the dataset group
@@ -376,8 +401,25 @@ class CORE_EXPORT QgsMeshDatasetSourceInterface SIP_ABSTRACT
      */
     QgsMeshDatasetIndex datasetIndexAtTime( const QDateTime &referenceTime,
                                             int groupIndex,
-                                            quint64 time,
+                                            qint64 time,
                                             QgsMeshDataProviderTemporalCapabilities::MatchingTemporalDatasetMethod method ) const;
+
+    /**
+     * Returns a list of dataset indexes of the dataset in a specific dataset group that are between \a time1 and \a time2 from the \a reference time
+     *
+     * \param referenceTime the reference time from where to find the dataset
+     * \param groupIndex the index of the dataset group
+     * \param time1 the first relative time of the time intervale from reference time
+     * \param time2 the second relative time of the time intervale from reference time
+     *
+     * \return the dataset index
+     *
+     * \since QGIS 3.22
+     */
+    QList<QgsMeshDatasetIndex> datasetIndexInTimeInterval( const QDateTime &referenceTime,
+        int groupIndex,
+        qint64 time1,
+        qint64 time2 ) const;
 
   protected:
     std::unique_ptr<QgsMeshDataProviderTemporalCapabilities> mTemporalCapabilities;
@@ -401,7 +443,7 @@ class CORE_EXPORT QgsMeshDataProvider: public QgsDataProvider, public QgsMeshDat
     //! Ctor
     QgsMeshDataProvider( const QString &uri,
                          const QgsDataProvider::ProviderOptions &providerOptions,
-                         QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() );
+                         Qgis::DataProviderReadFlags = Qgis::DataProviderReadFlags() );
 
     QgsMeshDataProviderTemporalCapabilities *temporalCapabilities() override;
     const QgsMeshDataProviderTemporalCapabilities *temporalCapabilities() const override SIP_SKIP;
@@ -413,7 +455,36 @@ class CORE_EXPORT QgsMeshDataProvider: public QgsDataProvider, public QgsMeshDat
      *
      * \since QGIS 3.14
      */
-    void setTemporalUnit( QgsUnitTypes::TemporalUnit unit );
+    void setTemporalUnit( Qgis::TemporalUnit unit );
+
+
+    /**
+     * Returns the mesh driver metadata of the provider
+     *
+     * \return the mesh driver metadata of the provider
+     *
+     * \since QGIS 3.22
+     */
+    virtual QgsMeshDriverMetadata driverMetadata()  const;
+
+
+    /**
+     * Closes the data provider and free every resources used
+     *
+     * \since QGIS 3.22
+     */
+    virtual void close() = 0;
+
+    /**
+     * \brief Remove dataset group from the mesh
+     *
+     * emits dataChanged when successful
+     *
+     * \return TRUE on success
+     *
+     * \since QGIS 3.42
+     */
+    virtual bool removeDatasetGroup( int index ) = 0;
 
   signals:
     //! Emitted when some new dataset groups have been added

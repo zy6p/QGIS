@@ -132,7 +132,7 @@ class CORE_EXPORT QgsBrowserProxyModel : public QSortFilterProxyModel
      * \see setLayerType()
      * \see filterByLayerType()
      */
-    QgsMapLayerType layerType() const;
+    Qgis::LayerType layerType() const;
 
     /**
      * Sets the layer \a type to filter the model by. This is only used if
@@ -141,7 +141,7 @@ class CORE_EXPORT QgsBrowserProxyModel : public QSortFilterProxyModel
      * \see layerType()
      * \see setFilterByLayerType()
      */
-    void setLayerType( QgsMapLayerType type );
+    void setLayerType( Qgis::LayerType type );
 
     /**
      * Sets a filter to hide data items based on QgsDataItem::providerKey() associated with the item.
@@ -209,13 +209,13 @@ class CORE_EXPORT QgsBrowserProxyModel : public QSortFilterProxyModel
     QStringList mHiddenDataItemsKeys;
     QStringList mShownDataItemsKeys;
     QString mFilter; //filter string provided
-    QVector<QRegExp> mREList; //list of filters, separated by "|"
+    QVector<QRegularExpression> mREList; //list of filters, separated by "|"
     FilterSyntax mPatternSyntax = Normal;
     Qt::CaseSensitivity mCaseSensitivity = Qt::CaseInsensitive;
 
     bool mFilterByLayerType = false;
     bool mShowLayers = true;
-    QgsMapLayerType mLayerType = QgsMapLayerType::VectorLayer;
+    Qgis::LayerType mLayerType = Qgis::LayerType::Vector;
 
     //! Update filter
     void updateFilter();

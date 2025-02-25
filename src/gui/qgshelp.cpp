@@ -21,6 +21,9 @@
 #include "qgsexpressioncontext.h"
 #include "qgsmessagelog.h"
 #include "qgsexpressioncontextutils.h"
+#include "qgsblockingnetworkrequest.h"
+#include "qgsnetworkaccessmanager.h"
+#include "qgssetrequestinitiator_p.h"
 
 #include <QUrl>
 #include <QFileInfo>
@@ -42,8 +45,8 @@ QUrl QgsHelp::helpUrl( const QString &key )
 {
   QUrl helpNotFound = QUrl::fromLocalFile( QgsApplication::pkgDataPath() + "/doc/nohelp.html" );
 
-  QgsSettings settings;
-  QStringList paths = settings.value( QStringLiteral( "help/helpSearchPath" ) ).toStringList();
+  const QgsSettings settings;
+  const QStringList paths = settings.value( QStringLiteral( "help/helpSearchPath" ) ).toStringList();
   if ( paths.isEmpty() )
   {
     QgsMessageLog::logMessage( QObject::tr( "Help location is not configured!" ), QObject::tr( "QGIS Help" ) );
@@ -71,14 +74,15 @@ QUrl QgsHelp::helpUrl( const QString &key )
     const auto constVariableNames = scope->variableNames();
     for ( const QString &var : constVariableNames )
     {
-      QRegularExpression rx( QStringLiteral( "(<!\\$\\$)*(\\$%1)" ).arg( var ) );
+      const QRegularExpression rx( QStringLiteral( "(<!\\$\\$)*(\\$%1)" ).arg( var ) );
       fullPath.replace( rx, scope->variable( var ).toString() );
     }
-    fullPath.replace( QRegularExpression( QStringLiteral( "(\\$\\$)" ) ), QStringLiteral( "$" ) );
+    const thread_local QRegularExpression pathRx( QStringLiteral( "(\\$\\$)" ) );
+    fullPath.replace( pathRx, QStringLiteral( "$" ) );
 
     helpPath = QStringLiteral( "%1/%2" ).arg( fullPath, key );
 
-    QgsMessageLog::logMessage( QObject::tr( "Trying to open help using key '%1'. Full URI is '%2'…" ).arg( key ).arg( helpPath ), QObject::tr( "QGIS Help" ), Qgis::Info );
+    QgsMessageLog::logMessage( QObject::tr( "Trying to open help using key '%1'. Full URI is '%2'…" ).arg( key ).arg( helpPath ), QObject::tr( "QGIS Help" ), Qgis::MessageLevel::Info );
 
     if ( helpPath.startsWith( QLatin1String( "http" ) ) )
     {
@@ -90,13 +94,13 @@ QUrl QgsHelp::helpUrl( const QString &key )
     }
     else
     {
-      QString filePath = helpPath.mid( 0, helpPath.lastIndexOf( QLatin1Char( '#' ) ) );
+      const QString filePath = helpPath.mid( 0, helpPath.lastIndexOf( QLatin1Char( '#' ) ) );
       if ( !QFileInfo::exists( filePath ) )
       {
         continue;
       }
       helpUrl = QUrl::fromLocalFile( filePath );
-      int pos = helpPath.lastIndexOf( QLatin1Char( '#' ) );
+      const int pos = helpPath.lastIndexOf( QLatin1Char( '#' ) );
       if ( pos != -1 )
       {
         helpUrl.setFragment( helpPath.mid( helpPath.lastIndexOf( QLatin1Char( '#' ) ) + 1, -1 ) );
@@ -112,67 +116,12 @@ QUrl QgsHelp::helpUrl( const QString &key )
 
 bool QgsHelp::urlExists( const QString &url )
 {
-  QUrl helpUrl( url );
-  QTcpSocket socket;
+  const QUrl helpUrl( url );
 
-  QgsSettings settings;
-  bool proxyEnabled = settings.value( QStringLiteral( "proxy/proxyEnabled" ), false ).toBool();
-  if ( proxyEnabled )
-  {
-    QNetworkProxy proxy;
-    QString proxyHost = settings.value( QStringLiteral( "proxy/proxyHost" ), QString() ).toString();
-    int proxyPort = settings.value( QStringLiteral( "proxy/proxyPort" ), QString() ).toString().toInt();
-    QString proxyUser = settings.value( QStringLiteral( "proxy/proxyUser" ), QString() ).toString();
-    QString proxyPassword = settings.value( QStringLiteral( "proxy/proxyPassword" ), QString() ).toString();
+  QgsBlockingNetworkRequest request;
+  QNetworkRequest req( helpUrl );
+  QgsSetRequestInitiatorClass( req, QStringLiteral( "QgsHelp" ) );
 
-    QString proxyTypeString = settings.value( QStringLiteral( "proxy/proxyType" ), QString() ).toString();
-
-    if ( proxyTypeString == QLatin1String( "DefaultProxy" ) )
-    {
-      QList<QNetworkProxy> proxies = QNetworkProxyFactory::systemProxyForQuery();
-      if ( !proxies.isEmpty() )
-      {
-        proxy = proxies.first();
-      }
-    }
-    else
-    {
-      QNetworkProxy::ProxyType proxyType = QNetworkProxy::DefaultProxy;
-      if ( proxyTypeString == QLatin1String( "Socks5Proxy" ) )
-      {
-        proxyType = QNetworkProxy::Socks5Proxy;
-      }
-      else if ( proxyTypeString == QLatin1String( "HttpProxy" ) )
-      {
-        proxyType = QNetworkProxy::HttpProxy;
-      }
-      else if ( proxyTypeString == QLatin1String( "HttpCachingProxy" ) )
-      {
-        proxyType = QNetworkProxy::HttpCachingProxy;
-      }
-      else if ( proxyTypeString == QLatin1String( "FtpCachingProxy" ) )
-      {
-        proxyType = QNetworkProxy::FtpCachingProxy;
-      }
-      proxy = QNetworkProxy( proxyType, proxyHost, proxyPort, proxyUser, proxyPassword );
-    }
-    socket.setProxy( proxy );
-  }
-
-  socket.connectToHost( helpUrl.host(), 80 );
-  if ( socket.waitForConnected() )
-  {
-    socket.write( "HEAD " + helpUrl.path().toUtf8() + " HTTP/1.1\r\n"
-                  "Host: " + helpUrl.host().toUtf8() + "\r\n\r\n" );
-    if ( socket.waitForReadyRead() )
-    {
-      QByteArray bytes = socket.readAll();
-      if ( bytes.contains( "200 OK" ) ||  bytes.contains( "302 Found" ) ||  bytes.contains( "301 Moved" ) )
-      {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  QgsBlockingNetworkRequest::ErrorCode errCode = request.head( req );
+  return errCode == QgsBlockingNetworkRequest::NoError;
 }

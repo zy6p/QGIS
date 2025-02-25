@@ -21,11 +21,12 @@ email                : hugo dot mercier at oslandia dot com
 #include "qgsvirtuallayerprovider.h"
 #include "qgsfeatureiterator.h"
 #include "qgsgeometryengine.h"
+#include "qgscoordinatetransform.h"
 
 #include <memory>
 #include <QPointer>
 
-class QgsVirtualLayerFeatureSource final: public QgsAbstractFeatureSource
+class QgsVirtualLayerFeatureSource final : public QgsAbstractFeatureSource
 {
   public:
     QgsVirtualLayerFeatureSource( const QgsVirtualLayerProvider *p );
@@ -33,13 +34,12 @@ class QgsVirtualLayerFeatureSource final: public QgsAbstractFeatureSource
     QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) override;
 
   private:
-
     // NOTE: this is really bad and should be removed.
     // it's only here to guard mSqlite - because if the provider is removed
     // then mSqlite will be meaningless.
     // this needs to be totally reworked so that mSqlite no longer depends on the provider
     // and can be fully encapsulated here
-    QPointer< const QgsVirtualLayerProvider  > mProvider;
+    QPointer<const QgsVirtualLayerProvider> mProvider;
 
     QString mPath;
     QgsVirtualLayerDefinition mDefinition;
@@ -52,7 +52,7 @@ class QgsVirtualLayerFeatureSource final: public QgsAbstractFeatureSource
     friend class QgsVirtualLayerFeatureIterator;
 };
 
-class QgsVirtualLayerFeatureIterator final: public QgsAbstractFeatureIteratorFromSource<QgsVirtualLayerFeatureSource>
+class QgsVirtualLayerFeatureIterator final : public QgsAbstractFeatureIteratorFromSource<QgsVirtualLayerFeatureSource>
 {
   public:
     QgsVirtualLayerFeatureIterator( QgsVirtualLayerFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
@@ -62,11 +62,9 @@ class QgsVirtualLayerFeatureIterator final: public QgsAbstractFeatureIteratorFro
     bool close() override;
 
   protected:
-
     bool fetchFeature( QgsFeature &feature ) override;
 
   private:
-
     std::unique_ptr<Sqlite::Query> mQuery;
 
     QgsAttributeList mAttributes;
@@ -74,8 +72,9 @@ class QgsVirtualLayerFeatureIterator final: public QgsAbstractFeatureIteratorFro
     QgsFeatureId mFid = 0;
     QgsCoordinateTransform mTransform;
     QgsRectangle mFilterRect;
-
-    std::unique_ptr< QgsGeometryEngine > mRectEngine;
+    QgsGeometry mDistanceWithinGeom;
+    std::unique_ptr<QgsGeometryEngine> mDistanceWithinEngine;
+    std::unique_ptr<QgsGeometryEngine> mRectEngine;
 };
 
 #endif

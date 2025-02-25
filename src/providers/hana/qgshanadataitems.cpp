@@ -19,15 +19,13 @@
 #include "qgshanaconnection.h"
 #include "qgshanaconnectionpool.h"
 #include "qgshanaexception.h"
-#include "qgshananewconnection.h"
 #include "qgshanadataitems.h"
+#include "moc_qgshanadataitems.cpp"
 #include "qgshanasettings.h"
-#include "qgshanasourceselect.h"
 #include "qgshanautils.h"
 #include "qgslogger.h"
 #include "qgsmessageoutput.h"
 #include "qgsmimedatautils.h"
-#include "qgsnewnamedialog.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayerexporter.h"
 #include "qgsfieldsitem.h"
@@ -38,13 +36,14 @@
 QgsHanaConnectionItem::QgsHanaConnectionItem(
   QgsDataItem *parent,
   const QString &name,
-  const QString &path )
+  const QString &path
+)
   : QgsDataCollectionItem( parent, name, path, QStringLiteral( "SAP HANA" ) )
 {
   mIconName = QStringLiteral( "mIconConnect.svg" );
-  mCapabilities |= Collapse;
+  mCapabilities |= Qgis::BrowserItemCapability::Collapse;
 
-  updateToolTip( QString( ), QString( ) );
+  updateToolTip( QString(), QString() );
 }
 
 QVector<QgsDataItem *> QgsHanaConnectionItem::createChildren()
@@ -58,13 +57,17 @@ QVector<QgsDataItem *> QgsHanaConnectionItem::createChildren()
     return items;
   }
 
-  updateToolTip( conn->getUserName(), conn->getDatabaseVersion() );
+  QgsHanaSettings settings( mName, true );
 
   try
   {
-    QgsHanaSettings settings( mName, true );
-    const QVector<QgsHanaSchemaProperty> schemas =
-      conn->getSchemas( settings.userTablesOnly() ? settings.userName() : QString() );
+    QString userName = conn->getUserName();
+    if ( userName.isEmpty() )
+      userName = settings.userName();
+
+    updateToolTip( userName, conn->getDatabaseVersion() );
+
+    const QVector<QgsHanaSchemaProperty> schemas = conn->getSchemas( settings.userTablesOnly() ? userName : QString() );
 
     if ( schemas.isEmpty() )
     {
@@ -74,8 +77,7 @@ QVector<QgsDataItem *> QgsHanaConnectionItem::createChildren()
     {
       for ( const QgsHanaSchemaProperty &schema : schemas )
       {
-        QgsHanaSchemaItem *schemaItem = new QgsHanaSchemaItem( this, mName, schema.name,
-            mPath + '/' + schema.name );
+        QgsHanaSchemaItem *schemaItem = new QgsHanaSchemaItem( this, mName, schema.name, mPath + '/' + schema.name );
         items.append( schemaItem );
       }
     }
@@ -112,16 +114,19 @@ void QgsHanaConnectionItem::updateToolTip( const QString &userName, const QStrin
 {
   QgsHanaSettings settings( mName, true );
   QString tip;
-  if ( !settings.database().isEmpty() )
-    tip = tr( "Database: " ) + settings.database();
-  if ( !tip.isEmpty() )
+  if ( settings.connectionType() == QgsHanaConnectionType::HostPort )
+  {
+    if ( !settings.database().isEmpty() )
+      tip = tr( "Database: " ) + settings.database();
+    if ( !tip.isEmpty() )
+      tip += '\n';
+    tip += tr( "Host: " ) + settings.host() + QStringLiteral( " " );
+    if ( QgsHanaIdentifierType::fromInt( settings.identifierType() ) == QgsHanaIdentifierType::InstanceNumber )
+      tip += settings.identifier();
+    else
+      tip += settings.port();
     tip += '\n';
-  tip += tr( "Host: " ) + settings.host() + QStringLiteral( " " );
-  if ( QgsHanaIdentifierType::fromInt( settings.identifierType() ) == QgsHanaIdentifierType::INSTANCE_NUMBER )
-    tip += settings.identifier();
-  else
-    tip += settings.port();
-  tip += '\n';
+  }
   if ( !dbmsVersion.isEmpty() )
     tip += tr( "DB Version: " ) + dbmsVersion + '\n';
   tip += tr( "User: " ) + userName + '\n';
@@ -165,39 +170,34 @@ bool QgsHanaConnectionItem::handleDrop( const QMimeData *data, const QString &to
 
       if ( srcLayer->isValid() )
       {
-        QgsDataSourceUri dsUri( u. uri );
+        QgsDataSourceUri dsUri( u.uri );
         QString geomColumn = dsUri.geometryColumn();
         if ( geomColumn.isEmpty() )
         {
           bool fieldsInUpperCase = QgsHanaUtils::countFieldsWithFirstLetterInUppercase( srcLayer->fields() ) > srcLayer->fields().size() / 2;
-          geomColumn = ( srcLayer->geometryType() != QgsWkbTypes::NullGeometry ) ? ( fieldsInUpperCase ? QStringLiteral( "GEOM" ) : QStringLiteral( "geom" ) ) : nullptr;
+          geomColumn = ( srcLayer->geometryType() != Qgis::GeometryType::Null ) ? ( fieldsInUpperCase ? QStringLiteral( "GEOM" ) : QStringLiteral( "geom" ) ) : nullptr;
         }
 
         uri.setDataSource( toSchema, u.name, geomColumn, QString(), dsUri.keyColumn() );
         uri.setWkbType( srcLayer->wkbType() );
 
-        std::unique_ptr< QgsVectorLayerExporterTask > exportTask(
-          new QgsVectorLayerExporterTask( srcLayer, uri.uri( false ),
-                                          QStringLiteral( "hana" ), srcLayer->crs(), QVariantMap(), owner ) );
+        std::unique_ptr<QgsVectorLayerExporterTask> exportTask(
+          new QgsVectorLayerExporterTask( srcLayer, uri.uri( false ), QStringLiteral( "hana" ), srcLayer->crs(), QVariantMap(), owner )
+        );
 
         // when export is successful:
-        connect( exportTask.get(), &QgsVectorLayerExporterTask::exportComplete, this,
-                 [ = ]()
-        {
+        connect( exportTask.get(), &QgsVectorLayerExporterTask::exportComplete, this, [=]() {
           QMessageBox::information( nullptr, tr( "Import to SAP HANA database" ), tr( "Import was successful." ) );
           refreshSchema( toSchema );
         } );
 
         // when an error occurs:
-        connect( exportTask.get(), &QgsVectorLayerExporterTask::errorOccurred, this,
-                 [ = ]( Qgis::VectorExportResult error, const QString & errorMessage )
-        {
+        connect( exportTask.get(), &QgsVectorLayerExporterTask::errorOccurred, this, [=]( Qgis::VectorExportResult error, const QString &errorMessage ) {
           if ( error != Qgis::VectorExportResult::UserCanceled )
           {
             QgsMessageOutput *output = QgsMessageOutput::createMessageOutput();
             output->setTitle( tr( "Import to SAP HANA database" ) );
-            output->setMessage( tr( "Failed to import some layers!\n\n" ) +
-                                errorMessage, QgsMessageOutput::MessageText );
+            output->setMessage( tr( "Failed to import some layers!\n\n" ) + errorMessage, QgsMessageOutput::MessageText );
             output->showMessage();
           }
           refreshSchema( toSchema );
@@ -222,8 +222,7 @@ bool QgsHanaConnectionItem::handleDrop( const QMimeData *data, const QString &to
   {
     QgsMessageOutput *output = QgsMessageOutput::createMessageOutput();
     output->setTitle( tr( "Import to SAP HANA database" ) );
-    output->setMessage( tr( "Failed to import some layers!\n\n" ) +
-                        importResults.join( QLatin1Char( '\n' ) ), QgsMessageOutput::MessageText );
+    output->setMessage( tr( "Failed to import some layers!\n\n" ) + importResults.join( QLatin1Char( '\n' ) ), QgsMessageOutput::MessageText );
     output->showMessage();
   }
 
@@ -235,14 +234,15 @@ QgsHanaLayerItem::QgsHanaLayerItem(
   QgsDataItem *parent,
   const QString &name,
   const QString &path,
-  QgsLayerItem::LayerType layerType,
-  const QgsHanaLayerProperty &layerProperty )
+  Qgis::BrowserLayerType layerType,
+  const QgsHanaLayerProperty &layerProperty
+)
   : QgsLayerItem( parent, name, path, QString(), layerType, QStringLiteral( "hana" ) )
   , mLayerProperty( layerProperty )
 {
-  mCapabilities |= Delete | Fertile;
+  mCapabilities |= Qgis::BrowserItemCapability::Delete | Qgis::BrowserItemCapability::Fertile;
   mUri = createUri();
-  setState( NotPopulated );
+  setState( Qgis::BrowserItemState::NotPopulated );
 }
 
 QVector<QgsDataItem *> QgsHanaLayerItem::createChildren()
@@ -254,12 +254,11 @@ QVector<QgsDataItem *> QgsHanaLayerItem::createChildren()
 
 QString QgsHanaLayerItem::createUri() const
 {
-  QgsHanaConnectionItem *connItem = qobject_cast<QgsHanaConnectionItem *>( parent() ?
-                                    parent()->parent() : nullptr );
+  QgsHanaConnectionItem *connItem = qobject_cast<QgsHanaConnectionItem *>( parent() ? parent()->parent() : nullptr );
 
   if ( !connItem )
   {
-    QgsDebugMsg( "Connection item not found." );
+    QgsDebugError( "Connection item not found." );
     return QString();
   }
 
@@ -282,10 +281,9 @@ QString QgsHanaLayerItem::createUri() const
   }
 
   QgsDataSourceUri uri = settings.toDataSourceUri();
-  uri.setDataSource( mLayerProperty.schemaName, mLayerProperty.tableName,
-                     mLayerProperty.geometryColName, mLayerProperty.sql, pkColumns.join( ',' ) );
+  uri.setDataSource( mLayerProperty.schemaName, mLayerProperty.tableName, mLayerProperty.geometryColName, mLayerProperty.sql, pkColumns.join( ',' ) );
   uri.setWkbType( mLayerProperty.type );
-  if ( uri.wkbType() != QgsWkbTypes::NoGeometry )
+  if ( uri.wkbType() != Qgis::WkbType::NoGeometry )
     uri.setSrid( QString::number( mLayerProperty.srid ) );
   QgsDebugMsgLevel( QStringLiteral( "layer uri: %1" ).arg( uri.uri( false ) ), 4 );
   return uri.uri( false );
@@ -301,7 +299,8 @@ QgsHanaSchemaItem::QgsHanaSchemaItem(
   QgsDataItem *parent,
   const QString &connectionName,
   const QString &name,
-  const QString &path )
+  const QString &path
+)
   : QgsDatabaseSchemaItem( parent, name, path, QStringLiteral( "SAP HANA" ) )
   , mConnectionName( connectionName )
 {
@@ -323,8 +322,7 @@ QVector<QgsDataItem *> QgsHanaSchemaItem::createChildren()
   try
   {
     QgsHanaSettings settings( mConnectionName, true );
-    const QVector<QgsHanaLayerProperty> layers = conn->getLayersFull( mSchemaName,
-        settings.allowGeometrylessTables(), settings.userTablesOnly() );
+    const QVector<QgsHanaLayerProperty> layers = conn->getLayersFull( mSchemaName, settings.allowGeometrylessTables(), settings.userTablesOnly() );
 
     items.reserve( layers.size() );
     for ( const QgsHanaLayerProperty &layerInfo : layers )
@@ -355,11 +353,10 @@ QgsHanaLayerItem *QgsHanaSchemaItem::createLayer( const QgsHanaLayerProperty &la
 {
   QString tip = layerProperty.isView ? QStringLiteral( "View" ) : QStringLiteral( "Table" );
 
-  QgsLayerItem::LayerType layerType = QgsLayerItem::TableLayer;
+  Qgis::BrowserLayerType layerType = Qgis::BrowserLayerType::TableLayer;
   if ( !layerProperty.geometryColName.isEmpty() && layerProperty.isGeometryValid() )
   {
-    tip += tr( "\n%1 as %2" ).arg( layerProperty.geometryColName,
-                                   QgsWkbTypes::displayString( layerProperty.type ) );
+    tip += tr( "\n%1 as %2" ).arg( layerProperty.geometryColName, QgsWkbTypes::displayString( layerProperty.type ) );
 
     if ( layerProperty.srid >= 0 )
       tip += tr( " (srid %1)" ).arg( layerProperty.srid );
@@ -369,17 +366,17 @@ QgsHanaLayerItem *QgsHanaSchemaItem::createLayer( const QgsHanaLayerProperty &la
     if ( !layerProperty.tableComment.isEmpty() )
       tip = layerProperty.tableComment + '\n' + tip;
 
-    QgsWkbTypes::GeometryType geomType = QgsWkbTypes::geometryType( layerProperty.type );
+    Qgis::GeometryType geomType = QgsWkbTypes::geometryType( layerProperty.type );
     switch ( geomType )
     {
-      case QgsWkbTypes::PointGeometry:
-        layerType = QgsLayerItem::Point;
+      case Qgis::GeometryType::Point:
+        layerType = Qgis::BrowserLayerType::Point;
         break;
-      case QgsWkbTypes::LineGeometry:
-        layerType = QgsLayerItem::Line;
+      case Qgis::GeometryType::Line:
+        layerType = Qgis::BrowserLayerType::Line;
         break;
-      case QgsWkbTypes::PolygonGeometry:
-        layerType = QgsLayerItem::Polygon;
+      case Qgis::GeometryType::Polygon:
+        layerType = Qgis::BrowserLayerType::Polygon;
         break;
       default:
         break;
@@ -390,8 +387,7 @@ QgsHanaLayerItem *QgsHanaSchemaItem::createLayer( const QgsHanaLayerProperty &la
     tip = tr( "as geometryless table" );
   }
 
-  QgsHanaLayerItem *layerItem = new QgsHanaLayerItem( this, layerProperty.defaultName(),
-      mPath + '/' + layerProperty.tableName, layerType, layerProperty );
+  QgsHanaLayerItem *layerItem = new QgsHanaLayerItem( this, layerProperty.defaultName(), mPath + '/' + layerProperty.tableName, layerType, layerProperty );
   layerItem->setToolTip( tip );
   return layerItem;
 }
@@ -399,7 +395,7 @@ QgsHanaLayerItem *QgsHanaSchemaItem::createLayer( const QgsHanaLayerProperty &la
 QgsHanaRootItem::QgsHanaRootItem( QgsDataItem *parent, const QString &name, const QString &path )
   : QgsConnectionsRootItem( parent, name, path, QStringLiteral( "SAP HANA" ) )
 {
-  mCapabilities |= Fast;
+  mCapabilities |= Qgis::BrowserItemCapability::Fast;
   mIconName = QStringLiteral( "mIconHana.svg" );
   populate();
 }
@@ -416,22 +412,14 @@ QVector<QgsDataItem *> QgsHanaRootItem::createChildren()
   return connections;
 }
 
-QWidget *QgsHanaRootItem::paramWidget()
-{
-  QgsHanaSourceSelect *select = new QgsHanaSourceSelect( nullptr, Qt::WindowFlags(),
-      QgsProviderRegistry::WidgetMode::Manager );
-  connect( select, &QgsHanaSourceSelect::connectionsChanged, this,
-           &QgsHanaRootItem::onConnectionsChanged );
-  return select;
-}
-
 void QgsHanaRootItem::onConnectionsChanged()
 {
   refresh();
 }
 
 QgsDataItem *QgsHanaDataItemProvider::createDataItem(
-  const QString &pathIn, QgsDataItem *parentItem )
+  const QString &pathIn, QgsDataItem *parentItem
+)
 {
   Q_UNUSED( pathIn )
   return new QgsHanaRootItem( parentItem, QStringLiteral( "SAP HANA" ), QStringLiteral( "hana:" ) );

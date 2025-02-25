@@ -21,7 +21,6 @@
 #include "qgsruggednessfilter.h"
 #include "qgstotalcurvaturefilter.h"
 #include "qgsapplication.h"
-#include "qgssettings.h"
 
 #ifdef HAVE_OPENCL
 #include "qgsopenclutils.h"
@@ -32,14 +31,20 @@
 // If true regenerate raster reference images
 const bool REGENERATE_REFERENCES = false;
 
-class TestNineCellFilters : public QObject
+class TestNineCellFilters : public QgsTest
 {
     Q_OBJECT
+
+  public:
+    TestNineCellFilters()
+      : QgsTest( QStringLiteral( "Nine Cell Filter Tests" ) )
+    {}
 
     QString SRC_FILE;
   private slots:
 
     void initTestCase();
+    void cleanupTestCase();
     void init();
 
     void testHillshade();
@@ -55,10 +60,9 @@ class TestNineCellFilters : public QObject
 #endif
 
   private:
-
     void _rasterCompare( QgsAlignRaster::RasterInfo &out, QgsAlignRaster::RasterInfo &ref );
 
-    template <class T> void _testAlg( const QString &name, bool useOpenCl = false );
+    template<class T> void _testAlg( const QString &name, bool useOpenCl = false );
 
     static QString referenceFile( const QString &name )
     {
@@ -88,18 +92,23 @@ void TestNineCellFilters::initTestCase()
   QgsApplication::init(); // needed for CRS database
 }
 
-template <class T>
+void TestNineCellFilters::cleanupTestCase()
+{
+  QgsApplication::exitQgis();
+}
+
+template<class T>
 void TestNineCellFilters::_testAlg( const QString &name, bool useOpenCl )
 {
 #ifdef HAVE_OPENCL
   QgsOpenClUtils::setEnabled( useOpenCl );
-  QString tmpFile( tempFile( name + ( useOpenCl ? "_opencl" : "" ) ) );
+  const QString tmpFile( tempFile( name + ( useOpenCl ? "_opencl" : "" ) ) );
 #else
   QString tmpFile( tempFile( name ) );
 #endif
-  QString refFile( referenceFile( name ) );
+  const QString refFile( referenceFile( name ) );
   T ninecellFilter( SRC_FILE, tmpFile, "GTiff" );
-  int res = ninecellFilter.processRaster();
+  const int res = ninecellFilter.processRaster();
   QVERIFY( res == 0 );
 
   // Produced file
@@ -107,7 +116,7 @@ void TestNineCellFilters::_testAlg( const QString &name, bool useOpenCl )
   QVERIFY( out.isValid() );
 
   // Regenerate reference rasters
-  if ( ! useOpenCl && REGENERATE_REFERENCES )
+  if ( !useOpenCl && REGENERATE_REFERENCES )
   {
     if ( QFile::exists( refFile ) )
     {
@@ -120,7 +129,6 @@ void TestNineCellFilters::_testAlg( const QString &name, bool useOpenCl )
   QgsAlignRaster::RasterInfo ref( refFile );
   //qDebug() << "Comparing " << tmpFile << refFile;
   _rasterCompare( out, ref );
-
 }
 
 
@@ -167,20 +175,20 @@ void TestNineCellFilters::testRuggedness()
   _testAlg<QgsRuggednessFilter>( QStringLiteral( "ruggedness" ) );
 }
 
-void TestNineCellFilters::_rasterCompare( QgsAlignRaster::RasterInfo &out,  QgsAlignRaster::RasterInfo &ref )
+void TestNineCellFilters::_rasterCompare( QgsAlignRaster::RasterInfo &out, QgsAlignRaster::RasterInfo &ref )
 {
-  QSize refSize( ref.rasterSize() );
-  QSizeF refCellSize( ref.cellSize( ) );
-  QgsAlignRaster::RasterInfo in( SRC_FILE );
-  QSize inSize( in.rasterSize() );
-  QSizeF inCellSize( in.cellSize( ) );
+  const QSize refSize( ref.rasterSize() );
+  const QSizeF refCellSize( ref.cellSize() );
+  const QgsAlignRaster::RasterInfo in( SRC_FILE );
+  const QSize inSize( in.rasterSize() );
+  const QSizeF inCellSize( in.cellSize() );
   QCOMPARE( out.rasterSize(), inSize );
   QCOMPARE( out.cellSize(), inCellSize );
   QCOMPARE( out.rasterSize(), refSize );
   QCOMPARE( out.cellSize(), refCellSize );
 
   // If the values differ less than tolerance they are considered equal
-  double tolerance = 0.0001;
+  const double tolerance = 0.0001;
 
   // Check three points
   std::map<int, int> controlPoints;
@@ -198,16 +206,15 @@ void TestNineCellFilters::_rasterCompare( QgsAlignRaster::RasterInfo &out,  QgsA
 
   for ( const auto &cp : controlPoints )
   {
-    int x = cp.first;
-    int y = cp.second;
-    double outVal = out.identify( x, y );
-    double refVal = ref.identify( x, y );
-    double diff( qAbs( outVal - refVal ) );
+    const int x = cp.first;
+    const int y = cp.second;
+    const double outVal = out.identify( x, y );
+    const double refVal = ref.identify( x, y );
+    const double diff( qAbs( outVal - refVal ) );
     //qDebug() << outVal << refVal;
     //qDebug() << "Identify " <<  x << "," << y << " diff " << diff << " check: < " << tolerance;
     QVERIFY( diff <= tolerance );
   }
-
 }
 
 void TestNineCellFilters::testTotalCurvature()

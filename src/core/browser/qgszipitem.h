@@ -42,14 +42,28 @@ class CORE_EXPORT QgsZipItem : public QgsDataCollectionItem
     //! Constructor
     QgsZipItem( QgsDataItem *parent, const QString &name, const QString &filePath, const QString &path, const QString &providerKey = QString() );
 
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    QString str = QStringLiteral( "<QgsZipItem: \"%1\" %2>" ).arg( sipCpp->name(), sipCpp->path() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
+
     QVector<QgsDataItem *> createChildren() override;
     QStringList getZipFileList();
+
+    bool hasDragEnabled() const override;
+    QgsMimeDataUtils::UriList mimeUris() const override;
 
     //! \note not available via Python bindings
     static QVector<dataItem_t *> sDataItemPtr SIP_SKIP;
     static QStringList sProviderNames;
 
-    static QString vsiPrefix( const QString &uri ) { return qgsVsiPrefix( uri ); }
+    /**
+     * \deprecated QGIS 3.40. Will be removed in QGIS 4.0.
+     */
+    Q_DECL_DEPRECATED static QString vsiPrefix( const QString &uri ) SIP_DEPRECATED;
 
     /**
      * Creates a new data item from the specified path.

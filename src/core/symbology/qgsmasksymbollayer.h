@@ -19,10 +19,10 @@
 #include "qgis_core.h"
 #include "qgis.h"
 #include "qgssymbollayer.h"
-#include "qgssymbollayerreference.h"
 
 class QgsPaintEffect;
 class QgsMarkerSymbol;
+class QgsSymbolLayerReference;
 
 /**
  * \ingroup core
@@ -62,25 +62,36 @@ class CORE_EXPORT QgsMaskMarkerSymbolLayer : public QgsMarkerSymbolLayer
     void renderPoint( QPointF point, QgsSymbolRenderContext &context ) override;
     QRectF bounds( QPointF point, QgsSymbolRenderContext &context ) override;
     bool usesMapUnits() const override;
+    void setOutputUnit( Qgis::RenderUnit unit ) override;
+    QColor color() const override;
 
     virtual void drawPreviewIcon( QgsSymbolRenderContext &context, QSize size ) override;
 
+    // TODO QGIS 4.0 rename to avoid collision with base class member
+
     //! Whether some masked symbol layers are defined
-    bool enabled() const { return ! mMaskedSymbolLayers.isEmpty(); }
+    bool enabled() const; // cppcheck-suppress duplInheritedMember
 
     /**
      * Returns a list of references to symbol layers that are masked by the sub symbol's shape.
      * \returns a list of references to masked symbol layers
      * \see setMasks
      */
-    QgsSymbolLayerReferenceList masks() const override { return mMaskedSymbolLayers; }
+    QList<QgsSymbolLayerReference> masks() const override;
+
+    /**
+     * Remove masks defined by this symbol layer.
+     * \see masks()
+     * \since QGIS 3.42
+     */
+    void clearMasks();
 
     /**
      * Sets the symbol layers that will be masked by the sub symbol's shape.
      * \param maskedLayers list of references to symbol layers
      * \see masks
      */
-    void setMasks( QgsSymbolLayerReferenceList maskedLayers ) { mMaskedSymbolLayers = maskedLayers; }
+    void setMasks( const QList<QgsSymbolLayerReference> &maskedLayers );
 
   private:
 #ifdef SIP_RUN
@@ -91,11 +102,9 @@ class CORE_EXPORT QgsMaskMarkerSymbolLayer : public QgsMarkerSymbolLayer
     std::unique_ptr<QgsMarkerSymbol> mSymbol;
 
     //! List of symbol layers that will be masked
-    QgsSymbolLayerReferenceList mMaskedSymbolLayers;
+    QList<QgsSymbolLayerReference> mMaskedSymbolLayers;
 
     std::unique_ptr<QgsPaintEffect> mEffect;
 };
 
 #endif
-
-

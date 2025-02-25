@@ -64,8 +64,8 @@ struct MVTGeometryWriter
 
   void addPoint( const QPoint &pt )
   {
-    qint32 vx = pt.x() - cursor.x();
-    qint32 vy = pt.y() - cursor.y();
+    const qint32 vx = pt.x() - cursor.x();
+    const qint32 vy = pt.y() - cursor.y();
 
     // (quint32)(-(qint32)((quint32)vx >> 31)) is a C/C++ compliant way
     // of doing vx >> 31, which is undefined behavior since vx is signed
@@ -98,7 +98,7 @@ static void encodeLineString( const QgsLineString *lineString, bool isRing, bool
   tilePoints.reserve( count );
   for ( int i = 0; i < count; ++i )
   {
-    QPoint pt = geomWriter.mapToTileCoordinates( xData[i], yData[i] );
+    const QPoint pt = geomWriter.mapToTileCoordinates( xData[i], yData[i] );
     if ( pt == last )
       continue;
 
@@ -106,6 +106,8 @@ static void encodeLineString( const QgsLineString *lineString, bool isRing, bool
     last = pt;
   }
   count = tilePoints.count();
+  if ( count == 0 )
+    return;
 
   geomWriter.addMoveTo( 1 );
   geomWriter.addPoint( tilePoints[0] );
@@ -143,8 +145,16 @@ static void encodePolygon( const QgsPolygon *polygon, MVTGeometryWriter &geomWri
 QgsVectorTileMVTEncoder::QgsVectorTileMVTEncoder( QgsTileXYZ tileID )
   : mTileID( tileID )
 {
-  QgsTileMatrix tm = QgsTileMatrix::fromWebMercator( mTileID.zoomLevel() );
+  const QgsTileMatrix tm = QgsTileMatrix::fromWebMercator( mTileID.zoomLevel() );
   mTileExtent = tm.tileExtent( mTileID );
+  mCrs = tm.crs();
+}
+
+QgsVectorTileMVTEncoder::QgsVectorTileMVTEncoder( QgsTileXYZ tileID, const QgsTileMatrix &tileMatrix )
+  : mTileID( tileID )
+{
+  mTileExtent = tileMatrix.tileExtent( mTileID );
+  mCrs = tileMatrix.crs();
 }
 
 void QgsVectorTileMVTEncoder::addLayer( QgsVectorLayer *layer, QgsFeedback *feedback, QString filterExpression, QString layerName )
@@ -152,12 +162,14 @@ void QgsVectorTileMVTEncoder::addLayer( QgsVectorLayer *layer, QgsFeedback *feed
   if ( feedback && feedback->isCanceled() )
     return;
 
-  QgsCoordinateTransform ct( layer->crs(), QgsCoordinateReferenceSystem( "EPSG:3857" ), mTransformContext );
+  const QgsCoordinateTransform ct( layer->crs(), mCrs, mTransformContext );
 
   QgsRectangle layerTileExtent = mTileExtent;
   try
   {
-    layerTileExtent = ct.transformBoundingBox( layerTileExtent, QgsCoordinateTransform::ReverseTransform );
+    QgsCoordinateTransform extentTransform = ct;
+    extentTransform.setBallparkTransformsAreAppropriate( true );
+    layerTileExtent = extentTransform.transformBoundingBox( layerTileExtent, Qgis::TransformDirection::Reverse );
     if ( !layerTileExtent.intersects( layer->extent() ) )
     {
       return;  // tile is completely outside of the layer'e extent
@@ -165,7 +177,7 @@ void QgsVectorTileMVTEncoder::addLayer( QgsVectorLayer *layer, QgsFeedback *feed
   }
   catch ( const QgsCsException & )
   {
-    QgsDebugMsg( "Failed to reproject tile extent to the layer" );
+    QgsDebugError( "Failed to reproject tile extent to the layer" );
     return;
   }
 
@@ -173,7 +185,7 @@ void QgsVectorTileMVTEncoder::addLayer( QgsVectorLayer *layer, QgsFeedback *feed
     layerName = layer->name();
 
   // add buffer to both filter extent in layer CRS (for feature request) and tile extent in target CRS (for clipping)
-  double bufferRatio = static_cast<double>( mBuffer ) / mResolution;
+  const double bufferRatio = static_cast<double>( mBuffer ) / mResolution;
   QgsRectangle tileExtent = mTileExtent;
   tileExtent.grow( bufferRatio * mTileExtent.width() );
   layerTileExtent.grow( bufferRatio * std::max( layerTileExtent.width(), layerTileExtent.height() ) );
@@ -215,7 +227,7 @@ void QgsVectorTileMVTEncoder::addLayer( QgsVectorLayer *layer, QgsFeedback *feed
     }
     catch ( const QgsCsException & )
     {
-      QgsDebugMsg( "Failed to reproject geometry " + QString::number( f.id() ) );
+      QgsDebugError( "Failed to reproject geometry " + QString::number( f.id() ) );
       continue;
     }
 
@@ -234,15 +246,15 @@ void QgsVectorTileMVTEncoder::addLayer( QgsVectorLayer *layer, QgsFeedback *feed
 void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, const QgsFeature &f )
 {
   QgsGeometry g = f.geometry();
-  QgsWkbTypes::GeometryType geomType = g.type();
-  double onePixel = mTileExtent.width() / mResolution;
+  const Qgis::GeometryType geomType = g.type();
+  const double onePixel = mTileExtent.width() / mResolution;
 
-  if ( geomType == QgsWkbTypes::LineGeometry )
+  if ( geomType == Qgis::GeometryType::Line )
   {
     if ( g.length() < onePixel )
       return; // too short
   }
-  else if ( geomType == QgsWkbTypes::PolygonGeometry )
+  else if ( geomType == Qgis::GeometryType::Polygon )
   {
     if ( g.area() < onePixel * onePixel )
       return; // too small
@@ -260,7 +272,7 @@ void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, co
   for ( int i = 0; i < attrs.count(); ++i )
   {
     const QVariant v = attrs.at( i );
-    if ( !v.isValid() || v.isNull() )
+    if ( QgsVariantUtils::isNull( v ) )
       continue;
 
     int valueIndex;
@@ -274,11 +286,11 @@ void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, co
       valueIndex = tileLayer->values_size() - 1;
       mKnownValues[v] = valueIndex;
 
-      if ( v.type() == QVariant::Double )
+      if ( v.userType() == QMetaType::Type::Double )
         value->set_double_value( v.toDouble() );
-      else if ( v.type() == QVariant::Int )
+      else if ( v.userType() == QMetaType::Type::Int )
         value->set_int_value( v.toInt() );
-      else if ( v.type() == QVariant::Bool )
+      else if ( v.userType() == QMetaType::Type::Bool )
         value->set_bool_value( v.toBool() );
       else
         value->set_string_value( v.toString().toUtf8().toStdString() );
@@ -293,11 +305,11 @@ void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, co
   //
 
   vector_tile::Tile_GeomType mvtGeomType = vector_tile::Tile_GeomType_UNKNOWN;
-  if ( geomType == QgsWkbTypes::PointGeometry )
+  if ( geomType == Qgis::GeometryType::Point )
     mvtGeomType = vector_tile::Tile_GeomType_POINT;
-  else if ( geomType == QgsWkbTypes::LineGeometry )
+  else if ( geomType == Qgis::GeometryType::Line )
     mvtGeomType = vector_tile::Tile_GeomType_LINESTRING;
-  else if ( geomType == QgsWkbTypes::PolygonGeometry )
+  else if ( geomType == Qgis::GeometryType::Polygon )
     mvtGeomType = vector_tile::Tile_GeomType_POLYGON;
   feature->set_type( mvtGeomType );
 
@@ -311,7 +323,7 @@ void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, co
   const QgsAbstractGeometry *geom = g.constGet();
   switch ( QgsWkbTypes::flatType( g.wkbType() ) )
   {
-    case QgsWkbTypes::Point:
+    case Qgis::WkbType::Point:
     {
       const QgsPoint *pt = static_cast<const QgsPoint *>( geom );
       geomWriter.addMoveTo( 1 );
@@ -319,19 +331,19 @@ void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, co
     }
     break;
 
-    case QgsWkbTypes::LineString:
+    case Qgis::WkbType::LineString:
     {
       encodeLineString( qgsgeometry_cast<const QgsLineString *>( geom ), true, false, geomWriter );
     }
     break;
 
-    case QgsWkbTypes::Polygon:
+    case Qgis::WkbType::Polygon:
     {
       encodePolygon( static_cast<const QgsPolygon *>( geom ), geomWriter );
     }
     break;
 
-    case QgsWkbTypes::MultiPoint:
+    case Qgis::WkbType::MultiPoint:
     {
       const QgsMultiPoint *mpt = static_cast<const QgsMultiPoint *>( geom );
       geomWriter.addMoveTo( mpt->numGeometries() );
@@ -340,7 +352,7 @@ void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, co
     }
     break;
 
-    case QgsWkbTypes::MultiLineString:
+    case Qgis::WkbType::MultiLineString:
     {
       const QgsMultiLineString *mls = qgsgeometry_cast<const QgsMultiLineString *>( geom );
       for ( int i = 0; i < mls->numGeometries(); ++i )
@@ -350,7 +362,7 @@ void QgsVectorTileMVTEncoder::addFeature( vector_tile::Tile_Layer *tileLayer, co
     }
     break;
 
-    case QgsWkbTypes::MultiPolygon:
+    case Qgis::WkbType::MultiPolygon:
     {
       const QgsMultiPolygon *mp = qgsgeometry_cast<const QgsMultiPolygon *>( geom );
       for ( int i = 0; i < mp->numGeometries(); ++i )

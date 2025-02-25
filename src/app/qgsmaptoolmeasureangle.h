@@ -26,7 +26,7 @@ class QgsRubberBand;
 class QgsSnapIndicator;
 
 //! Map tool to measure angle between two segments
-class APP_EXPORT QgsMapToolMeasureAngle: public QgsMapTool
+class APP_EXPORT QgsMapToolMeasureAngle : public QgsMapTool
 {
     Q_OBJECT
   public:
@@ -34,17 +34,10 @@ class APP_EXPORT QgsMapToolMeasureAngle: public QgsMapTool
     ~QgsMapToolMeasureAngle() override;
 
     Flags flags() const override { return QgsMapTool::AllowZoomRect; }
-
-    //! Mouse move event for overriding
     void canvasMoveEvent( QgsMapMouseEvent *e ) override;
-
-    //! Mouse release event for overriding
     void canvasReleaseEvent( QgsMapMouseEvent *e ) override;
-
-    //! called when set as currently active map tool
+    void keyPressEvent( QKeyEvent *e ) override;
     void activate() override;
-
-    //! called when map tool is being deactivated
     void deactivate() override;
 
   private:
@@ -71,7 +64,6 @@ class APP_EXPORT QgsMapToolMeasureAngle: public QgsMapTool
 
     //! Configures distance area objects with ellipsoid / output crs
     void configureDistanceArea();
-
 };
 
 #endif // QGSMAPTOOLMEASUREANGLE_H

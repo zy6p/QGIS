@@ -85,7 +85,7 @@ endif()
 #############################################################
 # qgis_native library
 
-add_library(qgis_native SHARED ${QGIS_NATIVE_SRCS} ${QGIS_NATIVE_HDRS})
+add_library(qgis_native ${LIBRARY_TYPE} ${QGIS_NATIVE_SRCS} ${QGIS_NATIVE_HDRS})
 set_property(TARGET qgis_native PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # require c++17
@@ -134,7 +134,7 @@ if(NOT ANDROID)
   )
 endif()
 
-if (WITH_QT6)
+if (BUILD_WITH_QT6)
   target_link_libraries(qgis_native ${Qt6Core_LIBRARIES} ${Qt6Gui_LIBRARIES} "${NATIVE_LINK_LIBS}")
 else()
   target_link_libraries(qgis_native ${Qt5Core_LIBRARIES} ${Qt5Gui_LIBRARIES} "${NATIVE_LINK_LIBS}")
@@ -144,18 +144,13 @@ if (UNIX AND NOT APPLE AND NOT ANDROID)
   target_link_libraries(qgis_native ${QT_VERSION_BASE}::DBus)
 endif()
 
-if (APPLE)
-  find_package(${QT_VERSION_BASE}MacExtras)
-
-  target_link_libraries(qgis_native ${QT_VERSION_BASE}::MacExtras)
-endif()
-
-if (MSVC)
+if (MSVC AND NOT BUILD_WITH_QT6)
   find_package(${QT_VERSION_BASE}WinExtras)
 
   target_link_libraries(qgis_native shell32)
-  target_link_libraries(qgis_native ${${QT_VERSION_BASE}Widget_LIBRARIES} ${QT_QTMAIN_LIBRARY})
+  target_link_libraries(qgis_native ${QT_VERSION_BASE}::Widgets ${QT_QTMAIN_LIBRARY})
   target_link_libraries(qgis_native ${QT_VERSION_BASE}::WinExtras)
+
 endif()
 # install
 

@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgsauthidentcertedit.h"
+#include "moc_qgsauthidentcertedit.cpp"
 #include "ui_qgsauthidentcertedit.h"
 
 #include "qgsapplication.h"
@@ -33,7 +34,7 @@ QgsAuthIdentCertEdit::QgsAuthIdentCertEdit( QWidget *parent )
 
 bool QgsAuthIdentCertEdit::validateConfig()
 {
-  bool curvalid = cmbIdentityCert->currentIndex() != 0;
+  const bool curvalid = cmbIdentityCert->currentIndex() != 0;
   if ( mValid != curvalid )
   {
     mValid = curvalid;
@@ -55,7 +56,7 @@ void QgsAuthIdentCertEdit::loadConfig( const QgsStringMap &configmap )
   clearConfig();
 
   mConfigMap = configmap;
-  int indx = cmbIdentityCert->findData( configmap.value( QStringLiteral( "certid" ) ) );
+  const int indx = cmbIdentityCert->findData( configmap.value( QStringLiteral( "certid" ) ) );
   cmbIdentityCert->setCurrentIndex( indx == -1 ? 0 : indx );
 
   validateConfig();
@@ -85,14 +86,12 @@ void QgsAuthIdentCertEdit::populateIdentityComboBox()
       QString org( SSL_SUBJECT_INFO( cert, QSslCertificate::Organization ) );
       if ( org.isEmpty() )
         org = tr( "Organization not defined" );
-      idents.insert( QStringLiteral( "%1 (%2)" ).arg( QgsAuthCertUtils::resolvedCertName( cert ), org ),
-                     QgsAuthCertUtils::shaHexForCert( cert ) );
+      idents.insert( QStringLiteral( "%1 (%2)" ).arg( QgsAuthCertUtils::resolvedCertName( cert ), org ), QgsAuthCertUtils::shaHexForCert( cert ) );
     }
     QgsStringMap::const_iterator it = idents.constBegin();
     for ( ; it != idents.constEnd(); ++it )
     {
-      cmbIdentityCert->addItem( QgsApplication::getThemeIcon( QStringLiteral( "/mIconCertificate.svg" ) ),
-                                it.key(), it.value() );
+      cmbIdentityCert->addItem( QgsApplication::getThemeIcon( QStringLiteral( "/mIconCertificate.svg" ) ), it.key(), it.value() );
     }
   }
 }

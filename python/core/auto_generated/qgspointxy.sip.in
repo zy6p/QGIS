@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/qgspointxy.h                                                *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -17,11 +17,25 @@ class QgsPointXY
 %Docstring(signature="appended")
 A class to represent a 2D point.
 
-A :py:class:`QgsPointXY` represents a position with X and Y coordinates.
-In most scenarios it is preferable to use a :py:class:`QgsPoint` instead which also
-supports Z and M values.
+A :py:class:`QgsPointXY` represents a strictly 2-dimensional position, with only X and Y coordinates.
+This is a very lightweight class, designed to minimize the memory requirements of storing
+millions of points.
 
-.. versionadded:: 3.0
+In many scenarios it is preferable to use a :py:class:`QgsPoint` instead which also
+supports optional Z and M values. :py:class:`QgsPointXY` should only be used for situations where
+a point can only EVER be two dimensional.
+
+Some valid use cases for :py:class:`QgsPointXY` include:
+
+- A mouse cursor location
+- A coordinate on a purely 2-dimensional rendered map, e.g. a :py:class:`QgsMapCanvas`
+- A coordinate in a raster, vector tile, or other purely 2-dimensional layer
+
+Use cases for which :py:class:`QgsPointXY` is NOT a valid choice include:
+
+- Storage of coordinates for a geometry. Since :py:class:`QgsPointXY` is strictly 2-dimensional it should never be used to store coordinates for vector geometries, as this will involve a loss of any z or m values present in the geometry.
+
+.. seealso:: :py:class:`QgsPoint`
 %End
 
 %TypeHeaderCode
@@ -31,12 +45,10 @@ supports Z and M values.
     static const QMetaObject staticMetaObject;
 
   public:
+
     QgsPointXY();
 
     QgsPointXY( const QgsPointXY &p ) /HoldGIL/;
-%Docstring
-Create a point from another point
-%End
 
     QgsPointXY( double x, double y ) /HoldGIL/;
 %Docstring
@@ -51,8 +63,6 @@ Create a point from x,y coordinates
 Create a point from a QPointF
 
 :param point: QPointF source
-
-.. versionadded:: 2.7
 %End
 
     QgsPointXY( QPoint point ) /HoldGIL/;
@@ -60,16 +70,12 @@ Create a point from a QPointF
 Create a point from a QPoint
 
 :param point: QPoint source
-
-.. versionadded:: 2.7
 %End
 
     QgsPointXY( const QgsPoint &point ) /HoldGIL/;
 %Docstring
 Create a new point.
 Z and M values will be dropped.
-
-.. versionadded:: 3.0
 %End
 
     ~QgsPointXY();
@@ -112,8 +118,6 @@ Gets the y value of the point
 Converts a point to a QPointF
 
 :return: QPointF with same x and y values
-
-.. versionadded:: 2.7
 %End
 
     QString toString( int precision = -1 ) const;
@@ -150,8 +154,6 @@ Returns the distance between this point and a specified x, y coordinate.
 :param y: y-coordinate
 
 .. seealso:: :py:func:`sqrDist`
-
-.. versionadded:: 2.16
 %End
 
     double distance( const QgsPointXY &other ) const /HoldGIL/;
@@ -161,8 +163,6 @@ Returns the distance between this point and another point.
 :param other: other point
 
 .. seealso:: :py:func:`sqrDist`
-
-.. versionadded:: 2.16
 %End
 
     double sqrDistToSegment( double x1, double y1, double x2, double y2, QgsPointXY &minDistPoint /Out/, double epsilon = DEFAULT_SEGMENT_EPSILON ) const /HoldGIL/;
@@ -182,8 +182,6 @@ in a specified bearing.
 
 :param distance: distance to project
 :param bearing: angle to project in, clockwise in degrees starting from north
-
-.. versionadded:: 2.16
 %End
 
     bool isEmpty() const /HoldGIL/;
@@ -205,10 +203,24 @@ Compares this point with another point with a fuzzy tolerance
 
 :return: ``True`` if points are equal within specified tolerance
 
-.. versionadded:: 2.9
+.. seealso:: :py:func:`distanceCompare`
 %End
 
-    bool operator==( const QgsPointXY &other ) /HoldGIL/;
+    bool distanceCompare( const QgsPointXY &other, double epsilon = 4 * DBL_EPSILON ) const /HoldGIL/;
+%Docstring
+Compares this point with another point with a fuzzy tolerance using distance comparison
+
+:param other: point to compare with
+:param epsilon: maximum difference for coordinates between the points
+
+:return: ``True`` if points are equal within specified tolerance
+
+.. seealso:: :py:func:`compare`
+
+.. versionadded:: 3.36
+%End
+
+    bool operator==( const QgsPointXY &other ) const /HoldGIL/;
 
     bool operator!=( const QgsPointXY &other ) const /HoldGIL/;
 
@@ -278,11 +290,10 @@ Multiply x and y by the given value
 
 
 
-
 /************************************************************************
  * This file has been generated automatically from                      *
  *                                                                      *
  * src/core/qgspointxy.h                                                *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

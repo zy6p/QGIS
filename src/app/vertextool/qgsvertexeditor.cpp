@@ -17,6 +17,7 @@
  ***************************************************************************/
 
 #include "qgsvertexeditor.h"
+#include "moc_qgsvertexeditor.cpp"
 #include "qgscoordinateutils.h"
 #include "qgsmapcanvas.h"
 #include "qgsmessagelog.h"
@@ -26,7 +27,12 @@
 #include "qgsproject.h"
 #include "qgscoordinatetransform.h"
 #include "qgsdoublevalidator.h"
+#include "qgspanelwidgetstack.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingstree.h"
 
+
+#include <QClipboard>
 #include <QLabel>
 #include <QTableWidget>
 #include <QHeaderView>
@@ -35,15 +41,20 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QVector2D>
+#include <QCheckBox>
+#include <QStackedWidget>
+#include <QMenu>
+
+const QgsSettingsEntryBool *QgsVertexEditor::settingAutoPopupVertexEditorDock = new QgsSettingsEntryBool( QStringLiteral( "auto-popup-vertex-editor-dock" ), QgsSettingsTree::sTreeDigitizing, true, QStringLiteral( "Whether the auto-popup behavior of the vertex editor dock should be enabled" ) );
 
 static const int MIN_RADIUS_ROLE = Qt::UserRole + 1;
 
 
 QgsVertexEditorModel::QgsVertexEditorModel( QgsMapCanvas *canvas, QObject *parent )
   : QAbstractTableModel( parent )
-  , mCanvas( canvas )
 {
-  QWidget *parentWidget = qobject_cast< QWidget * >( parent );
+  Q_UNUSED( canvas )
+  QWidget *parentWidget = qobject_cast<QWidget *>( parent );
   if ( parentWidget )
     mWidgetFont = parentWidget->font();
 }
@@ -55,19 +66,16 @@ void QgsVertexEditorModel::setFeature( QgsLockedFeature *lockedFeature )
   mLockedFeature = lockedFeature;
   if ( mLockedFeature && mLockedFeature->layer() )
   {
-    QgsWkbTypes::Type layerWKBType = mLockedFeature->layer()->wkbType();
+    const Qgis::WkbType layerWKBType = mLockedFeature->layer()->wkbType();
 
     mHasZ = QgsWkbTypes::hasZ( layerWKBType );
     mHasM = QgsWkbTypes::hasM( layerWKBType );
 
-    if ( mHasZ )
-      mZCol = 2;
+    mZCol = mHasZ ? 2 : -1;
 
-    if ( mHasM )
-      mMCol = 2 + ( mHasZ ? 1 : 0 );
+    mMCol = mHasM ? ( 2 + ( mHasZ ? 1 : 0 ) ) : -1;
 
-    if ( mHasR )
-      mRCol = 2 + ( mHasZ ? 1 : 0 ) + ( mHasM ? 1 : 0 );
+    mRCol = mHasR ? ( 2 + ( mHasZ ? 1 : 0 ) + ( mHasM ? 1 : 0 ) ) : -1;
   }
 
   endResetModel();
@@ -92,8 +100,7 @@ int QgsVertexEditorModel::columnCount( const QModelIndex &parent ) const
 
 QVariant QgsVertexEditorModel::data( const QModelIndex &index, int role ) const
 {
-  if ( !index.isValid() || !mLockedFeature ||
-       ( role != Qt::DisplayRole && role != Qt::EditRole && role != MIN_RADIUS_ROLE && role != Qt::FontRole ) )
+  if ( !index.isValid() || !mLockedFeature || ( role != Qt::DisplayRole && role != Qt::EditRole && role != MIN_RADIUS_ROLE && role != Qt::FontRole ) )
     return QVariant();
 
   if ( index.row() >= mLockedFeature->vertexMap().count() )
@@ -171,7 +178,6 @@ QVariant QgsVertexEditorModel::data( const QModelIndex &index, int role ) const
   {
     return QVariant();
   }
-
 }
 
 QVariant QgsVertexEditorModel::headerData( int section, Qt::Orientation orientation, int role ) const
@@ -248,12 +254,12 @@ bool QgsVertexEditorModel::setData( const QModelIndex &index, const QVariant &va
     if ( index.row() == 0 || index.row() >= mLockedFeature->vertexMap().count() - 1 )
       return false;
 
-    double x1 = mLockedFeature->vertexMap().at( index.row() - 1 )->point().x();
-    double y1 = mLockedFeature->vertexMap().at( index.row() - 1 )->point().y();
-    double x2 = x;
-    double y2 = y;
-    double x3 = mLockedFeature->vertexMap().at( index.row() + 1 )->point().x();
-    double y3 = mLockedFeature->vertexMap().at( index.row() + 1 )->point().y();
+    const double x1 = mLockedFeature->vertexMap().at( index.row() - 1 )->point().x();
+    const double y1 = mLockedFeature->vertexMap().at( index.row() - 1 )->point().y();
+    const double x2 = x;
+    const double y2 = y;
+    const double x3 = mLockedFeature->vertexMap().at( index.row() + 1 )->point().x();
+    const double y3 = mLockedFeature->vertexMap().at( index.row() + 1 )->point().y();
 
     QgsPoint result;
     if ( QgsGeometryUtils::segmentMidPoint( QgsPoint( x1, y1 ), QgsPoint( x3, y3 ), result, doubleValue, QgsPoint( x2, y2 ) ) )
@@ -262,9 +268,9 @@ bool QgsVertexEditorModel::setData( const QModelIndex &index, const QVariant &va
       y = result.y();
     }
   }
-  double z = ( index.column() == mZCol ? doubleValue : mLockedFeature->vertexMap().at( index.row() )->point().z() );
-  double m = ( index.column() == mMCol ? doubleValue : mLockedFeature->vertexMap().at( index.row() )->point().m() );
-  QgsPoint p( QgsWkbTypes::PointZM, x, y, z, m );
+  const double z = ( index.column() == mZCol ? doubleValue : mLockedFeature->vertexMap().at( index.row() )->point().z() );
+  const double m = ( index.column() == mMCol ? doubleValue : mLockedFeature->vertexMap().at( index.row() )->point().m() );
+  const QgsPoint p( Qgis::WkbType::PointZM, x, y, z, m );
 
   mLockedFeature->layer()->beginEditCommand( QObject::tr( "Moved vertices" ) );
   mLockedFeature->layer()->moveVertex( p, mLockedFeature->featureId(), index.row() );
@@ -295,7 +301,7 @@ bool QgsVertexEditorModel::calcR( int row, double &r, double &minRadius ) const
 
   const QgsVertexEntry *entry = mLockedFeature->vertexMap().at( row );
 
-  bool curvePoint = ( entry->vertexId().type == QgsVertexId::CurveVertex );
+  const bool curvePoint = ( entry->vertexId().type == Qgis::VertexType::Curve );
   if ( !curvePoint )
     return false;
 
@@ -312,41 +318,67 @@ bool QgsVertexEditorModel::calcR( int row, double &r, double &minRadius ) const
   return true;
 }
 
+//
+// QgsVertexEditorWidget
+//
 
-QgsVertexEditor::QgsVertexEditor( QgsMapCanvas *canvas )
-  : mCanvas( canvas )
+QgsVertexEditorWidget::QgsVertexEditorWidget( QgsMapCanvas *canvas )
+  : QgsPanelWidget()
+  , mCanvas( canvas )
   , mVertexModel( new QgsVertexEditorModel( mCanvas, this ) )
 {
-  setWindowTitle( tr( "Vertex Editor" ) );
+  setPanelTitle( tr( "Vertex Editor" ) );
   setObjectName( QStringLiteral( "VertexEditor" ) );
 
-  QWidget *content = new QWidget( this );
-  content->setMinimumHeight( 160 );
-  QVBoxLayout *layout = new QVBoxLayout( content );
+  QVBoxLayout *layout = new QVBoxLayout();
   layout->setContentsMargins( 0, 0, 0, 0 );
 
-  mHintLabel = new QLabel( this );
-  mHintLabel->setText( QStringLiteral( "%1\n\n%2" ).arg( tr( "Right click on an editable feature to show its table of vertices." ),
-                       tr( "When a feature is bound to this panel, dragging a rectangle to select vertices on the canvas will only select those of the bound feature." ) ) );
-  mHintLabel->setWordWrap( true );
-  mHintLabel->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+  mStackedWidget = new QStackedWidget();
+  mPageHint = new QWidget();
+  mStackedWidget->addWidget( mPageHint );
 
-  mTableView = new QTableView( this );
+  QVBoxLayout *pageHintLayout = new QVBoxLayout();
+  mHintLabel = new QLabel();
+  mHintLabel->setText( QStringLiteral( "%1\n\n%2" ).arg( tr( "Right click on an editable feature to show its table of vertices." ), tr( "When a feature is bound to this panel, dragging a rectangle to select vertices on the canvas will only select those of the bound feature." ) ) );
+  mHintLabel->setWordWrap( true );
+
+  pageHintLayout->addStretch();
+  pageHintLayout->addWidget( mHintLabel );
+  pageHintLayout->addStretch();
+  mPageHint->setLayout( pageHintLayout );
+
+  mPageTable = new QWidget();
+  mStackedWidget->addWidget( mPageTable );
+
+  QVBoxLayout *pageTableLayout = new QVBoxLayout();
+  pageTableLayout->setContentsMargins( 0, 0, 0, 0 );
+
+  mTableView = new QTableView();
   mTableView->setSelectionMode( QTableWidget::ExtendedSelection );
   mTableView->setSelectionBehavior( QTableWidget::SelectRows );
-  mTableView->setVisible( false );
   mTableView->setModel( mVertexModel );
-  connect( mTableView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &QgsVertexEditor::updateVertexSelection );
+  connect( mTableView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &QgsVertexEditorWidget::updateVertexSelection );
 
-  layout->addWidget( mTableView );
-  layout->addWidget( mHintLabel );
+  pageTableLayout->addWidget( mTableView );
+  mPageTable->setLayout( pageTableLayout );
 
-  setWidget( content );
+  mStackedWidget->setCurrentWidget( mPageHint );
+  layout->addWidget( mStackedWidget );
+
+  setLayout( layout );
+
+  mWidgetMenu = new QMenu( this );
+  QAction *autoPopupAction = new QAction( tr( "Auto-open Table" ), this );
+  autoPopupAction->setCheckable( true );
+  autoPopupAction->setChecked( QgsVertexEditor::settingAutoPopupVertexEditorDock->value() );
+  connect( autoPopupAction, &QAction::toggled, this, [=]( bool checked ) {
+    QgsVertexEditor::settingAutoPopupVertexEditorDock->setValue( checked );
+  } );
+  mWidgetMenu->addAction( autoPopupAction );
 }
 
-void QgsVertexEditor::updateEditor( QgsLockedFeature *lockedFeature )
+void QgsVertexEditorWidget::updateEditor( QgsLockedFeature *lockedFeature )
 {
-
   mLockedFeature = lockedFeature;
 
   mVertexModel->setFeature( mLockedFeature );
@@ -355,14 +387,13 @@ void QgsVertexEditor::updateEditor( QgsLockedFeature *lockedFeature )
 
   if ( mLockedFeature )
   {
-    mHintLabel->setVisible( false );
-    mTableView->setVisible( true );
+    mStackedWidget->setCurrentWidget( mPageTable );
 
-    connect( mLockedFeature, &QgsLockedFeature::selectionChanged, this, &QgsVertexEditor::updateTableSelection );
+    connect( mLockedFeature, &QgsLockedFeature::selectionChanged, this, &QgsVertexEditorWidget::updateTableSelection );
 
     if ( mLockedFeature->layer() )
     {
-      QgsCoordinateReferenceSystem crs = mLockedFeature->layer()->crs();
+      const QgsCoordinateReferenceSystem crs = mLockedFeature->layer()->crs();
       mTableView->setItemDelegateForColumn( 0, new CoordinateItemDelegate( crs, this ) );
       mTableView->setItemDelegateForColumn( 1, new CoordinateItemDelegate( crs, this ) );
       mTableView->setItemDelegateForColumn( 2, new CoordinateItemDelegate( crs, this ) );
@@ -372,12 +403,21 @@ void QgsVertexEditor::updateEditor( QgsLockedFeature *lockedFeature )
   }
   else
   {
-    mHintLabel->setVisible( true );
-    mTableView->setVisible( false );
+    mStackedWidget->setCurrentWidget( mPageHint );
   }
 }
 
-void QgsVertexEditor::updateTableSelection()
+QMenu *QgsVertexEditorWidget::menuButtonMenu()
+{
+  return mWidgetMenu;
+}
+
+QString QgsVertexEditorWidget::menuButtonTooltip() const
+{
+  return tr( "Options" );
+}
+
+void QgsVertexEditorWidget::updateTableSelection()
 {
   if ( !mLockedFeature || mUpdatingVertexSelection || mUpdatingTableSelection )
     return;
@@ -403,7 +443,7 @@ void QgsVertexEditor::updateTableSelection()
   mUpdatingTableSelection = false;
 }
 
-void QgsVertexEditor::updateVertexSelection( const QItemSelection &, const QItemSelection & )
+void QgsVertexEditorWidget::updateVertexSelection( const QItemSelection &, const QItemSelection & )
 {
   if ( !mLockedFeature || mUpdatingVertexSelection || mUpdatingTableSelection )
     return;
@@ -412,16 +452,16 @@ void QgsVertexEditor::updateVertexSelection( const QItemSelection &, const QItem
 
   mLockedFeature->deselectAllVertices();
 
-  QgsCoordinateTransform t( mLockedFeature->layer()->crs(), mCanvas->mapSettings().destinationCrs(), QgsProject::instance() );
+  const QgsCoordinateTransform t( mLockedFeature->layer()->crs(), mCanvas->mapSettings().destinationCrs(), QgsProject::instance() );
   std::unique_ptr<QgsRectangle> bbox;
   const QModelIndexList indexList = mTableView->selectionModel()->selectedRows();
   for ( const QModelIndex &index : indexList )
   {
-    int vertexIdx = index.row();
+    const int vertexIdx = index.row();
     mLockedFeature->selectVertex( vertexIdx );
 
     // create a bounding box of selected vertices
-    QgsPointXY point( mLockedFeature->vertexMap().at( vertexIdx )->point() );
+    const QgsPointXY point( mLockedFeature->vertexMap().at( vertexIdx )->point() );
     if ( !bbox )
       bbox.reset( new QgsRectangle( point, point ) );
     else
@@ -448,7 +488,7 @@ void QgsVertexEditor::updateVertexSelection( const QItemSelection &, const QItem
   mUpdatingVertexSelection = false;
 }
 
-void QgsVertexEditor::keyPressEvent( QKeyEvent *e )
+void QgsVertexEditorWidget::keyPressEvent( QKeyEvent *e )
 {
   if ( e->key() == Qt::Key_Backspace || e->key() == Qt::Key_Delete )
   {
@@ -457,6 +497,46 @@ void QgsVertexEditor::keyPressEvent( QKeyEvent *e )
     // Override default shortcut management in MapCanvas
     e->ignore();
   }
+  else if ( e->matches( QKeySequence::Copy ) )
+  {
+    if ( !mTableView->selectionModel()->hasSelection() )
+      return;
+    QString text;
+    QItemSelectionRange range = mTableView->selectionModel()->selection().first();
+    for ( int i = range.top(); i <= range.bottom(); ++i )
+    {
+      QStringList rowContents;
+      for ( int j = range.left(); j <= range.right(); ++j )
+        rowContents << mVertexModel->index( i, j ).data().toString();
+      text += rowContents.join( '\t' );
+      text += '\n';
+    }
+    QApplication::clipboard()->setText( text );
+  }
+}
+
+
+//
+// QgsVertexEditor
+//
+
+QgsVertexEditor::QgsVertexEditor( QgsMapCanvas *canvas )
+{
+  setWindowTitle( tr( "Vertex Editor" ) );
+  setObjectName( QStringLiteral( "VertexEditor" ) );
+
+  QgsPanelWidgetStack *stack = new QgsPanelWidgetStack();
+  setWidget( stack );
+
+  mWidget = new QgsVertexEditorWidget( canvas );
+  stack->setMainPanel( mWidget );
+
+  connect( mWidget, &QgsVertexEditorWidget::deleteSelectedRequested, this, &QgsVertexEditor::deleteSelectedRequested );
+}
+
+void QgsVertexEditor::updateEditor( QgsLockedFeature *lockedFeature )
+{
+  mWidget->updateEditor( lockedFeature );
 }
 
 void QgsVertexEditor::closeEvent( QCloseEvent *event )
@@ -473,19 +553,18 @@ void QgsVertexEditor::closeEvent( QCloseEvent *event )
 CoordinateItemDelegate::CoordinateItemDelegate( const QgsCoordinateReferenceSystem &crs, QObject *parent )
   : QStyledItemDelegate( parent ), mCrs( crs )
 {
-
 }
 
-QString CoordinateItemDelegate::displayText( const QVariant &value, const QLocale &locale ) const
+QString CoordinateItemDelegate::displayText( const QVariant &value, const QLocale & ) const
 {
-  return locale.toString( value.toDouble(), 'f', displayDecimalPlaces() );
+  return QLocale().toString( value.toDouble(), 'f', displayDecimalPlaces() );
 }
 
 QWidget *CoordinateItemDelegate::createEditor( QWidget *parent, const QStyleOptionViewItem &, const QModelIndex &index ) const
 {
   QLineEdit *lineEdit = new QLineEdit( parent );
   QgsDoubleValidator *validator = new QgsDoubleValidator( lineEdit );
-  if ( !index.data( MIN_RADIUS_ROLE ).isNull() )
+  if ( index.data( MIN_RADIUS_ROLE ).isValid() )
     validator->setBottom( index.data( MIN_RADIUS_ROLE ).toDouble() );
   lineEdit->setValidator( validator );
   return lineEdit;
@@ -505,7 +584,7 @@ void CoordinateItemDelegate::setEditorData( QWidget *editor, const QModelIndex &
   QLineEdit *lineEdit = qobject_cast<QLineEdit *>( editor );
   if ( lineEdit && index.isValid() )
   {
-    lineEdit->setText( displayText( index.data( ).toDouble( ), QLocale() ) );
+    lineEdit->setText( displayText( index.data().toDouble(), QLocale() ).replace( QLocale().groupSeparator(), QString() ) );
   }
 }
 

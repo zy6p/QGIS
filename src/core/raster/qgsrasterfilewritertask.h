@@ -23,7 +23,8 @@
 #include "qgsrasterfilewriter.h"
 #include "qgscoordinatetransformcontext.h"
 #include "qgsrasterinterface.h"
-#include "qgsrasterpipe.h"
+
+class QgsRasterPipe;
 
 /**
  * \class QgsRasterFileWriterTask
@@ -33,7 +34,6 @@
  * QGIS interface.
  * \see QgsVectorFileWriterTask
  * \see QgsVectorFileExporterTask
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsRasterFileWriterTask : public QgsTask
 {
@@ -46,7 +46,7 @@ class CORE_EXPORT QgsRasterFileWriterTask : public QgsTask
      * \a columns, \a rows, \a outputExtent and destination \a crs.
      * Ownership of the \a pipe is transferred to the writer task, and will
      * be deleted when the task completes.
-     * \deprecated since QGIS 3.8, use version with transformContext instead
+     * \deprecated QGIS 3.8. Use version with transformContext instead.
      */
     Q_DECL_DEPRECATED QgsRasterFileWriterTask( const QgsRasterFileWriter &writer, QgsRasterPipe *pipe SIP_TRANSFER,
         int columns, int rows,
@@ -68,6 +68,8 @@ class CORE_EXPORT QgsRasterFileWriterTask : public QgsTask
                              const QgsCoordinateTransformContext &transformContext
                            );
 
+    ~QgsRasterFileWriterTask() override;
+
     void cancel() override;
 
   signals:
@@ -81,7 +83,7 @@ class CORE_EXPORT QgsRasterFileWriterTask : public QgsTask
     /**
      * Emitted when an error occurs which prevented the file being written (or if
      * the task is canceled). The writing \a error will be reported.
-     * \deprecated since QGIS 3.10. Use errorOccurred(int, const QString&)
+     * \deprecated QGIS 3.10. Use errorOccurred(int, const QString&).
      */
     void errorOccurred( int error );
 
@@ -111,7 +113,7 @@ class CORE_EXPORT QgsRasterFileWriterTask : public QgsTask
 
     std::unique_ptr< QgsRasterBlockFeedback > mFeedback;
 
-    QgsRasterFileWriter::WriterError mError = QgsRasterFileWriter::NoError;
+    Qgis::RasterFileWriterResult mError = Qgis::RasterFileWriterResult::Success;
 
     QgsCoordinateTransformContext mTransformContext;
 };

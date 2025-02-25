@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsrulebased3drendererwidget.h"
+#include "moc_qgsrulebased3drendererwidget.cpp"
 
 #include "qgs3dutils.h"
 #include "qgsexpressionbuilderdialog.h"
@@ -57,7 +58,6 @@ QgsRuleBased3DRendererWidget::QgsRuleBased3DRendererWidget( QWidget *parent )
   connect( mCopyAction, &QAction::triggered, this, &QgsRuleBased3DRendererWidget::copy );
   connect( mPasteAction, &QAction::triggered, this, &QgsRuleBased3DRendererWidget::paste );
   connect( mDeleteAction, &QAction::triggered, this, &QgsRuleBased3DRendererWidget::removeRule );
-
 }
 
 QgsRuleBased3DRendererWidget::~QgsRuleBased3DRendererWidget()
@@ -107,23 +107,25 @@ void QgsRuleBased3DRendererWidget::setDockMode( bool dockMode )
 
 void QgsRuleBased3DRendererWidget::addRule()
 {
-  QgsRuleBased3DRenderer::Rule *newrule = new QgsRuleBased3DRenderer::Rule( QgsApplication::symbol3DRegistry()->defaultSymbolForGeometryType( mLayer->geometryType() ) );
+  std::unique_ptr<QgsAbstract3DSymbol> newSymbol( QgsApplication::symbol3DRegistry()->defaultSymbolForGeometryType( mLayer->geometryType() ) );
+  newSymbol->setDefaultPropertiesFromLayer( mLayer );
+  QgsRuleBased3DRenderer::Rule *newrule = new QgsRuleBased3DRenderer::Rule( newSymbol.release() );
 
   QgsRuleBased3DRenderer::Rule *current = currentRule();
   if ( current )
   {
     // add after this rule
-    QModelIndex currentIndex = viewRules->selectionModel()->currentIndex();
+    const QModelIndex currentIndex = viewRules->selectionModel()->currentIndex();
     mModel->insertRule( currentIndex.parent(), currentIndex.row() + 1, newrule );
-    QModelIndex newindex = mModel->index( currentIndex.row() + 1, 0, currentIndex.parent() );
+    const QModelIndex newindex = mModel->index( currentIndex.row() + 1, 0, currentIndex.parent() );
     viewRules->selectionModel()->setCurrentIndex( newindex, QItemSelectionModel::ClearAndSelect );
   }
   else
   {
     // append to root rule
-    int rows = mModel->rowCount();
+    const int rows = mModel->rowCount();
     mModel->insertRule( QModelIndex(), rows, newrule );
-    QModelIndex newindex = mModel->index( rows, 0 );
+    const QModelIndex newindex = mModel->index( rows, 0 );
     viewRules->selectionModel()->setCurrentIndex( newindex, QItemSelectionModel::ClearAndSelect );
   }
   editRule();
@@ -134,7 +136,7 @@ void QgsRuleBased3DRendererWidget::ruleWidgetPanelAccepted( QgsPanelWidget *pane
   Qgs3DRendererRulePropsWidget *widget = qobject_cast<Qgs3DRendererRulePropsWidget *>( panel );
   widget->apply();
 
-  QModelIndex index = viewRules->selectionModel()->currentIndex();
+  const QModelIndex index = viewRules->selectionModel()->currentIndex();
   mModel->updateRule( index.parent(), index.row() );
 }
 
@@ -165,7 +167,7 @@ void QgsRuleBased3DRendererWidget::editRule( const QModelIndex &index )
 
 void QgsRuleBased3DRendererWidget::removeRule()
 {
-  QItemSelection sel = viewRules->selectionModel()->selection();
+  const QItemSelection sel = viewRules->selectionModel()->selection();
   const auto constSel = sel;
   for ( const QItemSelectionRange &range : constSel )
   {
@@ -178,7 +180,7 @@ void QgsRuleBased3DRendererWidget::removeRule()
 
 void QgsRuleBased3DRendererWidget::copy()
 {
-  QModelIndexList indexlist = viewRules->selectionModel()->selectedRows();
+  const QModelIndexList indexlist = viewRules->selectionModel()->selectedRows();
 
   if ( indexlist.isEmpty() )
     return;
@@ -202,7 +204,7 @@ void QgsRuleBased3DRendererWidget::paste()
 QgsRuleBased3DRenderer::Rule *QgsRuleBased3DRendererWidget::currentRule()
 {
   QItemSelectionModel *sel = viewRules->selectionModel();
-  QModelIndex idx = sel->currentIndex();
+  const QModelIndex idx = sel->currentIndex();
   if ( !idx.isValid() )
     return nullptr;
   return mModel->ruleForIndex( idx );
@@ -223,13 +225,11 @@ Qt::ItemFlags QgsRuleBased3DRendererModel::flags( const QModelIndex &index ) con
     return Qt::ItemIsDropEnabled;
 
   // allow drop only at first column
-  Qt::ItemFlag drop = ( index.column() == 0 ? Qt::ItemIsDropEnabled : Qt::NoItemFlags );
+  const Qt::ItemFlag drop = ( index.column() == 0 ? Qt::ItemIsDropEnabled : Qt::NoItemFlags );
 
-  Qt::ItemFlag checkable = ( index.column() == 0 ? Qt::ItemIsUserCheckable : Qt::NoItemFlags );
+  const Qt::ItemFlag checkable = ( index.column() == 0 ? Qt::ItemIsUserCheckable : Qt::NoItemFlags );
 
-  return Qt::ItemIsEnabled | Qt::ItemIsSelectable |
-         Qt::ItemIsEditable | checkable |
-         Qt::ItemIsDragEnabled | drop;
+  return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | checkable | Qt::ItemIsDragEnabled | drop;
 }
 
 QVariant QgsRuleBased3DRendererModel::data( const QModelIndex &index, int role ) const
@@ -265,7 +265,7 @@ QVariant QgsRuleBased3DRendererModel::data( const QModelIndex &index, int role )
   }
   else if ( role == Qt::TextAlignmentRole )
   {
-    return Qt::AlignLeft;
+    return static_cast<Qt::Alignment::Int>( Qt::AlignLeft );
   }
   else if ( role == Qt::FontRole && index.column() == 1 )
   {
@@ -349,7 +349,7 @@ QModelIndex QgsRuleBased3DRendererModel::parent( const QModelIndex &index ) cons
     return QModelIndex();
 
   // this is right: we need to know row number of our parent (in our grandparent)
-  int row = parentRule->parent()->children().indexOf( parentRule );
+  const int row = parentRule->parent()->children().indexOf( parentRule );
 
   return createIndex( row, 0, parentRule );
 }
@@ -436,7 +436,7 @@ QMimeData *QgsRuleBased3DRendererModel::mimeData( const QModelIndexList &indexes
 
     QDomElement rootElem = doc.createElement( QStringLiteral( "rule_mime" ) );
     rootElem.setAttribute( QStringLiteral( "type" ), QStringLiteral( "labeling" ) ); // for determining whether rules are from renderer or labeling
-    QDomElement rulesElem = rule->save( doc, QgsReadWriteContext() );
+    const QDomElement rulesElem = rule->save( doc, QgsReadWriteContext() );
     rootElem.appendChild( rulesElem );
     doc.appendChild( rootElem );
 
@@ -480,7 +480,7 @@ bool QgsRuleBased3DRendererModel::dropMimeData( const QMimeData *data, Qt::DropA
     QDomDocument doc;
     if ( !doc.setContent( text ) )
       continue;
-    QDomElement rootElem = doc.documentElement();
+    const QDomElement rootElem = doc.documentElement();
     if ( rootElem.tagName() != QLatin1String( "rule_mime" ) )
       continue;
     QDomElement ruleElem = rootElem.firstChildElement( QStringLiteral( "rule" ) );
@@ -512,7 +512,7 @@ bool QgsRuleBased3DRendererModel::removeRows( int row, int count, const QModelIn
     }
     else
     {
-      QgsDebugMsg( QStringLiteral( "trying to remove invalid index - this should not happen!" ) );
+      QgsDebugError( QStringLiteral( "trying to remove invalid index - this should not happen!" ) );
     }
   }
 
@@ -540,8 +540,7 @@ void QgsRuleBased3DRendererModel::insertRule( const QModelIndex &parent, int bef
 
 void QgsRuleBased3DRendererModel::updateRule( const QModelIndex &parent, int row )
 {
-  emit dataChanged( index( row, 0, parent ),
-                    index( row, columnCount( parent ), parent ) );
+  emit dataChanged( index( row, 0, parent ), index( row, columnCount( parent ), parent ) );
 }
 
 
@@ -570,6 +569,7 @@ Qgs3DRendererRulePropsWidget::Qgs3DRendererRulePropsWidget( QgsRuleBased3DRender
   {
     groupSymbol->setChecked( false );
     mSymbol.reset( QgsApplication::symbol3DRegistry()->defaultSymbolForGeometryType( layer->geometryType() ) );
+    mSymbol->setDefaultPropertiesFromLayer( layer );
   }
 
   mSymbolWidget = new QgsSymbol3DWidget( layer, this );
@@ -584,8 +584,8 @@ Qgs3DRendererRulePropsWidget::Qgs3DRendererRulePropsWidget( QgsRuleBased3DRender
   connect( editDescription, &QLineEdit::textChanged, this, &Qgs3DRendererRulePropsWidget::widgetChanged );
   connect( groupSymbol, &QGroupBox::toggled, this, &Qgs3DRendererRulePropsWidget::widgetChanged );
   connect( mSymbolWidget, &QgsSymbol3DWidget::widgetChanged, this, &Qgs3DRendererRulePropsWidget::widgetChanged );
-  connect( mFilterRadio, &QRadioButton::toggled, this, [ = ]( bool toggled ) { filterFrame->setEnabled( toggled ) ; } );
-  connect( mElseRadio, &QRadioButton::toggled, this, [ = ]( bool toggled ) { if ( toggled ) editFilter->setText( QStringLiteral( "ELSE" ) );} );
+  connect( mFilterRadio, &QRadioButton::toggled, this, [=]( bool toggled ) { filterFrame->setEnabled( toggled ); } );
+  connect( mElseRadio, &QRadioButton::toggled, this, [=]( bool toggled ) { if ( toggled ) editFilter->setText( QStringLiteral( "ELSE" ) ); } );
 }
 
 Qgs3DRendererRulePropsWidget::~Qgs3DRendererRulePropsWidget() = default;
@@ -598,7 +598,7 @@ void Qgs3DRendererRulePropsWidget::testFilter()
   QgsExpression filter( editFilter->text() );
   if ( filter.hasParserError() )
   {
-    QMessageBox::critical( this, tr( "Test Filter" ),  tr( "Filter expression parsing error:\n" ) + filter.parserErrorString() );
+    QMessageBox::critical( this, tr( "Test Filter" ), tr( "Filter expression parsing error:\n" ) + filter.parserErrorString() );
     return;
   }
 
@@ -620,7 +620,7 @@ void Qgs3DRendererRulePropsWidget::testFilter()
   {
     context.setFeature( f );
 
-    QVariant value = filter.evaluate( &context );
+    const QVariant value = filter.evaluate( &context );
     if ( value.toInt() != 0 )
       count++;
     if ( filter.hasEvalError() )
@@ -635,7 +635,7 @@ void Qgs3DRendererRulePropsWidget::testFilter()
 
 void Qgs3DRendererRulePropsWidget::buildExpression()
 {
-  QgsExpressionContext context( Qgs3DUtils::globalProjectLayerExpressionContext( mLayer ) );
+  const QgsExpressionContext context( Qgs3DUtils::globalProjectLayerExpressionContext( mLayer ) );
 
   QgsExpressionBuilderDialog dlg( mLayer, editFilter->text(), this, QStringLiteral( "generic" ), context );
 
@@ -645,10 +645,10 @@ void Qgs3DRendererRulePropsWidget::buildExpression()
 
 void Qgs3DRendererRulePropsWidget::apply()
 {
-  QString filter = mElseRadio->isChecked() ? QStringLiteral( "ELSE" ) : editFilter->text();
+  const QString filter = mElseRadio->isChecked() ? QStringLiteral( "ELSE" ) : editFilter->text();
   mRule->setFilterExpression( filter );
   mRule->setDescription( editDescription->text() );
-  std::unique_ptr< QgsAbstract3DSymbol > newSymbol;
+  std::unique_ptr<QgsAbstract3DSymbol> newSymbol;
   if ( groupSymbol->isChecked() )
     newSymbol = mSymbolWidget->symbol();
   mRule->setSymbol( newSymbol.release() );

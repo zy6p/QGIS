@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayertreeviewnocrsindicator.h"
+#include "moc_qgslayertreeviewnocrsindicator.cpp"
 #include "qgslayertreeview.h"
 #include "qgslayertree.h"
 #include "qgslayertreemodel.h"
@@ -42,7 +43,7 @@ void QgsLayerTreeViewNoCrsIndicatorProvider::onIndicatorClicked( const QModelInd
   selector.showNoCrsForLayerMessage();
   if ( selector.exec() )
   {
-    QgsCoordinateReferenceSystem crs = selector.crs();
+    const QgsCoordinateReferenceSystem crs = selector.crs();
     layer->setCrs( selector.crs() );
     layer->triggerRepaint();
     updateLayerIndicator( layer );
@@ -51,7 +52,7 @@ void QgsLayerTreeViewNoCrsIndicatorProvider::onIndicatorClicked( const QModelInd
 
 bool QgsLayerTreeViewNoCrsIndicatorProvider::acceptLayer( QgsMapLayer *layer )
 {
-  return layer && layer->isValid() && layer->isSpatial() && !layer->crs().isValid() && !qobject_cast< QgsAnnotationLayer * >( layer );
+  return layer && layer->isValid() && layer->isSpatial() && !layer->crs().isValid() && !qobject_cast<QgsAnnotationLayer *>( layer );
 }
 
 QString QgsLayerTreeViewNoCrsIndicatorProvider::iconName( QgsMapLayer *layer )

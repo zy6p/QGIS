@@ -16,16 +16,14 @@
  ***************************************************************************/
 
 #include "qgsdecorationgriddialog.h"
+#include "moc_qgsdecorationgriddialog.cpp"
 
 #include "qgsdecorationgrid.h"
 
-#include "qgslogger.h"
 #include "qgshelp.h"
-#include "qgsstyle.h"
 #include "qgssymbol.h"
 #include "qgssymbolselectordialog.h"
 #include "qgisapp.h"
-#include "qgsguiutils.h"
 #include "qgsgui.h"
 #include "qgslinesymbol.h"
 #include "qgsmarkersymbol.h"
@@ -40,7 +38,7 @@ QgsDecorationGridDialog::QgsDecorationGridDialog( QgsDecorationGrid &deco, QWidg
 
   connect( buttonBox, &QDialogButtonBox::accepted, this, &QgsDecorationGridDialog::buttonBox_accepted );
   connect( buttonBox, &QDialogButtonBox::rejected, this, &QgsDecorationGridDialog::buttonBox_rejected );
-  connect( mGridTypeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [ = ]( int ) { updateSymbolButtons(); } );
+  connect( mGridTypeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [=]( int ) { updateSymbolButtons(); } );
   connect( mPbtnUpdateFromExtents, &QPushButton::clicked, this, &QgsDecorationGridDialog::mPbtnUpdateFromExtents_clicked );
   connect( mPbtnUpdateFromLayer, &QPushButton::clicked, this, &QgsDecorationGridDialog::mPbtnUpdateFromLayer_clicked );
   connect( buttonBox, &QDialogButtonBox::helpRequested, this, &QgsDecorationGridDialog::showHelp );
@@ -49,7 +47,7 @@ QgsDecorationGridDialog::QgsDecorationGridDialog( QgsDecorationGrid &deco, QWidg
   mLineSymbolButton->setSymbolType( Qgis::SymbolType::Line );
 
   grpEnable->setChecked( mDeco.enabled() );
-  connect( grpEnable, &QGroupBox::toggled, this, [ = ] { updateSymbolButtons(); } );
+  connect( grpEnable, &QGroupBox::toggled, this, [=] { updateSymbolButtons(); } );
 
   // mXMinLineEdit->setValidator( new QDoubleValidator( mXMinLineEdit ) );
 
@@ -59,14 +57,10 @@ QgsDecorationGridDialog::QgsDecorationGridDialog( QgsDecorationGrid &deco, QWidg
   // mAnnotationPositionComboBox->insertItem( QgsDecorationGrid::InsideMapFrame, tr( "Inside frame" ) );
   // mAnnotationPositionComboBox->insertItem( QgsDecorationGrid::OutsideMapFrame, tr( "Outside frame" ) );
 
-  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::Horizontal,
-      tr( "Horizontal" ) );
-  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::Vertical,
-      tr( "Vertical" ) );
-  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::HorizontalAndVertical,
-      tr( "Horizontal and Vertical" ) );
-  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::BoundaryDirection,
-      tr( "Boundary direction" ) );
+  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::Horizontal, tr( "Horizontal" ) );
+  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::Vertical, tr( "Vertical" ) );
+  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::HorizontalAndVertical, tr( "Horizontal and Vertical" ) );
+  mAnnotationDirectionComboBox->insertItem( QgsDecorationGrid::BoundaryDirection, tr( "Boundary direction" ) );
 
   updateGuiElements();
 
@@ -85,18 +79,16 @@ QgsDecorationGridDialog::QgsDecorationGridDialog( QgsDecorationGrid &deco, QWidg
 
 void QgsDecorationGridDialog::updateGuiElements()
 {
-  // blockAllSignals( true );
-
   grpEnable->setChecked( mDeco.enabled() );
 
-  mIntervalXEdit->setText( QString::number( mDeco.gridIntervalX() ) );
-  mIntervalYEdit->setText( QString::number( mDeco.gridIntervalY() ) );
-  mOffsetXEdit->setText( QString::number( mDeco.gridOffsetX() ) );
-  mOffsetYEdit->setText( QString::number( mDeco.gridOffsetY() ) );
+  mIntervalXEdit->setValue( mDeco.gridIntervalX() );
+  mIntervalYEdit->setValue( mDeco.gridIntervalY() );
+  mOffsetXEdit->setValue( mDeco.gridOffsetX() );
+  mOffsetYEdit->setValue( mDeco.gridOffsetY() );
 
   mGridTypeComboBox->setCurrentIndex( mGridTypeComboBox->findData( mDeco.gridStyle() ) );
   mDrawAnnotationCheckBox->setChecked( mDeco.showGridAnnotation() );
-  mAnnotationDirectionComboBox->setCurrentIndex( static_cast< int >( mDeco.gridAnnotationDirection() ) );
+  mAnnotationDirectionComboBox->setCurrentIndex( static_cast<int>( mDeco.gridAnnotationDirection() ) );
   mCoordinatePrecisionSpinBox->setValue( mDeco.gridAnnotationPrecision() );
 
   mDistanceToMapFrameSpinBox->setValue( mDeco.annotationFrameDistance() );
@@ -121,16 +113,16 @@ void QgsDecorationGridDialog::updateDecoFromGui()
   mDeco.setDirty( false );
   mDeco.setEnabled( grpEnable->isChecked() );
 
-  mDeco.setGridIntervalX( mIntervalXEdit->text().toDouble() );
-  mDeco.setGridIntervalY( mIntervalYEdit->text().toDouble() );
-  mDeco.setGridOffsetX( mOffsetXEdit->text().toDouble() );
-  mDeco.setGridOffsetY( mOffsetYEdit->text().toDouble() );
-  mDeco.setGridStyle( static_cast< QgsDecorationGrid::GridStyle >( mGridTypeComboBox->currentData().toInt() ) );
+  mDeco.setGridIntervalX( mIntervalXEdit->value() );
+  mDeco.setGridIntervalY( mIntervalYEdit->value() );
+  mDeco.setGridOffsetX( mOffsetXEdit->value() );
+  mDeco.setGridOffsetY( mOffsetYEdit->value() );
+  mDeco.setGridStyle( static_cast<QgsDecorationGrid::GridStyle>( mGridTypeComboBox->currentData().toInt() ) );
 
   mDeco.setTextFormat( mAnnotationFontButton->textFormat() );
   mDeco.setAnnotationFrameDistance( mDistanceToMapFrameSpinBox->value() );
   mDeco.setShowGridAnnotation( mDrawAnnotationCheckBox->isChecked() );
-  QString text = mAnnotationDirectionComboBox->currentText();
+  const QString text = mAnnotationDirectionComboBox->currentText();
   if ( text == tr( "Horizontal" ) )
   {
     mDeco.setGridAnnotationDirection( QgsDecorationGrid::Horizontal );
@@ -148,13 +140,13 @@ void QgsDecorationGridDialog::updateDecoFromGui()
     mDeco.setGridAnnotationDirection( QgsDecorationGrid::BoundaryDirection );
   }
   mDeco.setGridAnnotationPrecision( mCoordinatePrecisionSpinBox->value() );
-  mDeco.setLineSymbol( mLineSymbolButton->clonedSymbol< QgsLineSymbol >() );
-  mDeco.setMarkerSymbol( mMarkerSymbolButton->clonedSymbol< QgsMarkerSymbol >() );
+  mDeco.setLineSymbol( mLineSymbolButton->clonedSymbol<QgsLineSymbol>() );
+  mDeco.setMarkerSymbol( mMarkerSymbolButton->clonedSymbol<QgsMarkerSymbol>() );
 }
 
 void QgsDecorationGridDialog::showHelp()
 {
-  QgsHelp::openHelp( QStringLiteral( "introduction/general_tools.html#grid" ) );
+  QgsHelp::openHelp( QStringLiteral( "map_views/map_view.html#grid-decoration" ) );
 }
 
 void QgsDecorationGridDialog::buttonBox_accepted()
@@ -188,6 +180,7 @@ void QgsDecorationGridDialog::updateSymbolButtons()
       mLineSymbolButton->setVisible( false );
       mLineSymbolButton->setEnabled( false );
       mLineSymbolLabel->setVisible( false );
+      mMarkerSymbolFrame->setVisible( true );
       break;
     }
     case ( QgsDecorationGrid::Line ):
@@ -198,6 +191,7 @@ void QgsDecorationGridDialog::updateSymbolButtons()
       mMarkerSymbolButton->setVisible( false );
       mMarkerSymbolButton->setEnabled( false );
       mMarkerSymbolLabel->setVisible( false );
+      mMarkerSymbolFrame->setVisible( false );
       break;
     }
   }
@@ -213,10 +207,10 @@ void QgsDecorationGridDialog::mPbtnUpdateFromLayer_clicked()
   double values[4];
   if ( mDeco.getIntervalFromCurrentLayer( values ) )
   {
-    mIntervalXEdit->setText( QString::number( values[0] ) );
-    mIntervalYEdit->setText( QString::number( values[1] ) );
-    mOffsetXEdit->setText( QString::number( values[2] ) );
-    mOffsetYEdit->setText( QString::number( values[3] ) );
+    mIntervalXEdit->setValue( values[0] );
+    mIntervalYEdit->setValue( values[1] );
+    mOffsetXEdit->setValue( values[2] );
+    mOffsetYEdit->setValue( values[3] );
     if ( values[0] >= 1 )
       mCoordinatePrecisionSpinBox->setValue( 0 );
     else
@@ -231,10 +225,10 @@ void QgsDecorationGridDialog::updateInterval( bool force )
     double values[4];
     if ( mDeco.getIntervalFromExtent( values, true ) )
     {
-      mIntervalXEdit->setText( QString::number( values[0] ) );
-      mIntervalYEdit->setText( QString::number( values[1] ) );
-      mOffsetXEdit->setText( QString::number( values[2] ) );
-      mOffsetYEdit->setText( QString::number( values[3] ) );
+      mIntervalXEdit->setValue( values[0] );
+      mIntervalYEdit->setValue( values[1] );
+      mOffsetXEdit->setValue( values[2] );
+      mOffsetYEdit->setValue( values[3] );
       // also update coord. precision
       // if interval >= 1, set precision=0 because we have a rounded value
       // else set it to previous default of 3

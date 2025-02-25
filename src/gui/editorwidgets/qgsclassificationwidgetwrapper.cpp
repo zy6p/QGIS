@@ -14,12 +14,13 @@
  ***************************************************************************/
 
 #include "qgsclassificationwidgetwrapper.h"
+#include "moc_qgsclassificationwidgetwrapper.cpp"
 
 #include "qgscategorizedsymbolrenderer.h"
 #include "qgsvectorlayer.h"
 
 QgsClassificationWidgetWrapper::QgsClassificationWidgetWrapper( QgsVectorLayer *layer, int fieldIdx, QWidget *editor, QWidget *parent )
-  :  QgsEditorWidgetWrapper( layer, fieldIdx, editor, parent )
+  : QgsEditorWidgetWrapper( layer, fieldIdx, editor, parent )
 
 {
 }
@@ -36,7 +37,10 @@ void QgsClassificationWidgetWrapper::showIndeterminateState()
 
 QWidget *QgsClassificationWidgetWrapper::createWidget( QWidget *parent )
 {
-  return new QComboBox( parent );
+  QComboBox *combo = new QComboBox( parent );
+  combo->setMinimumContentsLength( 1 );
+  combo->setSizeAdjustPolicy( QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon );
+  return combo;
 }
 
 void QgsClassificationWidgetWrapper::initWidget( QWidget *editor )
@@ -52,7 +56,7 @@ void QgsClassificationWidgetWrapper::initWidget( QWidget *editor )
       for ( int i = 0; i < categories.size(); i++ )
       {
         QString label = categories[i].label();
-        QString value = categories[i].value().toString();
+        const QString value = categories[i].value().toString();
         if ( label.isEmpty() )
           label = value;
 
@@ -60,8 +64,7 @@ void QgsClassificationWidgetWrapper::initWidget( QWidget *editor )
       }
     }
 
-    connect( mComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ),
-             this, static_cast<void ( QgsEditorWidgetWrapper::* )()>( &QgsEditorWidgetWrapper::emitValueChanged ) );
+    connect( mComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, static_cast<void ( QgsEditorWidgetWrapper::* )()>( &QgsEditorWidgetWrapper::emitValueChanged ) );
   }
 }
 

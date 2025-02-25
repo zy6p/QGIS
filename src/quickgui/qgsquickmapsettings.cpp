@@ -14,13 +14,13 @@
  ***************************************************************************/
 
 
-#include "qgsmaplayer.h"
-#include "qgsmaplayerstylemanager.h"
-#include "qgsmessagelog.h"
-#include "qgsproject.h"
 #include "qgis.h"
-
 #include "qgsquickmapsettings.h"
+#include "moc_qgsquickmapsettings.cpp"
+
+#include "qgsmaplayer.h"
+#include "qgsmessagelog.h"
+#include "qgsprojectviewsettings.h"
 
 QgsQuickMapSettings::QgsQuickMapSettings( QObject *parent )
   : QObject( parent )
@@ -51,8 +51,10 @@ void QgsQuickMapSettings::setProject( QgsProject *project )
   if ( mProject )
   {
     connect( mProject, &QgsProject::readProject, this, &QgsQuickMapSettings::onReadProject );
+    connect( mProject, &QgsProject::crsChanged, this, &QgsQuickMapSettings::onCrsChanged );
     setDestinationCrs( mProject->crs() );
     mMapSettings.setTransformContext( mProject->transformContext() );
+    mMapSettings.setPathResolver( mProject->pathResolver() );
   }
   else
   {
@@ -86,6 +88,11 @@ void QgsQuickMapSettings::setExtent( const QgsRectangle &extent )
   emit extentChanged();
 }
 
+QgsPoint QgsQuickMapSettings::center() const
+{
+  return QgsPoint( extent().center() );
+}
+
 void QgsQuickMapSettings::setCenter( const QgsPoint &center )
 {
   QgsVector delta = QgsPointXY( center ) - mMapSettings.extent().center();
@@ -104,6 +111,26 @@ double QgsQuickMapSettings::mapUnitsPerPixel() const
   return mMapSettings.mapUnitsPerPixel();
 }
 
+void QgsQuickMapSettings::setCenterToLayer( QgsMapLayer *layer, bool shouldZoom )
+{
+  Q_ASSERT( layer );
+
+  const QgsRectangle extent = mapSettings().layerToMapCoordinates( layer, layer->extent() );
+
+  if ( !extent.isEmpty() )
+  {
+    if ( shouldZoom )
+      setExtent( extent );
+    else
+      setCenter( QgsPoint( extent.center() ) );
+  }
+}
+
+double QgsQuickMapSettings::mapUnitsPerPoint() const
+{
+  return mMapSettings.mapUnitsPerPixel() * devicePixelRatio();
+}
+
 QgsRectangle QgsQuickMapSettings::visibleExtent() const
 {
   return mMapSettings.visibleExtent();
@@ -113,21 +140,15 @@ QPointF QgsQuickMapSettings::coordinateToScreen( const QgsPoint &point ) const
 {
   QgsPointXY pt( point.x(), point.y() );
   QgsPointXY pp = mMapSettings.mapToPixel().transform( pt );
+  pp.setX( pp.x() / devicePixelRatio() );
+  pp.setY( pp.y() / devicePixelRatio() );
   return pp.toQPointF();
 }
 
 QgsPoint QgsQuickMapSettings::screenToCoordinate( const QPointF &point ) const
 {
-  // use floating point precision with mapToCoordinates (i.e. do not use QPointF::toPoint)
-  // this is to avoid rounding errors with an odd screen width or height
-  // and the point being set to the exact center of it
-  const QgsPointXY pp = mMapSettings.mapToPixel().toMapCoordinates( point.x(), point.y() );
+  const QgsPointXY pp = mMapSettings.mapToPixel().toMapCoordinates( point.x() * devicePixelRatio(), point.y() * devicePixelRatio() );
   return QgsPoint( pp );
-}
-
-QgsMapSettings QgsQuickMapSettings::mapSettings() const
-{
-  return mMapSettings;
 }
 
 void QgsQuickMapSettings::setTransformContext( const QgsCoordinateTransformContext &ctx )
@@ -135,13 +156,20 @@ void QgsQuickMapSettings::setTransformContext( const QgsCoordinateTransformConte
   mMapSettings.setTransformContext( ctx );
 }
 
+QgsMapSettings QgsQuickMapSettings::mapSettings() const
+{
+  return mMapSettings;
+}
+
 QSize QgsQuickMapSettings::outputSize() const
 {
   return mMapSettings.outputSize();
 }
 
-void QgsQuickMapSettings::setOutputSize( const QSize &outputSize )
+void QgsQuickMapSettings::setOutputSize( QSize outputSize )
 {
+  outputSize.setWidth( outputSize.width() * devicePixelRatio() );
+  outputSize.setHeight( outputSize.height() * devicePixelRatio() );
   if ( mMapSettings.outputSize() == outputSize )
     return;
 
@@ -156,6 +184,7 @@ double QgsQuickMapSettings::outputDpi() const
 
 void QgsQuickMapSettings::setOutputDpi( double outputDpi )
 {
+  outputDpi *= devicePixelRatio();
   if ( qgsDoubleNear( mMapSettings.outputDpi(), outputDpi ) )
     return;
 
@@ -188,31 +217,62 @@ void QgsQuickMapSettings::setLayers( const QList<QgsMapLayer *> &layers )
   emit layersChanged();
 }
 
+void QgsQuickMapSettings::onCrsChanged()
+{
+  setDestinationCrs( mProject->crs() );
+}
+
 void QgsQuickMapSettings::onReadProject( const QDomDocument &doc )
 {
   if ( mProject )
   {
-    mMapSettings.setBackgroundColor( mProject->backgroundColor() );
+    int red = mProject->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorRedPart" ), 255 );
+    int green = mProject->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorGreenPart" ), 255 );
+    int blue = mProject->readNumEntry( QStringLiteral( "Gui" ), QStringLiteral( "/CanvasColorBluePart" ), 255 );
+    mMapSettings.setBackgroundColor( QColor( red, green, blue ) );
+
+    const bool isTemporal = mProject->readNumEntry( QStringLiteral( "TemporalControllerWidget" ), QStringLiteral( "/NavigationMode" ), 0 ) != 0;
+    const QString startString = QgsProject::instance()->readEntry( QStringLiteral( "TemporalControllerWidget" ), QStringLiteral( "/StartDateTime" ) );
+    const QString endString = QgsProject::instance()->readEntry( QStringLiteral( "TemporalControllerWidget" ), QStringLiteral( "/EndDateTime" ) );
+    mMapSettings.setIsTemporal( isTemporal );
+    mMapSettings.setTemporalRange( QgsDateTimeRange( QDateTime::fromString( startString, Qt::ISODateWithMs ), QDateTime::fromString( endString, Qt::ISODateWithMs ) ) );
   }
 
   QDomNodeList nodes = doc.elementsByTagName( "mapcanvas" );
-  if ( nodes.count() )
+  bool foundTheMapCanvas = false;
+  for ( int i = 0; i < nodes.size(); i++ )
   {
     QDomNode node = nodes.item( 0 );
+    QDomElement element = node.toElement();
 
-    mMapSettings.readXml( node );
+    if ( element.hasAttribute( QStringLiteral( "name" ) ) && element.attribute( QStringLiteral( "name" ) ) == QLatin1String( "theMapCanvas" ) )
+    {
+      foundTheMapCanvas = true;
+      mMapSettings.readXml( node );
 
-    if ( !qgsDoubleNear( mMapSettings.rotation(), 0 ) )
-      QgsMessageLog::logMessage( tr( "Map Canvas rotation is not supported. Resetting from %1 to 0." ).arg( mMapSettings.rotation() ) );
-
-    mMapSettings.setRotation( 0 );
-
-    emit extentChanged();
-    emit destinationCrsChanged();
-    emit outputSizeChanged();
-    emit outputDpiChanged();
-    emit layersChanged();
+      if ( !qgsDoubleNear( mMapSettings.rotation(), 0 ) )
+        QgsMessageLog::logMessage( tr( "Map Canvas rotation is not supported. Resetting from %1 to 0." ).arg( mMapSettings.rotation() ) );
+    }
   }
+  if ( !foundTheMapCanvas )
+  {
+    mMapSettings.setDestinationCrs( mProject->crs() );
+    mMapSettings.setExtent( mProject->viewSettings()->fullExtent() );
+  }
+
+  mMapSettings.setRotation( 0 );
+
+  mMapSettings.setTransformContext( mProject->transformContext() );
+  mMapSettings.setPathResolver( mProject->pathResolver() );
+  mMapSettings.setElevationShadingRenderer( mProject->elevationShadingRenderer() );
+
+  emit extentChanged();
+  emit destinationCrsChanged();
+  emit outputSizeChanged();
+  emit outputDpiChanged();
+  emit layersChanged();
+  emit temporalStateChanged();
+  emit zRangeChanged();
 }
 
 double QgsQuickMapSettings::rotation() const
@@ -238,4 +298,86 @@ void QgsQuickMapSettings::setBackgroundColor( const QColor &color )
 
   mMapSettings.setBackgroundColor( color );
   emit backgroundColorChanged();
+}
+
+qreal QgsQuickMapSettings::devicePixelRatio() const
+{
+  return mDevicePixelRatio;
+}
+
+void QgsQuickMapSettings::setDevicePixelRatio( const qreal &devicePixelRatio )
+{
+  mDevicePixelRatio = devicePixelRatio;
+  emit devicePixelRatioChanged();
+}
+
+bool QgsQuickMapSettings::isTemporal() const
+{
+  return mMapSettings.isTemporal();
+}
+
+void QgsQuickMapSettings::setIsTemporal( bool temporal )
+{
+  mMapSettings.setIsTemporal( temporal );
+  emit temporalStateChanged();
+}
+
+QDateTime QgsQuickMapSettings::temporalBegin() const
+{
+  return mMapSettings.temporalRange().begin();
+}
+
+void QgsQuickMapSettings::setTemporalBegin( const QDateTime &begin )
+{
+  const QgsDateTimeRange range = mMapSettings.temporalRange();
+  mMapSettings.setTemporalRange( QgsDateTimeRange( begin, range.end() ) );
+  emit temporalStateChanged();
+}
+
+QDateTime QgsQuickMapSettings::temporalEnd() const
+{
+  return mMapSettings.temporalRange().end();
+}
+
+void QgsQuickMapSettings::setTemporalEnd( const QDateTime &end )
+{
+  const QgsDateTimeRange range = mMapSettings.temporalRange();
+  mMapSettings.setTemporalRange( QgsDateTimeRange( range.begin(), end ) );
+  emit temporalStateChanged();
+}
+
+double QgsQuickMapSettings::zRangeLower() const
+{
+  const QgsDoubleRange zRange = mMapSettings.zRange();
+  return zRange.lower();
+}
+
+void QgsQuickMapSettings::setZRangeLower( const double &lower )
+{
+  const QgsDoubleRange zRange = mMapSettings.zRange();
+  if ( zRange.lower() == lower )
+  {
+    return;
+  }
+
+  mMapSettings.setZRange( QgsDoubleRange( lower, zRange.upper(), zRange.includeLower(), zRange.includeUpper() ) );
+  emit zRangeChanged();
+}
+
+double QgsQuickMapSettings::zRangeUpper() const
+{
+  const QgsDoubleRange zRange = mMapSettings.zRange();
+  return zRange.upper();
+}
+
+void QgsQuickMapSettings::setZRangeUpper( const double &upper )
+{
+  const QgsDoubleRange zRange = mMapSettings.zRange();
+  if ( zRange.upper() == upper )
+  {
+    return;
+  }
+
+  mMapSettings.setZRange( QgsDoubleRange( zRange.lower(), upper, zRange.includeLower(), zRange.includeUpper() ) );
+  emit zRangeChanged();
 }

@@ -16,17 +16,16 @@
 #ifndef QGSQUICKMAPSETTINGS_H
 #define QGSQUICKMAPSETTINGS_H
 
+#include "qgis_quick.h"
+
 #include <QObject>
 
 #include "qgscoordinatetransformcontext.h"
+#include "qgsmaplayer.h"
 #include "qgsmapsettings.h"
-#include "qgsmapthemecollection.h"
 #include "qgspoint.h"
 #include "qgsrectangle.h"
-
-#include "qgis_quick.h"
-
-class QgsProject;
+#include "qgsproject.h"
 
 /**
  * \ingroup quick
@@ -57,6 +56,11 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
     Q_PROPERTY( QgsProject *project READ project WRITE setProject NOTIFY projectChanged )
 
     /**
+     * Geographical coordinate representing the center point of the current extent
+     */
+    Q_PROPERTY( QgsPoint center READ center WRITE setCenter NOTIFY extentChanged )
+
+    /**
      * Geographical coordinates of the rectangle that should be rendered.
      * The actual visible extent used for rendering could be slightly different
      * since the given extent may be expanded in order to fit the aspect ratio
@@ -69,6 +73,8 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
     Q_PROPERTY( QgsRectangle visibleExtent READ visibleExtent NOTIFY visibleExtentChanged )
     //! \copydoc QgsMapSettings::mapUnitsPerPixel()
     Q_PROPERTY( double mapUnitsPerPixel READ mapUnitsPerPixel NOTIFY mapUnitsPerPixelChanged )
+    //! Returns the distance in geographical coordinates that equals to one point unit in the map
+    Q_PROPERTY( double mapUnitsPerPoint READ mapUnitsPerPoint NOTIFY mapUnitsPerPointChanged )
 
     /**
      * The rotation of the resulting map image, in degrees clockwise.
@@ -114,9 +120,34 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
      */
     Q_PROPERTY( QList<QgsMapLayer *> layers READ layers WRITE setLayers NOTIFY layersChanged )
 
+    /**
+     * Returns TRUE if a temporal filtering is enabled
+     */
+    Q_PROPERTY( bool isTemporal READ isTemporal WRITE setIsTemporal NOTIFY temporalStateChanged )
+
+    /**
+     * The temporal range's begin (i.e. lower) value
+     */
+    Q_PROPERTY( QDateTime temporalBegin READ temporalBegin WRITE setTemporalBegin NOTIFY temporalStateChanged )
+
+    /**
+     * The temporal range's end (i.e. higher) value
+     */
+    Q_PROPERTY( QDateTime temporalEnd READ temporalEnd WRITE setTemporalEnd NOTIFY temporalStateChanged )
+
+    /**
+     * The Z range's lower value (since QGIS 3.38)
+     */
+    Q_PROPERTY( double zRangeLower READ zRangeLower WRITE setZRangeLower NOTIFY zRangeChanged )
+
+    /**
+     * The Z range's upper value (since QGIS 3.38)
+     */
+    Q_PROPERTY( double zRangeUpper READ zRangeUpper WRITE setZRangeUpper NOTIFY zRangeChanged )
+
   public:
     //! Create new map settings
-    QgsQuickMapSettings( QObject *parent = nullptr );
+    explicit QgsQuickMapSettings( QObject *parent = nullptr );
     ~QgsQuickMapSettings() = default;
 
     //! Clone map settings
@@ -134,11 +165,20 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
     //! \copydoc QgsQuickMapSettings::project
     QgsProject *project() const;
 
+    //! Returns the center point of the current map extent
+    QgsPoint center() const;
+
     //! Move current map extent to have center point defined by \a center
     Q_INVOKABLE void setCenter( const QgsPoint &center );
 
     //! \copydoc QgsMapSettings::mapUnitsPerPixel()
     double mapUnitsPerPixel() const;
+
+    //! Move current map extent to have center point defined by \a layer. Optionally only pan to the layer if \a shouldZoom is false.
+    Q_INVOKABLE void setCenterToLayer( QgsMapLayer *layer, bool shouldZoom = true );
+
+    //! \copydoc QgsQuickMapSettings::mapUnitsPerPoint
+    double mapUnitsPerPoint() const;
 
     //! \copydoc QgsMapSettings::visibleExtent()
     QgsRectangle visibleExtent() const;
@@ -154,7 +194,6 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
      * \return A coordinate in pixel / screen space
      */
     Q_INVOKABLE QPointF coordinateToScreen( const QgsPoint &point ) const;
-
 
     /**
      * Convert a screen coordinate to a map coordinate
@@ -192,7 +231,7 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
      *
      * \see outputSize()
      */
-    void setOutputSize( const QSize &outputSize );
+    void setOutputSize( QSize outputSize );
 
     //! \copydoc QgsMapSettings::outputDpi()
     double outputDpi() const;
@@ -226,6 +265,51 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
      */
     void setLayers( const QList<QgsMapLayer *> &layers );
 
+    /**
+     * Returns the ratio between physical pixels and device-independent pixels.
+     * This value is dependent on the screen the window is on, and may change when the window is moved.
+     * Common values are 1.0 on normal displays and 2.0 on Apple "retina" displays.
+     */
+    qreal devicePixelRatio() const;
+
+
+    /**
+     * Sets the ratio between physical pixels and device-independent pixels.
+     * This value is dependent on the screen the window is on, and may change when the window is moved.
+     * Common values are 1.0 on normal displays and 2.0 on Apple "retina" displays.
+     */
+    void setDevicePixelRatio( const qreal &devicePixelRatio );
+
+    //! \copydoc QgsQuickMapSettings::isTemporal
+    bool isTemporal() const;
+
+    //! \copydoc QgsQuickMapSettings::isTemporal
+    void setIsTemporal( bool temporal );
+
+    //! \copydoc QgsQuickMapSettings::temporalBegin
+    QDateTime temporalBegin() const;
+
+    //! \copydoc QgsQuickMapSettings::temporalBegin
+    void setTemporalBegin( const QDateTime &begin );
+
+    //! \copydoc QgsQuickMapSettings::temporalEnd
+    QDateTime temporalEnd() const;
+
+    //! \copydoc QgsQuickMapSettings::temporalEnd
+    void setTemporalEnd( const QDateTime &end );
+
+    //! \copydoc QgsQuickMapSettings::zRangeLower
+    double zRangeLower() const;
+
+    //! \copydoc QgsQuickMapSettings::zRangeLower
+    void setZRangeLower( const double &lower );
+
+    //! \copydoc QgsQuickMapSettings::zRangeLower
+    double zRangeUpper() const;
+
+    //! \copydoc QgsQuickMapSettings::zRangeLower
+    void setZRangeUpper( const double &upper );
+
   signals:
     //! \copydoc QgsQuickMapSettings::project
     void projectChanged();
@@ -238,6 +322,8 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
 
     //! \copydoc QgsQuickMapSettings::mapUnitsPerPixel
     void mapUnitsPerPixelChanged();
+    //! \copydoc QgsQuickMapSettings::mapUnitsPerPoint
+    void mapUnitsPerPointChanged();
 
     //! \copydoc QgsQuickMapSettings::rotation
     void rotationChanged();
@@ -257,6 +343,25 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
     //! \copydoc QgsQuickMapSettings::layers
     void layersChanged();
 
+    /**
+     * Emitted when the temporal state has changed.
+     * \see isTemporal()
+     * \see temporalBegin()
+     * \see temporalEnd()
+     */
+    void temporalStateChanged();
+
+    /**
+     * Emitted when the Z range has changed.
+     * \see zRangeLower()
+     * \see zRangeUpper()
+     * \since QGIS 3.38
+     */
+    void zRangeChanged();
+
+    //! \copydoc QgsQuickMapSettings::devicePixelRatio
+    void devicePixelRatioChanged();
+
   private slots:
 
     /**
@@ -266,10 +371,15 @@ class QUICK_EXPORT QgsQuickMapSettings : public QObject
      */
     void onReadProject( const QDomDocument &doc );
 
+    /**
+     * Sets the destination CRS to match the changed project CRS
+     */
+    void onCrsChanged();
+
   private:
     QgsProject *mProject = nullptr;
     QgsMapSettings mMapSettings;
-
+    qreal mDevicePixelRatio = 1.0;
 };
 
 #endif // QGSQUICKMAPSETTINGS_H

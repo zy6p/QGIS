@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsshadowrenderingsettingswidget.h"
+#include "moc_qgsshadowrenderingsettingswidget.cpp"
 
 #include <QCheckBox>
 #include <QLineEdit>
@@ -50,7 +51,7 @@ QgsShadowSettings QgsShadowRenderingSettingsWidget::toShadowSettings()
 
 void QgsShadowRenderingSettingsWidget::onDirectionalLightsCountChanged( int newCount )
 {
-  int previousItemIndex = usedDirectionalLightComboBox->currentIndex();
+  const int previousItemIndex = usedDirectionalLightComboBox->currentIndex();
   while ( usedDirectionalLightComboBox->count() < newCount )
     usedDirectionalLightComboBox->addItem( tr( "Directional light %1" ).arg( usedDirectionalLightComboBox->count() + 1 ) );
   while ( usedDirectionalLightComboBox->count() > newCount )

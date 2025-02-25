@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayoutframe.h"
+#include "moc_qgslayoutframe.cpp"
 #include "qgslayoutmultiframe.h"
 #include "qgslayoutitemregistry.h"
 #include "qgslayout.h"
@@ -31,7 +32,7 @@ QgsLayoutFrame::QgsLayoutFrame( QgsLayout *layout, QgsLayoutMultiFrame *multiFra
   if ( multiFrame )
   {
     //repaint frame when multiframe content changes
-    connect( multiFrame, &QgsLayoutMultiFrame::contentsChanged, this, [ = ]
+    connect( multiFrame, &QgsLayoutMultiFrame::contentsChanged, this, [this]
     {
       update();
     } );
@@ -39,6 +40,11 @@ QgsLayoutFrame::QgsLayoutFrame( QgsLayout *layout, QgsLayoutMultiFrame *multiFra
     //force recalculation of rect, so that multiframe specified sizes can be applied
     refreshItemSize();
   }
+}
+
+QgsLayoutFrame::~QgsLayoutFrame()
+{
+  QgsLayoutFrame::cleanup();
 }
 
 QgsLayoutFrame *QgsLayoutFrame::create( QgsLayout *layout )
@@ -57,9 +63,9 @@ QgsLayoutSize QgsLayoutFrame::minimumSize() const
     return QgsLayoutSize();
 
   //calculate index of frame
-  int frameIndex = mMultiFrame->frameIndex( const_cast< QgsLayoutFrame * >( this ) );
+  const int frameIndex = mMultiFrame->frameIndex( const_cast< QgsLayoutFrame * >( this ) );
   //check minimum size
-  return QgsLayoutSize( mMultiFrame->minFrameSize( frameIndex ), QgsUnitTypes::LayoutMillimeters );
+  return QgsLayoutSize( mMultiFrame->minFrameSize( frameIndex ), Qgis::LayoutUnit::Millimeters );
 }
 
 QgsLayoutSize QgsLayoutFrame::fixedSize() const
@@ -68,9 +74,9 @@ QgsLayoutSize QgsLayoutFrame::fixedSize() const
     return QgsLayoutSize();
 
   //calculate index of frame
-  int frameIndex = mMultiFrame->frameIndex( const_cast< QgsLayoutFrame * >( this ) );
+  const int frameIndex = mMultiFrame->frameIndex( const_cast< QgsLayoutFrame * >( this ) );
   //check fixed size
-  return QgsLayoutSize( mMultiFrame->fixedFrameSize( frameIndex ), QgsUnitTypes::LayoutMillimeters );
+  return QgsLayoutSize( mMultiFrame->fixedFrameSize( frameIndex ), Qgis::LayoutUnit::Millimeters );
 }
 
 int QgsLayoutFrame::type() const
@@ -109,7 +115,7 @@ bool QgsLayoutFrame::isEmpty() const
     return true;
   }
 
-  double multiFrameHeight = mMultiFrame->totalSize().height();
+  const double multiFrameHeight = mMultiFrame->totalSize().height();
   if ( multiFrameHeight <= mSection.top() )
   {
     //multiframe height is less than top of this frame's visible portion
@@ -158,6 +164,7 @@ void QgsLayoutFrame::cleanup()
 {
   if ( mMultiFrame )
     mMultiFrame->handleFrameRemoval( this );
+  mMultiFrame = nullptr;
 
   QgsLayoutItem::cleanup();
 }
@@ -167,7 +174,7 @@ void QgsLayoutFrame::draw( QgsLayoutItemRenderContext &context )
   if ( mMultiFrame )
   {
     //calculate index of frame
-    int frameIndex = mMultiFrame->frameIndex( this );
+    const int frameIndex = mMultiFrame->frameIndex( this );
     Q_ASSERT_X( frameIndex >= 0, "QgsLayoutFrame::draw", "Invalid frame index for frame" );
     mMultiFrame->render( context, mSection, frameIndex );
   }
@@ -204,10 +211,10 @@ bool QgsLayoutFrame::writePropertiesToElement( QDomElement &parentElement, QDomD
 
 bool QgsLayoutFrame::readPropertiesFromElement( const QDomElement &itemElem, const QDomDocument &, const QgsReadWriteContext & )
 {
-  double x = itemElem.attribute( QStringLiteral( "sectionX" ) ).toDouble();
-  double y = itemElem.attribute( QStringLiteral( "sectionY" ) ).toDouble();
-  double width = itemElem.attribute( QStringLiteral( "sectionWidth" ) ).toDouble();
-  double height = itemElem.attribute( QStringLiteral( "sectionHeight" ) ).toDouble();
+  const double x = itemElem.attribute( QStringLiteral( "sectionX" ) ).toDouble();
+  const double y = itemElem.attribute( QStringLiteral( "sectionY" ) ).toDouble();
+  const double width = itemElem.attribute( QStringLiteral( "sectionWidth" ) ).toDouble();
+  const double height = itemElem.attribute( QStringLiteral( "sectionHeight" ) ).toDouble();
   mSection = QRectF( x, y, width, height );
   mHidePageIfEmpty = itemElem.attribute( QStringLiteral( "hidePageIfEmpty" ), QStringLiteral( "0" ) ).toInt();
   mHideBackgroundIfEmpty = itemElem.attribute( QStringLiteral( "hideBackgroundIfEmpty" ), QStringLiteral( "0" ) ).toInt();

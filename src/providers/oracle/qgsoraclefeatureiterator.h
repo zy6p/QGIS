@@ -23,12 +23,13 @@
 #include <QSqlQuery>
 
 #include "qgsoracleprovider.h"
+#include "qgscoordinatetransform.h"
 
 class QgsOracleConn;
 class QgsOracleProvider;
 
 
-class QgsOracleFeatureSource final: public QgsAbstractFeatureSource
+class QgsOracleFeatureSource final : public QgsAbstractFeatureSource
 {
   public:
     explicit QgsOracleFeatureSource( const QgsOracleProvider *p );
@@ -42,8 +43,8 @@ class QgsOracleFeatureSource final: public QgsAbstractFeatureSource
     QString mGeometryColumn;          //!< Name of the geometry column
     int mSrid;                        //!< Srid of column
     bool mHasSpatialIndex;            //!< Has spatial index of geometry column
-    QgsWkbTypes::Type mDetectedGeomType;  //!< Geometry type detected in the database
-    QgsWkbTypes::Type mRequestedGeomType; //!< Geometry type requested in the uri
+    Qgis::WkbType mDetectedGeomType;  //!< Geometry type detected in the database
+    Qgis::WkbType mRequestedGeomType; //!< Geometry type requested in the uri
     QString mSqlWhereClause;
     QgsOraclePrimaryKeyType mPrimaryKeyType;
     QList<int> mPrimaryKeyAttrs;
@@ -66,7 +67,7 @@ class QgsOracleFeatureSource final: public QgsAbstractFeatureSource
 };
 
 
-class QgsOracleFeatureIterator final: public QgsAbstractFeatureIteratorFromSource<QgsOracleFeatureSource>
+class QgsOracleFeatureIterator final : public QgsAbstractFeatureIteratorFromSource<QgsOracleFeatureSource>
 {
   public:
     QgsOracleFeatureIterator( QgsOracleFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
@@ -98,6 +99,10 @@ class QgsOracleFeatureIterator final: public QgsAbstractFeatureIteratorFromSourc
 
     QgsCoordinateTransform mTransform;
     QgsRectangle mFilterRect;
+
+    QgsGeometry mDistanceWithinGeom;
+    std::unique_ptr<QgsGeometryEngine> mDistanceWithinEngine;
+
     bool mIsTransactionConnection = false;
 };
 

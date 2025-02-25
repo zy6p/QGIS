@@ -14,12 +14,15 @@
  ***************************************************************************/
 
 #include "qgsinterval.h"
+#include "qgsunittypes.h"
+
 #include <QString>
 #include <QStringList>
 #include <QMap>
 #include <QObject>
 #include <QDebug>
 #include <QDateTime>
+#include <QRegularExpression>
 
 /***************************************************************************
  * This class is considered CRITICAL and any change MUST be accompanied with
@@ -31,12 +34,20 @@ QgsInterval::QgsInterval( double seconds )
   : mSeconds( seconds )
   , mValid( true )
   , mOriginalDuration( seconds )
-  , mOriginalUnit( QgsUnitTypes::TemporalSeconds )
+  , mOriginalUnit( Qgis::TemporalUnit::Seconds )
 {
 }
 
-QgsInterval::QgsInterval( double duration, QgsUnitTypes::TemporalUnit unit )
-  : mSeconds( duration * QgsUnitTypes::fromUnitToUnitFactor( unit, QgsUnitTypes::TemporalSeconds ) )
+QgsInterval::QgsInterval( std::chrono::milliseconds milliseconds )
+  : mSeconds( static_cast<double>( milliseconds.count() ) / 1000.0 )
+  , mValid( true )
+  , mOriginalDuration( static_cast<double>( milliseconds.count() ) )
+  , mOriginalUnit( Qgis::TemporalUnit::Milliseconds )
+{
+}
+
+QgsInterval::QgsInterval( double duration, Qgis::TemporalUnit unit )
+  : mSeconds( duration * QgsUnitTypes::fromUnitToUnitFactor( unit, Qgis::TemporalUnit::Seconds ) )
   , mValid( true )
   , mOriginalDuration( duration )
   , mOriginalUnit( unit )
@@ -44,64 +55,64 @@ QgsInterval::QgsInterval( double duration, QgsUnitTypes::TemporalUnit unit )
 }
 
 QgsInterval::QgsInterval( double years, double months, double weeks, double days, double hours, double minutes, double seconds )
-  : mSeconds( years * QgsUnitTypes::fromUnitToUnitFactor( QgsUnitTypes::TemporalYears, QgsUnitTypes::TemporalSeconds )
-              + months * QgsUnitTypes::fromUnitToUnitFactor( QgsUnitTypes::TemporalMonths, QgsUnitTypes::TemporalSeconds )
-              + weeks * QgsUnitTypes::fromUnitToUnitFactor( QgsUnitTypes::TemporalWeeks, QgsUnitTypes::TemporalSeconds )
-              + days * QgsUnitTypes::fromUnitToUnitFactor( QgsUnitTypes::TemporalDays, QgsUnitTypes::TemporalSeconds )
-              + hours * QgsUnitTypes::fromUnitToUnitFactor( QgsUnitTypes::TemporalHours, QgsUnitTypes::TemporalSeconds )
-              + minutes * QgsUnitTypes::fromUnitToUnitFactor( QgsUnitTypes::TemporalMinutes, QgsUnitTypes::TemporalSeconds )
+  : mSeconds( years * QgsUnitTypes::fromUnitToUnitFactor( Qgis::TemporalUnit::Years, Qgis::TemporalUnit::Seconds )
+              + months * QgsUnitTypes::fromUnitToUnitFactor( Qgis::TemporalUnit::Months, Qgis::TemporalUnit::Seconds )
+              + weeks * QgsUnitTypes::fromUnitToUnitFactor( Qgis::TemporalUnit::Weeks, Qgis::TemporalUnit::Seconds )
+              + days * QgsUnitTypes::fromUnitToUnitFactor( Qgis::TemporalUnit::Days, Qgis::TemporalUnit::Seconds )
+              + hours * QgsUnitTypes::fromUnitToUnitFactor( Qgis::TemporalUnit::Hours, Qgis::TemporalUnit::Seconds )
+              + minutes * QgsUnitTypes::fromUnitToUnitFactor( Qgis::TemporalUnit::Minutes, Qgis::TemporalUnit::Seconds )
               + seconds )
   , mValid( true )
 {
   if ( years && !months && !weeks && !days && !hours && !minutes && !seconds )
   {
     mOriginalDuration = years;
-    mOriginalUnit = QgsUnitTypes::TemporalYears;
+    mOriginalUnit = Qgis::TemporalUnit::Years;
   }
   else if ( !years && months && !weeks && !days && !hours && !minutes && !seconds )
   {
     mOriginalDuration = months;
-    mOriginalUnit = QgsUnitTypes::TemporalMonths;
+    mOriginalUnit = Qgis::TemporalUnit::Months;
   }
   else if ( !years && !months && weeks && !days && !hours && !minutes && !seconds )
   {
     mOriginalDuration = weeks;
-    mOriginalUnit = QgsUnitTypes::TemporalWeeks;
+    mOriginalUnit = Qgis::TemporalUnit::Weeks;
   }
   else if ( !years && !months && !weeks && days && !hours && !minutes && !seconds )
   {
     mOriginalDuration = days;
-    mOriginalUnit = QgsUnitTypes::TemporalDays;
+    mOriginalUnit = Qgis::TemporalUnit::Days;
   }
   else if ( !years && !months && !weeks && !days && hours && !minutes && !seconds )
   {
     mOriginalDuration = hours;
-    mOriginalUnit = QgsUnitTypes::TemporalHours;
+    mOriginalUnit = Qgis::TemporalUnit::Hours;
   }
   else if ( !years && !months && !weeks && !days && !hours && minutes && !seconds )
   {
     mOriginalDuration = minutes;
-    mOriginalUnit = QgsUnitTypes::TemporalMinutes;
+    mOriginalUnit = Qgis::TemporalUnit::Minutes;
   }
   else if ( !years && !months && !weeks && !days && !hours && !minutes && seconds )
   {
     mOriginalDuration = seconds;
-    mOriginalUnit = QgsUnitTypes::TemporalSeconds;
+    mOriginalUnit = Qgis::TemporalUnit::Seconds;
   }
   else if ( !years && !months && !weeks && !days && !hours && !minutes && !seconds )
   {
     mOriginalDuration = 0;
-    mOriginalUnit = QgsUnitTypes::TemporalSeconds;
+    mOriginalUnit = Qgis::TemporalUnit::Seconds;
   }
   else
   {
-    mOriginalUnit = QgsUnitTypes::TemporalUnknownUnit;
+    mOriginalUnit = Qgis::TemporalUnit::Unknown;
   }
 }
 
 double QgsInterval::years() const
 {
-  if ( mOriginalUnit == QgsUnitTypes::TemporalYears )
+  if ( mOriginalUnit == Qgis::TemporalUnit::Years )
     return mOriginalDuration;
 
   return mSeconds / YEARS;
@@ -112,12 +123,12 @@ void QgsInterval::setYears( double years )
   mSeconds = years * YEARS;
   mValid = true;
   mOriginalDuration = years;
-  mOriginalUnit = QgsUnitTypes::TemporalYears;
+  mOriginalUnit = Qgis::TemporalUnit::Years;
 }
 
 double QgsInterval::months() const
 {
-  if ( mOriginalUnit == QgsUnitTypes::TemporalMonths )
+  if ( mOriginalUnit == Qgis::TemporalUnit::Months )
     return mOriginalDuration;
 
   return mSeconds / MONTHS;
@@ -128,12 +139,12 @@ void QgsInterval::setMonths( double months )
   mSeconds = months * MONTHS;
   mValid = true;
   mOriginalDuration = months;
-  mOriginalUnit = QgsUnitTypes::TemporalMonths;
+  mOriginalUnit = Qgis::TemporalUnit::Months;
 }
 
 double QgsInterval::weeks() const
 {
-  if ( mOriginalUnit == QgsUnitTypes::TemporalWeeks )
+  if ( mOriginalUnit == Qgis::TemporalUnit::Weeks )
     return mOriginalDuration;
 
   return mSeconds / WEEKS;
@@ -145,12 +156,12 @@ void QgsInterval::setWeeks( double weeks )
   mSeconds = weeks * WEEKS;
   mValid = true;
   mOriginalDuration = weeks;
-  mOriginalUnit = QgsUnitTypes::TemporalWeeks;
+  mOriginalUnit = Qgis::TemporalUnit::Weeks;
 }
 
 double QgsInterval::days() const
 {
-  if ( mOriginalUnit == QgsUnitTypes::TemporalDays )
+  if ( mOriginalUnit == Qgis::TemporalUnit::Days )
     return mOriginalDuration;
 
   return mSeconds / DAY;
@@ -162,12 +173,12 @@ void QgsInterval::setDays( double days )
   mSeconds = days * DAY;
   mValid = true;
   mOriginalDuration = days;
-  mOriginalUnit = QgsUnitTypes::TemporalDays;
+  mOriginalUnit = Qgis::TemporalUnit::Days;
 }
 
 double QgsInterval::hours() const
 {
-  if ( mOriginalUnit == QgsUnitTypes::TemporalHours )
+  if ( mOriginalUnit == Qgis::TemporalUnit::Hours )
     return mOriginalDuration;
 
   return mSeconds / HOUR;
@@ -179,12 +190,12 @@ void QgsInterval::setHours( double hours )
   mSeconds = hours * HOUR;
   mValid = true;
   mOriginalDuration = hours;
-  mOriginalUnit = QgsUnitTypes::TemporalHours;
+  mOriginalUnit = Qgis::TemporalUnit::Hours;
 }
 
 double QgsInterval::minutes() const
 {
-  if ( mOriginalUnit == QgsUnitTypes::TemporalMinutes )
+  if ( mOriginalUnit == Qgis::TemporalUnit::Minutes )
     return mOriginalDuration;
 
   return mSeconds / MINUTE;
@@ -195,7 +206,7 @@ void QgsInterval::setMinutes( double minutes )
   mSeconds = minutes * MINUTE;
   mValid = true;
   mOriginalDuration = minutes;
-  mOriginalUnit = QgsUnitTypes::TemporalMinutes;
+  mOriginalUnit = Qgis::TemporalUnit::Minutes;
 }
 
 void QgsInterval::setSeconds( double seconds )
@@ -203,37 +214,53 @@ void QgsInterval::setSeconds( double seconds )
   mSeconds = seconds;
   mValid = true;
   mOriginalDuration = seconds;
-  mOriginalUnit = QgsUnitTypes::TemporalSeconds;
+  mOriginalUnit = Qgis::TemporalUnit::Seconds;
 }
 
 QgsInterval QgsInterval::fromString( const QString &string )
 {
   double seconds = 0;
-  QRegExp rx( "([-+]?\\d*\\.?\\d+\\s+\\S+)", Qt::CaseInsensitive );
-  QStringList list;
-  int pos = 0;
+  const thread_local QRegularExpression rx( "([-+]?\\d*\\.?\\d+\\s+\\S+)", QRegularExpression::CaseInsensitiveOption );
+  const thread_local QRegularExpression rxtime( ".* \\d{1,2}(:)\\d{1,2}(:)\\d{1,2}.*", QRegularExpression::CaseInsensitiveOption );
 
-  while ( ( pos = rx.indexIn( string, pos ) ) != -1 )
+  const QRegularExpressionMatch matchtime = rxtime.match( string );
+  QString modedString = QString( string );
+  if ( matchtime.hasMatch() ) //some part of the string contains 00:00:00 style duration
   {
-    list << rx.cap( 1 );
-    pos += rx.matchedLength();
+    // Get the second occurrence of : (minutes)
+    modedString.replace( matchtime.capturedStart( 2 ), 1, " minutes " );
+    // Get the first occurrence of : (hours)
+    modedString.replace( matchtime.capturedStart( 1 ), 1, " hours " );
+    modedString.append( " seconds" );
   }
 
-  QMap<int, QStringList> map;
-  map.insert( 1, QStringList() << QStringLiteral( "second" ) << QStringLiteral( "seconds" ) << QObject::tr( "second|seconds", "list of words separated by | which reference years" ).split( '|' ) );
-  map.insert( 0 + MINUTE, QStringList() << QStringLiteral( "minute" ) << QStringLiteral( "minutes" ) << QObject::tr( "minute|minutes", "list of words separated by | which reference minutes" ).split( '|' ) );
-  map.insert( 0 + HOUR, QStringList() << QStringLiteral( "hour" ) << QStringLiteral( "hours" ) << QObject::tr( "hour|hours", "list of words separated by | which reference minutes hours" ).split( '|' ) );
-  map.insert( 0 + DAY, QStringList() << QStringLiteral( "day" ) << QStringLiteral( "days" ) << QObject::tr( "day|days", "list of words separated by | which reference days" ).split( '|' ) );
-  map.insert( 0 + WEEKS, QStringList() << QStringLiteral( "week" ) << QStringLiteral( "weeks" ) << QObject::tr( "week|weeks", "wordlist separated by | which reference weeks" ).split( '|' ) );
-  map.insert( 0 + MONTHS, QStringList() << QStringLiteral( "month" ) << QStringLiteral( "months" ) << QObject::tr( "month|months", "list of words separated by | which reference months" ).split( '|' ) );
-  map.insert( 0 + YEARS, QStringList() << QStringLiteral( "year" ) << QStringLiteral( "years" ) << QObject::tr( "year|years", "list of words separated by | which reference years" ).split( '|' ) );
-
-  const auto constList = list;
-  for ( const QString &match : constList )
+  QStringList list;
+  int pos = 0;
+  QRegularExpressionMatch match = rx.match( modedString );
+  while ( match.hasMatch() )
   {
-    QStringList split = match.split( QRegExp( "\\s+" ) );
+    list << match.captured( 1 );
+    pos = match.capturedStart() + match.capturedLength();
+    match = rx.match( modedString, pos );
+  }
+
+  const thread_local QMap<int, QStringList> map{{
+      {1, QStringList() << QStringLiteral( "second" ) << QStringLiteral( "seconds" ) << QObject::tr( "second|seconds", "list of words separated by | which reference years" ).split( '|' )},
+      { 0 + MINUTE, QStringList() << QStringLiteral( "minute" ) << QStringLiteral( "minutes" ) << QObject::tr( "minute|minutes", "list of words separated by | which reference minutes" ).split( '|' ) },
+      {0 + HOUR, QStringList() << QStringLiteral( "hour" ) << QStringLiteral( "hours" ) << QObject::tr( "hour|hours", "list of words separated by | which reference minutes hours" ).split( '|' )},
+      {0 + DAY, QStringList() << QStringLiteral( "day" ) << QStringLiteral( "days" ) << QObject::tr( "day|days", "list of words separated by | which reference days" ).split( '|' )},
+      {0 + WEEKS, QStringList() << QStringLiteral( "week" ) << QStringLiteral( "weeks" ) << QObject::tr( "week|weeks", "wordlist separated by | which reference weeks" ).split( '|' )},
+      {0 + MONTHS, QStringList() << QStringLiteral( "month" ) << QStringLiteral( "months" ) << QStringLiteral( "mon" ) << QObject::tr( "month|months|mon", "list of words separated by | which reference months" ).split( '|' )},
+      {0 + YEARS, QStringList() << QStringLiteral( "year" ) << QStringLiteral( "years" ) << QObject::tr( "year|years", "list of words separated by | which reference years" ).split( '|' )},
+    }};
+
+  const thread_local QRegularExpression splitRx( "\\s+" );
+
+  for ( const QString &match : std::as_const( list ) )
+  {
+    const QStringList split = match.split( splitRx );
     bool ok;
-    double value = split.at( 0 ).toDouble( &ok );
+    const double value = split.at( 0 ).toDouble( &ok );
     if ( !ok )
     {
       continue;
@@ -243,11 +270,11 @@ QgsInterval QgsInterval::fromString( const QString &string )
     QMap<int, QStringList>::const_iterator it = map.constBegin();
     for ( ; it != map.constEnd(); ++it )
     {
-      int duration = it.key();
-      const auto constValue = it.value();
-      for ( const QString &name : constValue )
+      const int duration = it.key();
+      const QStringList durationIdentifiers = it.value();
+      for ( const QString &identifier : durationIdentifiers )
       {
-        if ( match.contains( name, Qt::CaseInsensitive ) )
+        if ( match.contains( identifier, Qt::CaseInsensitive ) )
         {
           matched = true;
           break;
@@ -278,11 +305,15 @@ QDebug operator<<( QDebug dbg, const QgsInterval &interval )
   return dbg.maybeSpace();
 }
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 4, 0)
+
 QgsInterval operator-( const QDateTime &dt1, const QDateTime &dt2 )
 {
-  qint64 mSeconds = dt2.msecsTo( dt1 );
+  const qint64 mSeconds = dt2.msecsTo( dt1 );
   return QgsInterval( mSeconds / 1000.0 );
 }
+
+#endif
 
 QDateTime operator+( const QDateTime &start, const QgsInterval &interval )
 {
@@ -291,12 +322,13 @@ QDateTime operator+( const QDateTime &start, const QgsInterval &interval )
 
 QgsInterval operator-( QDate date1, QDate date2 )
 {
-  qint64 seconds = static_cast< qint64 >( date2.daysTo( date1 ) ) * 24 * 60 * 60;
+  const qint64 seconds = static_cast< qint64 >( date2.daysTo( date1 ) ) * 24 * 60 * 60;
   return QgsInterval( seconds );
 }
 
 QgsInterval operator-( QTime time1, QTime time2 )
 {
-  qint64 mSeconds = time2.msecsTo( time1 );
+  const qint64 mSeconds = time2.msecsTo( time1 );
   return QgsInterval( mSeconds / 1000.0 );
 }
+

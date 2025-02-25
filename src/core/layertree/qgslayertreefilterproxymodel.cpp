@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgslayertreefilterproxymodel.h"
+#include "moc_qgslayertreefilterproxymodel.cpp"
 
 #include "qgslayertree.h"
 #include "qgslayertreemodel.h"
@@ -23,7 +24,7 @@
 QgsLayerTreeFilterProxyModel::QgsLayerTreeFilterProxyModel( QObject *parent )
   : QSortFilterProxyModel( parent )
 {
-  connect( QgsProject::instance(), &QgsProject::readProject, this, [ = ]
+  connect( QgsProject::instance(), &QgsProject::readProject, this, [this] // skip-keyword-check
   {
     beginResetModel();
     endResetModel();
@@ -69,7 +70,7 @@ QModelIndex QgsLayerTreeFilterProxyModel::parent( const QModelIndex &child ) con
 
 QModelIndex QgsLayerTreeFilterProxyModel::sibling( int row, int column, const QModelIndex &idx ) const
 {
-  QModelIndex parent = idx.parent();
+  const QModelIndex parent = idx.parent();
   return index( row, column, parent );
 }
 
@@ -107,7 +108,21 @@ void QgsLayerTreeFilterProxyModel::setLayerTreeModel( QgsLayerTreeModel *layerTr
   QSortFilterProxyModel::setSourceModel( layerTreeModel );
 }
 
-void QgsLayerTreeFilterProxyModel::setFilters( const QgsMapLayerProxyModel::Filters &filters )
+bool QgsLayerTreeFilterProxyModel::showPrivateLayers() const
+{
+  return mShowPrivateLayers;
+}
+
+void QgsLayerTreeFilterProxyModel::setShowPrivateLayers( bool showPrivate )
+{
+  if ( showPrivate == mShowPrivateLayers )
+    return;
+
+  mShowPrivateLayers = showPrivate;
+  invalidateFilter();
+}
+
+void QgsLayerTreeFilterProxyModel::setFilters( Qgis::LayerFilters filters )
 {
   mFilters = filters;
   invalidateFilter();
@@ -144,7 +159,7 @@ void QgsLayerTreeFilterProxyModel::setLayerCheckedPrivate( QgsMapLayer *layer, b
     return;
 
   QgsLayerTreeNode *node = mLayerTreeModel->rootGroup()->findLayer( layer );
-  QModelIndex index = mapFromSource( mLayerTreeModel->node2index( node ) );
+  const QModelIndex index = mapFromSource( mLayerTreeModel->node2index( node ) );
 
   setLayerChecked( layer, checked );
 
@@ -180,6 +195,10 @@ bool QgsLayerTreeFilterProxyModel::nodeShown( QgsLayerTreeNode *node ) const
       return false;
     if ( !mFilterText.isEmpty() && !layer->name().contains( mFilterText, Qt::CaseInsensitive ) )
       return false;
+    if ( ! mShowPrivateLayers && layer->flags().testFlag( QgsMapLayer::LayerFlag::Private ) )
+    {
+      return false;
+    }
     if ( !QgsMapLayerProxyModel::layerMatchesFilters( layer, mFilters ) )
       return false;
 
@@ -212,7 +231,7 @@ QVariant QgsLayerTreeFilterProxyModel::data( const QModelIndex &idx, int role ) 
         int n;
         for ( n = 0; !hasChecked || !hasUnchecked; n++ )
         {
-          QVariant v = data( index( n, 0, idx ), role );
+          const QVariant v = data( index( n, 0, idx ), role );
           if ( !v.isValid() )
             break;
 
@@ -264,7 +283,7 @@ bool QgsLayerTreeFilterProxyModel::setData( const QModelIndex &index, const QVar
       int i = 0;
       for ( i = 0; ; i++ )
       {
-        QModelIndex child = QgsLayerTreeFilterProxyModel::index( i, 0, index );
+        const QModelIndex child = QgsLayerTreeFilterProxyModel::index( i, 0, index );
         if ( !child.isValid() )
           break;
 

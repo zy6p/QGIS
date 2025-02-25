@@ -23,6 +23,8 @@
 #include <sstream>
 #include <iomanip>
 
+///@cond PRIVATE
+
 struct formatter : std::numpunct<wchar_t>
 {
   formatter( QChar thousands, bool showThousands, QChar decimal )
@@ -38,6 +40,7 @@ struct formatter : std::numpunct<wchar_t>
   wchar_t mDecimal;
   bool mShowThousands = true;
 };
+///@endcond
 
 QgsFractionNumericFormat::QgsFractionNumericFormat()
 {
@@ -72,7 +75,7 @@ QString QgsFractionNumericFormat::formatDouble( double value, const QgsNumericFo
   QString res;
 
   const double fixed = std::floor( std::fabs( value ) );
-  bool success = doubleToVulgarFraction( std::fabs( value ) - fixed, num, den, sign );
+  const bool success = doubleToVulgarFraction( std::fabs( value ) - fixed, num, den, sign );
   if ( success )
   {
     if ( mUseDedicatedUnicode && num == 1 && den == 2 )
@@ -152,7 +155,7 @@ QgsNumericFormat *QgsFractionNumericFormat::clone() const
 
 QgsNumericFormat *QgsFractionNumericFormat::create( const QVariantMap &configuration, const QgsReadWriteContext &context ) const
 {
-  std::unique_ptr< QgsFractionNumericFormat > res = std::make_unique< QgsFractionNumericFormat >();
+  auto res = std::make_unique< QgsFractionNumericFormat >();
   res->setConfiguration( configuration, context );
   return res.release();
 }
@@ -162,7 +165,7 @@ QVariantMap QgsFractionNumericFormat::configuration( const QgsReadWriteContext &
   QVariantMap res;
   res.insert( QStringLiteral( "show_thousand_separator" ), mShowThousandsSeparator );
   res.insert( QStringLiteral( "show_plus" ), mShowPlusSign );
-  res.insert( QStringLiteral( "thousand_separator" ), mThousandsSeparator );
+  res.insert( QStringLiteral( "thousand_separator" ), mThousandsSeparator.isNull() ? QVariant() : QVariant::fromValue( mThousandsSeparator ) );
   res.insert( QStringLiteral( "use_dedicated_unicode" ), mUseDedicatedUnicode );
   res.insert( QStringLiteral( "use_unicode_supersubscript" ), mUseUnicodeSuperSubscript );
   return res;
@@ -237,7 +240,7 @@ QString QgsFractionNumericFormat::toUnicodeSuperscript( const QString &input )
   QString res = input;
   for ( int i = 0; i < input.size(); ++i )
   {
-    QChar c = input.at( i );
+    const QChar c = input.at( i );
     if ( c == '0' )
       res[i] =  QChar( 0x2070 ); //⁰
     else if ( c == '1' )
@@ -267,7 +270,7 @@ QString QgsFractionNumericFormat::toUnicodeSubscript( const QString &input )
   QString res = input;
   for ( int i = 0; i < input.size(); ++i )
   {
-    QChar c = input.at( i );
+    const QChar c = input.at( i );
     if ( c == '0' )
       res[i] =  QChar( 0x2080 ); //₀
     else if ( c == '1' )

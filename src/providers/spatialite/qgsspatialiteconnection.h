@@ -39,19 +39,18 @@ class QgsSpatiaLiteConnection : public QObject
     QString path() { return mPath; }
 
     static QStringList connectionList();
-    static void deleteConnection( const QString &name );
     static QString connectionPath( const QString &name );
 
     typedef struct TableEntry
     {
-      TableEntry( const QString &_tableName, const QString &_column, const QString &_type )
-        : tableName( _tableName )
-        , column( _column )
-        , type( _type )
-      {}
-      QString tableName;
-      QString column;
-      QString type;
+        TableEntry( const QString &_tableName, const QString &_column, const QString &_type )
+          : tableName( _tableName )
+          , column( _column )
+          , type( _type )
+        {}
+        QString tableName;
+        QString column;
+        QString type;
     } TableEntry;
 
     enum Error
@@ -192,7 +191,7 @@ class QgsSqliteHandle
     QString mDbPath;
     bool mIsValid;
 
-    static QMap < QString, QgsSqliteHandle * > sHandles;
+    static QMap<QString, QgsSqliteHandle *> sHandles;
     static QMutex sHandleMutex;
 };
 

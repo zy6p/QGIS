@@ -40,7 +40,7 @@ void QgsSubsetStringEditorProviderRegistry::addProvider( QgsSubsetStringEditorPr
 
 bool QgsSubsetStringEditorProviderRegistry::removeProvider( QgsSubsetStringEditorProvider *provider )
 {
-  int index = mProviders.indexOf( provider );
+  const int index = mProviders.indexOf( provider );
   if ( index >= 0 )
   {
     delete mProviders.takeAt( index );
@@ -70,7 +70,7 @@ void QgsSubsetStringEditorProviderRegistry::initializeFromProviderGuiRegistry( Q
 QgsSubsetStringEditorProvider *QgsSubsetStringEditorProviderRegistry::providerByName( const QString &name )
 {
   const QList<QgsSubsetStringEditorProvider *> providerList = providers();
-  for ( const auto provider :  providerList )
+  for ( const auto provider : providerList )
   {
     if ( provider->name() == name )
     {

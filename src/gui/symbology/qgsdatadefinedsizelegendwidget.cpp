@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsdatadefinedsizelegendwidget.h"
+#include "moc_qgsdatadefinedsizelegendwidget.cpp"
 
 #include <QInputDialog>
 #include <QStyledItemDelegate>
@@ -25,10 +26,10 @@
 #include "qgssinglesymbolrenderer.h"
 #include "qgsstyle.h"
 #include "qgssymbol.h"
-#include "qgssymbollayer.h"
 #include "qgssymbolselectordialog.h"
 #include "qgsvectorlayer.h"
 #include "qgsexpressioncontextutils.h"
+#include "qgsdoublevalidator.h"
 #include "qgsmarkersymbol.h"
 #include "qgslinesymbol.h"
 
@@ -63,12 +64,13 @@ QgsDataDefinedSizeLegendWidget::QgsDataDefinedSizeLegendWidget( const QgsDataDef
     if ( ddsLegend->lineSymbol() )
       mLineSymbolButton->setSymbol( ddsLegend->lineSymbol()->clone() );
 
-    symbol = ddsLegend->symbol() ? ddsLegend->symbol()->clone() : nullptr;  // may be null (undefined)
+    symbol = ddsLegend->symbol() ? ddsLegend->symbol()->clone() : nullptr; // may be null (undefined)
   }
+  groupBoxOptions->setEnabled( radSeparated->isChecked() );
 
   if ( overrideSymbol )
   {
-    symbol = overrideSymbol;   // takes ownership
+    symbol = overrideSymbol; // takes ownership
     mOverrideSymbol = true;
   }
 
@@ -80,7 +82,7 @@ QgsDataDefinedSizeLegendWidget::QgsDataDefinedSizeLegendWidget( const QgsDataDef
 
   btnChangeSymbol->setEnabled( !mOverrideSymbol );
 
-  QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( mSourceSymbol.get(), btnChangeSymbol->iconSize() );
+  const QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( mSourceSymbol.get(), btnChangeSymbol->iconSize(), 0, nullptr, QgsScreenProperties( screen() ) );
   btnChangeSymbol->setIcon( icon );
 
   editTitle->setText( ddsLegend ? ddsLegend->title() : QString() );
@@ -94,7 +96,7 @@ QgsDataDefinedSizeLegendWidget::QgsDataDefinedSizeLegendWidget( const QgsDataDef
     const auto constClasses = ddsLegend->classes();
     for ( const QgsDataDefinedSizeLegend::SizeClass &sc : constClasses )
     {
-      QStandardItem *item = new QStandardItem( QString::number( sc.size ) );
+      QStandardItem *item = new QStandardItem( QLocale().toString( sc.size ) );
       item->setData( sc.size );
       QStandardItem *itemLabel = new QStandardItem( sc.label );
       mSizeClassesModel->appendRow( QList<QStandardItem *>() << item << itemLabel );
@@ -113,13 +115,13 @@ QgsDataDefinedSizeLegendWidget::QgsDataDefinedSizeLegendWidget( const QgsDataDef
   const QgsVectorLayer::LayerOptions options { QgsProject::instance()->transformContext() };
   mPreviewLayer = new QgsVectorLayer( QStringLiteral( "Point?crs=EPSG:4326" ), QStringLiteral( "Preview" ), QStringLiteral( "memory" ), options );
   mPreviewTree = new QgsLayerTree;
-  mPreviewLayerNode = mPreviewTree->addLayer( mPreviewLayer );  // node owned by the tree
+  mPreviewLayerNode = mPreviewTree->addLayer( mPreviewLayer ); // node owned by the tree
   mPreviewModel = new QgsLayerTreeModel( mPreviewTree );
   if ( canvas )
     mPreviewModel->setLegendMapViewData( canvas->mapUnitsPerPixel(), canvas->mapSettings().outputDpi(), canvas->scale() );
   viewLayerTree->setModel( mPreviewModel );
 
-  connect( cboAlignSymbols, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [ = ] { emit widgetChanged(); } );
+  connect( cboAlignSymbols, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [=] { emit widgetChanged(); } );
   connect( radDisabled, &QRadioButton::clicked, this, &QgsPanelWidget::widgetChanged );
   connect( radSeparated, &QRadioButton::clicked, this, &QgsPanelWidget::widgetChanged );
   connect( radCollapsed, &QRadioButton::clicked, this, &QgsPanelWidget::widgetChanged );
@@ -128,6 +130,7 @@ QgsDataDefinedSizeLegendWidget::QgsDataDefinedSizeLegendWidget( const QgsDataDef
   connect( editTitle, &QLineEdit::textChanged, this, &QgsPanelWidget::widgetChanged );
   connect( mLineSymbolButton, &QgsSymbolButton::changed, this, &QgsPanelWidget::widgetChanged );
   connect( this, &QgsPanelWidget::widgetChanged, this, &QgsDataDefinedSizeLegendWidget::updatePreview );
+  connect( radCollapsed, &QRadioButton::toggled, this, [=]( bool toggled ) { groupBoxOptions->setEnabled( toggled ); } );
   updatePreview();
 }
 
@@ -158,14 +161,14 @@ QgsDataDefinedSizeLegend *QgsDataDefinedSizeLegendWidget::dataDefinedSizeLegend(
     QList<QgsDataDefinedSizeLegend::SizeClass> classes;
     for ( int i = 0; i < mSizeClassesModel->rowCount(); ++i )
     {
-      double value = mSizeClassesModel->item( i, 0 )->data().toDouble();
-      QString label = mSizeClassesModel->item( i, 1 )->text();
+      const double value = mSizeClassesModel->item( i, 0 )->data().toDouble();
+      const QString label = mSizeClassesModel->item( i, 1 )->text();
       classes << QgsDataDefinedSizeLegend::SizeClass( value, label );
     }
     ddsLegend->setClasses( classes );
   }
 
-  ddsLegend->setLineSymbol( mLineSymbolButton->clonedSymbol< QgsLineSymbol >() );
+  ddsLegend->setLineSymbol( mLineSymbolButton->clonedSymbol<QgsLineSymbol>() );
   return ddsLegend;
 }
 
@@ -188,19 +191,22 @@ void QgsDataDefinedSizeLegendWidget::changeSymbol()
     context.setMapCanvas( mMapCanvas );
 
   QgsExpressionContext ec;
-  ec << QgsExpressionContextUtils::globalScope()
-     << QgsExpressionContextUtils::projectScope( QgsProject::instance() )
-     << QgsExpressionContextUtils::atlasScope( nullptr );
   if ( mMapCanvas )
-    ec << QgsExpressionContextUtils::mapSettingsScope( mMapCanvas->mapSettings() );
+  {
+    ec = mMapCanvas->createExpressionContext();
+  }
+  else
+  {
+    ec << QgsExpressionContextUtils::globalScope()
+       << QgsExpressionContextUtils::projectScope( QgsProject::instance() )
+       << QgsExpressionContextUtils::atlasScope( nullptr )
+       << QgsExpressionContextUtils::mapSettingsScope( QgsMapSettings() );
+  }
   context.setExpressionContext( &ec );
 
-  QString crsAuthId = mMapCanvas ? mMapCanvas->mapSettings().destinationCrs().authid() : QString();
-  QgsVectorLayer::LayerOptions options { QgsProject::instance()->transformContext() };
-  std::unique_ptr<QgsVectorLayer> layer = std::make_unique<QgsVectorLayer>( QStringLiteral( "Point?crs=%1" ).arg( crsAuthId ),
-                                          QStringLiteral( "tmp" ),
-                                          QStringLiteral( "memory" ),
-                                          options ) ;
+  const QString crsAuthId = mMapCanvas ? mMapCanvas->mapSettings().destinationCrs().authid() : QString();
+  const QgsVectorLayer::LayerOptions options { QgsProject::instance()->transformContext() };
+  const std::unique_ptr<QgsVectorLayer> layer = std::make_unique<QgsVectorLayer>( QStringLiteral( "Point?crs=%1" ).arg( crsAuthId ), QStringLiteral( "tmp" ), QStringLiteral( "memory" ), options );
 
   QgsSymbolSelectorDialog d( newSymbol.get(), QgsStyle::defaultStyle(), layer.get(), this );
   d.setContext( context );
@@ -209,7 +215,7 @@ void QgsDataDefinedSizeLegendWidget::changeSymbol()
     return;
 
   mSourceSymbol = std::move( newSymbol );
-  QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( mSourceSymbol.get(), btnChangeSymbol->iconSize() );
+  const QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( mSourceSymbol.get(), btnChangeSymbol->iconSize(), 0, nullptr, QgsScreenProperties( screen() ) );
   btnChangeSymbol->setIcon( icon );
 
   emit widgetChanged();
@@ -218,14 +224,13 @@ void QgsDataDefinedSizeLegendWidget::changeSymbol()
 void QgsDataDefinedSizeLegendWidget::addSizeClass()
 {
   bool ok;
-  double v = QInputDialog::getDouble( this, tr( "Add Size Class" ), tr( "Enter value for a new class" ),
-                                      0, -2147483647, 2147483647, 6, &ok );
+  const double v = QInputDialog::getDouble( this, tr( "Add Size Class" ), tr( "Enter value for a new class" ), 0, -2147483647, 2147483647, 6, &ok );
   if ( !ok )
     return;
 
-  QStandardItem *item = new QStandardItem( QString::number( v ) );
+  QStandardItem *item = new QStandardItem( QLocale().toString( v ) );
   item->setData( v );
-  QStandardItem *itemLabel = new QStandardItem( QString::number( v ) );
+  QStandardItem *itemLabel = new QStandardItem( QLocale().toString( v ) );
   mSizeClassesModel->appendRow( QList<QStandardItem *>() << item << itemLabel );
   mSizeClassesModel->sort( 0 );
   emit widgetChanged();
@@ -233,7 +238,7 @@ void QgsDataDefinedSizeLegendWidget::addSizeClass()
 
 void QgsDataDefinedSizeLegendWidget::removeSizeClass()
 {
-  QModelIndex idx = viewSizeClasses->currentIndex();
+  const QModelIndex idx = viewSizeClasses->currentIndex();
   if ( !idx.isValid() )
     return;
 
@@ -246,7 +251,7 @@ void QgsDataDefinedSizeLegendWidget::onSizeClassesChanged()
   for ( int row = 0; row < mSizeClassesModel->rowCount(); ++row )
   {
     QStandardItem *item = mSizeClassesModel->item( row, 0 );
-    item->setData( item->text().toDouble() );
+    item->setData( QgsDoubleValidator::toDouble( item->text() ) );
   }
 
   mSizeClassesModel->sort( 0 );

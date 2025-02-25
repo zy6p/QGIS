@@ -14,12 +14,13 @@
  ***************************************************************************/
 
 #include "qgslayertreelayer.h"
+#include "moc_qgslayertreelayer.cpp"
 
 #include "qgslayertreeutils.h"
 #include "qgsmaplayer.h"
 #include "qgsproject.h"
+#include "qgsproviderregistry.h"
 #include "qgssymbollayerutils.h"
-
 
 QgsLayerTreeLayer::QgsLayerTreeLayer( QgsMapLayer *layer )
   : QgsLayerTreeNode( NodeLayer, true )
@@ -101,20 +102,21 @@ void QgsLayerTreeLayer::setName( const QString &n )
   }
 }
 
-QgsLayerTreeLayer *QgsLayerTreeLayer::readXml( QDomElement &element, const QgsReadWriteContext &context )
+QgsLayerTreeLayer *QgsLayerTreeLayer::readXml( QDomElement &element, const QgsReadWriteContext &context ) // cppcheck-suppress duplInheritedMember
 {
   if ( element.tagName() != QLatin1String( "layer-tree-layer" ) )
     return nullptr;
 
-  QString layerID = element.attribute( QStringLiteral( "id" ) );
-  QString layerName = element.attribute( QStringLiteral( "name" ) );
+  const QString layerID = element.attribute( QStringLiteral( "id" ) );
+  const QString layerName = element.attribute( QStringLiteral( "name" ) );
 
-  QString providerKey = element.attribute( QStringLiteral( "providerKey" ) );
-  QString source = context.pathResolver().readPath( element.attribute( QStringLiteral( "source" ) ) );
+  const QString providerKey = element.attribute( QStringLiteral( "providerKey" ) );
+  const QString sourceRaw = element.attribute( QStringLiteral( "source" ) );
+  const QString source = providerKey.isEmpty() ? sourceRaw : QgsProviderRegistry::instance()->relativeToAbsoluteUri( providerKey, sourceRaw, context );
 
-  Qt::CheckState checked = QgsLayerTreeUtils::checkStateFromXml( element.attribute( QStringLiteral( "checked" ) ) );
-  bool isExpanded = ( element.attribute( QStringLiteral( "expanded" ), QStringLiteral( "1" ) ) == QLatin1String( "1" ) );
-  QString labelExpression = element.attribute( QStringLiteral( "legend_exp" ) );
+  const Qt::CheckState checked = QgsLayerTreeUtils::checkStateFromXml( element.attribute( QStringLiteral( "checked" ) ) );
+  const bool isExpanded = ( element.attribute( QStringLiteral( "expanded" ), QStringLiteral( "1" ) ) == QLatin1String( "1" ) );
+  const QString labelExpression = element.attribute( QStringLiteral( "legend_exp" ) );
 
   // needs to have the layer reference resolved later
   QgsLayerTreeLayer *nodeLayer = new QgsLayerTreeLayer( layerID, layerName, source, providerKey );
@@ -157,8 +159,10 @@ void QgsLayerTreeLayer::writeXml( QDomElement &parentElement, const QgsReadWrite
 
   if ( mRef )
   {
-    elem.setAttribute( QStringLiteral( "source" ), context.pathResolver().writePath( mRef->publicSource() ) );
-    elem.setAttribute( QStringLiteral( "providerKey" ), mRef->dataProvider() ? mRef->dataProvider()->name() : QString() );
+    const QString providerKey = mRef->dataProvider() ? mRef->dataProvider()->name() : QString();
+    const QString source = providerKey.isEmpty() ? mRef->publicSource() : QgsProviderRegistry::instance()->absoluteToRelativeUri( providerKey, mRef->publicSource(), context );
+    elem.setAttribute( QStringLiteral( "source" ), source );
+    elem.setAttribute( QStringLiteral( "providerKey" ), providerKey );
   }
 
   elem.setAttribute( QStringLiteral( "checked" ), mChecked ? QStringLiteral( "Qt::Checked" ) : QStringLiteral( "Qt::Unchecked" ) );

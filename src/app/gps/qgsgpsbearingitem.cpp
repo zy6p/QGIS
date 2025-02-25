@@ -18,6 +18,7 @@
 #include <QObject>
 
 #include "qgsgpsbearingitem.h"
+#include "moc_qgsgpsbearingitem.cpp"
 #include "qgscoordinatetransform.h"
 #include "qgsmapcanvas.h"
 #include "qgsexception.h"
@@ -44,14 +45,14 @@ void QgsGpsBearingItem::setGpsPosition( const QgsPointXY &point )
   //transform to map crs
   if ( mMapCanvas )
   {
-    QgsCoordinateTransform t( mWgs84CRS, mMapCanvas->mapSettings().destinationCrs(), QgsProject::instance() );
+    const QgsCoordinateTransform t( mWgs84CRS, mMapCanvas->mapSettings().destinationCrs(), QgsProject::instance() );
     try
     {
       mCenter = t.transform( mCenterWGS84 );
     }
     catch ( QgsCsException &e ) //silently ignore transformation exceptions
     {
-      QgsMessageLog::logMessage( QObject::tr( "Error transforming the map center point: %1" ).arg( e.what() ), QStringLiteral( "GPS" ), Qgis::Warning );
+      QgsMessageLog::logMessage( QObject::tr( "Error transforming the map center point: %1" ).arg( e.what() ), QStringLiteral( "GPS" ), Qgis::MessageLevel::Warning );
       return;
     }
   }
@@ -77,7 +78,7 @@ void QgsGpsBearingItem::updateLine()
 {
   QPolygonF bearingLine;
 
-  QgsCoordinateTransform wgs84ToCanvas( mWgs84CRS, mMapCanvas->mapSettings().destinationCrs(), QgsProject::instance()->transformContext() );
+  const QgsCoordinateTransform wgs84ToCanvas( mWgs84CRS, mMapCanvas->mapSettings().destinationCrs(), QgsProject::instance()->transformContext() );
 
   try
   {
@@ -87,8 +88,16 @@ void QgsGpsBearingItem::updateLine()
     QgsDistanceArea da1;
     da1.setSourceCrs( mMapCanvas->mapSettings().destinationCrs(), QgsProject::instance()->transformContext() );
     da1.setEllipsoid( QgsProject::instance()->ellipsoid() );
-    const double totalLength = 2 * da1.measureLine( mMapCanvas->mapSettings().extent().center(), QgsPointXY( mMapCanvas->mapSettings().extent().xMaximum(),
-                               mMapCanvas->mapSettings().extent().yMaximum() ) );
+    double totalLength = 0;
+    try
+    {
+      totalLength = 2 * da1.measureLine( mMapCanvas->mapSettings().extent().center(), QgsPointXY( mMapCanvas->mapSettings().extent().xMaximum(), mMapCanvas->mapSettings().extent().yMaximum() ) );
+    }
+    catch ( QgsCsException & )
+    {
+      // TODO report errors to user
+      QgsDebugError( QStringLiteral( "An error occurred while calculating length" ) );
+    }
 
     QgsDistanceArea da;
     da.setSourceCrs( mWgs84CRS, QgsProject::instance()->transformContext() );
@@ -103,7 +112,7 @@ void QgsGpsBearingItem::updateLine()
   }
   catch ( QgsCsException & )
   {
-    QgsDebugMsg( QStringLiteral( "Coordinate exception encountered while drawing GPS bearing line" ) );
+    QgsDebugError( QStringLiteral( "Coordinate exception encountered while drawing GPS bearing line" ) );
     bearingLine.clear();
   }
 

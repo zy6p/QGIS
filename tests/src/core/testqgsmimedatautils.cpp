@@ -22,23 +22,22 @@
 #include "qgsproject.h"
 
 const QString TEST_ENCODED_DATA( "raster:wms:A Fancy WMS From Ciriè City:crs=EPSG\\:2036&dpiMode=7&format=image/png&layers=lidar&styles=default"
-                                 "&url=https\\://geoegl.msp.gouv.qc.:EPSG\\\\:2036\\:EPSG\\\\:3857:image/tiff\\:image/jpeg:::PointZ" );
+                                 "&url=https\\://geoegl.msp.gouv.qc.:EPSG\\\\:2036\\:EPSG\\\\:3857:image/tiff\\:image/jpeg:::PointZ:/home/me/my data.jpg" );
 
-class TestQgsMimeDataUtils: public QObject
+class TestQgsMimeDataUtils : public QObject
 {
     Q_OBJECT
   public:
     TestQgsMimeDataUtils() = default;
 
   private slots:
-    void initTestCase(); // will be called before the first testfunction is executed.
+    void initTestCase();    // will be called before the first testfunction is executed.
     void cleanupTestCase(); // will be called after the last testfunction was executed.
-    void init(); // will be called before each testfunction is executed.
-    void cleanup(); // will be called after every testfunction.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void testEncodeDecode();
     void testLayerFromProject();
-
 };
 
 
@@ -46,7 +45,6 @@ void TestQgsMimeDataUtils::initTestCase()
 {
   QgsApplication::init();
   QgsApplication::initQgis();
-
 }
 
 void TestQgsMimeDataUtils::cleanupTestCase()
@@ -65,47 +63,53 @@ void TestQgsMimeDataUtils::cleanup()
 
 void TestQgsMimeDataUtils::testEncodeDecode()
 {
-
   QgsMimeDataUtils::Uri uri;
   uri.layerType = QStringLiteral( "raster" );
   uri.name = QStringLiteral( "A Fancy WMS From Ciriè City" );
   uri.providerKey = QStringLiteral( "wms" );
-  uri.supportedCrs << QStringLiteral( "EPSG:2036" ) <<  QStringLiteral( "EPSG:3857" ) ;
+  uri.supportedCrs << QStringLiteral( "EPSG:2036" ) << QStringLiteral( "EPSG:3857" );
   uri.supportedFormats << QStringLiteral( "image/tiff" ) << QStringLiteral( "image/jpeg" );
   uri.uri = QStringLiteral( "crs=EPSG:2036&dpiMode=7&format=image/png&layers=lidar&styles=default&url=https://geoegl.msp.gouv.qc." );
-  uri.wkbType = QgsWkbTypes::PointZ;
+  uri.wkbType = Qgis::WkbType::PointZ;
+  uri.filePath = QStringLiteral( "/home/me/my data.jpg" );
 
   QVERIFY( !uri.mapLayer() );
 
   QgsMimeDataUtils::UriList uriList;
   uriList << uri;
 
-  QMimeData *mimeData =  QgsMimeDataUtils::encodeUriList( uriList );
+  QMimeData *mimeData = QgsMimeDataUtils::encodeUriList( uriList );
 
-  QgsMimeDataUtils::Uri uriDecoded( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
+  const QgsMimeDataUtils::Uri uriDecoded( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
 
   QCOMPARE( uriDecoded.name, uri.name );
   QCOMPARE( uriDecoded.providerKey, uri.providerKey );
   QCOMPARE( uriDecoded.supportedFormats, uri.supportedFormats );
   QCOMPARE( uriDecoded.uri, uri.uri );
   QCOMPARE( uriDecoded.supportedCrs, uri.supportedCrs );
-  QCOMPARE( uriDecoded.wkbType, QgsWkbTypes::PointZ );
+  QCOMPARE( uriDecoded.wkbType, Qgis::WkbType::PointZ );
+  QCOMPARE( uriDecoded.filePath, QStringLiteral( "/home/me/my data.jpg" ) );
 
   QgsMimeDataUtils::decodeUriList( mimeData );
 
   // Encode representation:
-  QString data( uri.data() );
+  const QString data( uri.data() );
 
   QCOMPARE( data, TEST_ENCODED_DATA );
 
   QStringList fragments( QgsMimeDataUtils::decode( data ) );
+  QCOMPARE( fragments.size(), 10 );
 
   QCOMPARE( fragments[0], QStringLiteral( "raster" ) );
   QCOMPARE( fragments[1], QStringLiteral( "wms" ) );
   QCOMPARE( fragments[2], QStringLiteral( "A Fancy WMS From Ciriè City" ) );
   QCOMPARE( fragments[3], QStringLiteral( "crs=EPSG:2036&dpiMode=7&format=image/png&layers=lidar&styles=default&url=https://geoegl.msp.gouv.qc." ) );
   QCOMPARE( fragments[4], QStringLiteral( "EPSG\\:2036:EPSG\\:3857" ) );
-
+  QCOMPARE( fragments[5], QStringLiteral( "image/tiff:image/jpeg" ) );
+  QCOMPARE( fragments[6], QString() );
+  QCOMPARE( fragments[7], QString() );
+  QCOMPARE( fragments[8], QStringLiteral( "PointZ" ) );
+  QCOMPARE( fragments[9], QStringLiteral( "/home/me/my data.jpg" ) );
 }
 
 void TestQgsMimeDataUtils::testLayerFromProject()
@@ -120,15 +124,15 @@ void TestQgsMimeDataUtils::testLayerFromProject()
 
   QMimeData *mimeData = QgsMimeDataUtils::encodeUriList( QgsMimeDataUtils::UriList() << QgsMimeDataUtils::Uri( vl1 ) << QgsMimeDataUtils::Uri( vl2 ) );
 
-  QgsMimeDataUtils::Uri uriDecoded( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
+  const QgsMimeDataUtils::Uri uriDecoded( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
   QCOMPARE( uriDecoded.mapLayer(), vl1 );
-  QCOMPARE( uriDecoded.wkbType, QgsWkbTypes::LineString );
+  QCOMPARE( uriDecoded.wkbType, Qgis::WkbType::LineString );
   bool owner = false;
   QString error;
   QCOMPARE( uriDecoded.vectorLayer( owner, error ), vl1 );
   QVERIFY( !owner );
   QVERIFY( error.isEmpty() );
-  QgsMimeDataUtils::Uri uriDecoded2( QgsMimeDataUtils::decodeUriList( mimeData ).at( 1 ) );
+  const QgsMimeDataUtils::Uri uriDecoded2( QgsMimeDataUtils::decodeUriList( mimeData ).at( 1 ) );
   QCOMPARE( uriDecoded2.mapLayer(), vl2 );
   QCOMPARE( uriDecoded2.vectorLayer( owner, error ), vl2 );
   QVERIFY( !owner );
@@ -139,7 +143,7 @@ void TestQgsMimeDataUtils::testLayerFromProject()
   QgsMimeDataUtils::Uri uri( vl1 );
   uri.pId = QStringLiteral( "1" );
   mimeData = QgsMimeDataUtils::encodeUriList( QgsMimeDataUtils::UriList() << uri );
-  QgsMimeDataUtils::Uri uriDecoded3( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
+  const QgsMimeDataUtils::Uri uriDecoded3( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
   QVERIFY( !uriDecoded3.mapLayer() );
   QVERIFY( !uriDecoded3.vectorLayer( owner, error ) );
   QVERIFY( !owner );
@@ -149,7 +153,7 @@ void TestQgsMimeDataUtils::testLayerFromProject()
   QgsMimeDataUtils::Uri uri2( vl1 );
   uri2.layerId = QStringLiteral( "xcxxcv" );
   mimeData = QgsMimeDataUtils::encodeUriList( QgsMimeDataUtils::UriList() << uri2 );
-  QgsMimeDataUtils::Uri uriDecoded4( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
+  const QgsMimeDataUtils::Uri uriDecoded4( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
   QVERIFY( !uriDecoded4.mapLayer() );
   QVERIFY( !uriDecoded4.vectorLayer( owner, error ) );
   QVERIFY( !owner );
@@ -165,9 +169,9 @@ void TestQgsMimeDataUtils::testLayerFromProject()
   QgsMimeDataUtils::Uri uri3( points );
   uri3.layerId = QStringLiteral( "xcxxcv" );
   mimeData = QgsMimeDataUtils::encodeUriList( QgsMimeDataUtils::UriList() << uri3 );
-  QgsMimeDataUtils::Uri uriDecoded5( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
+  const QgsMimeDataUtils::Uri uriDecoded5( QgsMimeDataUtils::decodeUriList( mimeData ).at( 0 ) );
   QVERIFY( !uriDecoded5.mapLayer() );
-  QCOMPARE( uriDecoded5.wkbType, QgsWkbTypes::Point );
+  QCOMPARE( uriDecoded5.wkbType, Qgis::WkbType::Point );
   QgsVectorLayer *res = uriDecoded5.vectorLayer( owner, error );
   QVERIFY( res );
   QVERIFY( res->isValid() );
@@ -179,5 +183,3 @@ void TestQgsMimeDataUtils::testLayerFromProject()
 
 QGSTEST_MAIN( TestQgsMimeDataUtils )
 #include "testqgsmimedatautils.moc"
-
-

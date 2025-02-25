@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/geometry/qgscompoundcurve.h                                 *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -13,8 +13,6 @@ class QgsCompoundCurve: QgsCurve
 {
 %Docstring(signature="appended")
 Compound curve geometry type
-
-.. versionadded:: 2.10
 %End
 
 %TypeHeaderCode
@@ -24,6 +22,10 @@ Compound curve geometry type
     QgsCompoundCurve();
     QgsCompoundCurve( const QgsCompoundCurve &curve );
     ~QgsCompoundCurve();
+
+  public:
+    virtual bool fuzzyEqual( const QgsAbstractGeometry &other, double epsilon = 1e-8 ) const /HoldGIL/;
+    virtual bool fuzzyDistanceEqual( const QgsAbstractGeometry &other, double epsilon = 1e-8 ) const /HoldGIL/;
 
     virtual bool equals( const QgsCurve &other ) const;
 
@@ -65,7 +67,7 @@ Compound curve geometry type
 
     virtual bool isEmpty() const /HoldGIL/;
 
-    virtual bool isValid( QString &error /Out/, int flags = 0 ) const;
+    virtual bool isValid( QString &error /Out/, Qgis::GeometryValidityFlags flags = Qgis::GeometryValidityFlags() ) const;
 
     int indexOf( const QgsPoint &point ) const final;
 
@@ -79,11 +81,15 @@ of the curve.
 :param toleranceType: maximum segmentation angle or maximum difference between approximation and curve
 %End
 
-    virtual QgsCompoundCurve *snappedToGrid( double hSpacing, double vSpacing, double dSpacing = 0, double mSpacing = 0 ) const /Factory/;
+    virtual QgsCompoundCurve *snappedToGrid( double hSpacing, double vSpacing, double dSpacing = 0, double mSpacing = 0, bool removeRedundantPoints = false ) const /Factory/;
+
+    virtual QgsAbstractGeometry *simplifyByDistance( double tolerance ) const /Factory/;
 
     virtual bool removeDuplicateNodes( double epsilon = 4 * DBL_EPSILON, bool useZValues = false );
 
-    virtual bool boundingBoxIntersects( const QgsRectangle &rectangle ) const /HoldGIL/;
+    virtual bool boundingBoxIntersects( const QgsBox3D &box3d ) const /HoldGIL/;
+
+    virtual const QgsAbstractGeometry *simplifiedTypeRef() const /HoldGIL/;
 
 
     int nCurves() const /HoldGIL/;
@@ -127,9 +133,20 @@ and combining adjacent circularstrings to a single continuous circularstring.
 .. versionadded:: 3.20
 %End
 
+    bool toggleCircularAtVertex( QgsVertexId position );
+%Docstring
+Converts the vertex at the given position from/to circular
+
+:return: ``False`` if atVertex does not correspond to a valid vertex
+         on this geometry (including if this geometry is a Point),
+         or if the specified vertex can't be converted (e.g. start/end points).
+
+.. versionadded:: 3.20
+%End
+
     virtual void draw( QPainter &p ) const;
 
-    virtual void transform( const QgsCoordinateTransform &ct, QgsCoordinateTransform::TransformDirection d = QgsCoordinateTransform::ForwardTransform, bool transformZ = false )  throw( QgsCsException );
+    virtual void transform( const QgsCoordinateTransform &ct, Qgis::TransformDirection d = Qgis::TransformDirection::Forward, bool transformZ = false )  throw( QgsCsException );
 
     virtual void transform( const QTransform &t, double zTranslate = 0.0, double zScale = 1.0, double mTranslate = 0.0, double mScale = 1.0 );
 
@@ -145,7 +162,7 @@ and combining adjacent circularstrings to a single continuous circularstring.
 
     virtual double closestSegment( const QgsPoint &pt, QgsPoint &segmentPt /Out/, QgsVertexId &vertexAfter /Out/, int *leftOf /Out/ = 0, double epsilon = 4 * DBL_EPSILON ) const;
 
-    virtual bool pointAt( int node, QgsPoint &point, QgsVertexId::VertexType &type ) const;
+    virtual bool pointAt( int node, QgsPoint &point, Qgis::VertexType &type ) const;
 
     virtual void sumUpArea( double &sum /Out/ ) const;
 
@@ -184,6 +201,10 @@ Appends first point if not already closed.
 
     virtual double yAt( int index ) const /HoldGIL/;
 
+    virtual double zAt( int index ) const /HoldGIL/;
+
+    virtual double mAt( int index ) const /HoldGIL/;
+
 
     virtual bool transform( QgsAbstractGeometryTransformer *transformer, QgsFeedback *feedback = 0 );
 
@@ -205,7 +226,7 @@ Appends first point if not already closed.
   protected:
 
     int compareToSameClass( const QgsAbstractGeometry *other ) const final;
-    virtual QgsRectangle calculateBoundingBox() const;
+    virtual QgsBox3D calculateBoundingBox3D() const;
 
 
 };
@@ -216,5 +237,5 @@ Appends first point if not already closed.
  *                                                                      *
  * src/core/geometry/qgscompoundcurve.h                                 *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

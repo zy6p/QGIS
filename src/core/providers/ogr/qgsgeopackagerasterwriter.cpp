@@ -16,12 +16,13 @@
 
 ///@cond PRIVATE
 
+#define CPL_SUPRESS_CPLUSPLUS  //#spellok
 #include "gdal.h"
 #include "gdal_utils.h"
 #include "qgsogrutils.h"
 
 #include "qgsgeopackagerasterwriter.h"
-#include "qgscplerrorhandler.h"
+#include "qgscplerrorhandler_p.h"
 
 QgsGeoPackageRasterWriter::QgsGeoPackageRasterWriter( const QgsMimeDataUtils::Uri &sourceUri, const QString &outputUrl ):
   mSourceUri( sourceUri ),
@@ -34,7 +35,7 @@ QgsGeoPackageRasterWriter::WriterError QgsGeoPackageRasterWriter::writeRaster( Q
 {
   const char *args[] = { "-of", "gpkg", "-co", QStringLiteral( "RASTER_TABLE=%1" ).arg( mSourceUri.name ).toUtf8().constData(), "-co", "APPEND_SUBDATASET=YES", nullptr };
   // This sends OGR/GDAL errors to the message log
-  QgsCPLErrorHandler handler;
+  const QgsCPLErrorHandler handler( QObject::tr( "GDAL" ) );
   GDALTranslateOptions *psOptions = GDALTranslateOptionsNew( ( char ** )args, nullptr );
 
   GDALTranslateOptionsSetProgress( psOptions, [ ]( double dfComplete, const char *pszMessage,  void *pProgressData ) -> int
@@ -45,7 +46,7 @@ QgsGeoPackageRasterWriter::WriterError QgsGeoPackageRasterWriter::writeRaster( Q
     return ! feedback->isCanceled();
   }, feedback );
 
-  gdal::dataset_unique_ptr hSrcDS( GDALOpen( mSourceUri.uri.toUtf8().constData(), GA_ReadOnly ) );
+  const gdal::dataset_unique_ptr hSrcDS( GDALOpen( mSourceUri.uri.toUtf8().constData(), GA_ReadOnly ) );
   if ( ! hSrcDS )
   {
     *errorMessage = QObject::tr( "Failed to open source layer %1! See the OGR panel in the message logs for details.\n\n" ).arg( mSourceUri.name );
@@ -54,7 +55,7 @@ QgsGeoPackageRasterWriter::WriterError QgsGeoPackageRasterWriter::writeRaster( Q
   else
   {
     CPLErrorReset();
-    gdal::dataset_unique_ptr hOutDS( GDALTranslate( mOutputUrl.toUtf8().constData(), hSrcDS.get(), psOptions, nullptr ) );
+    const gdal::dataset_unique_ptr hOutDS( GDALTranslate( mOutputUrl.toUtf8().constData(), hSrcDS.get(), psOptions, nullptr ) );
     if ( ! hOutDS )
     {
       *errorMessage = QObject::tr( "Failed to import layer %1! See the OGR panel in the message logs for details.\n\n" ).arg( mSourceUri.name );

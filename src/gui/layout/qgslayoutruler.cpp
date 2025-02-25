@@ -13,6 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgslayoutruler.h"
+#include "moc_qgslayoutruler.cpp"
 #include "qgslayout.h"
 #include "qgis.h"
 #include "qgslayoutview.h"
@@ -27,8 +28,8 @@
 const int RULER_FONT_SIZE = 8;
 const unsigned int COUNT_VALID_MULTIPLES = 3;
 const unsigned int COUNT_VALID_MAGNITUDES = 5;
-const int QgsLayoutRuler::VALID_SCALE_MULTIPLES[] = {1, 2, 5};
-const int QgsLayoutRuler::VALID_SCALE_MAGNITUDES[] = {1, 10, 100, 1000, 10000};
+const int QgsLayoutRuler::VALID_SCALE_MULTIPLES[] = { 1, 2, 5 };
+const int QgsLayoutRuler::VALID_SCALE_MAGNITUDES[] = { 1, 10, 100, 1000, 10000 };
 
 QgsLayoutRuler::QgsLayoutRuler( QWidget *parent, Qt::Orientation orientation )
   : QWidget( parent )
@@ -56,18 +57,16 @@ QgsLayoutRuler::QgsLayoutRuler( QWidget *parent, Qt::Orientation orientation )
   mTextBaseline = mRulerMinSize / 1.667;
   mMinSpacingVerticalLabels = mRulerMinSize / 5;
 
-  double guideMarkerSize = mRulerFontMetrics->horizontalAdvance( '*' );
+  const double guideMarkerSize = mRulerFontMetrics->horizontalAdvance( '*' );
   mDragGuideTolerance = guideMarkerSize;
   switch ( mOrientation )
   {
     case Qt::Horizontal:
-      mGuideMarker << QPoint( -guideMarkerSize / 2, mRulerMinSize - guideMarkerSize ) << QPoint( 0, mRulerMinSize ) <<
-                   QPoint( guideMarkerSize / 2, mRulerMinSize - guideMarkerSize );
+      mGuideMarker << QPoint( -guideMarkerSize / 2, mRulerMinSize - guideMarkerSize ) << QPoint( 0, mRulerMinSize ) << QPoint( guideMarkerSize / 2, mRulerMinSize - guideMarkerSize );
       break;
 
     case Qt::Vertical:
-      mGuideMarker << QPoint( mRulerMinSize - guideMarkerSize, -guideMarkerSize / 2 ) << QPoint( mRulerMinSize, 0 ) <<
-                   QPoint( mRulerMinSize - guideMarkerSize, guideMarkerSize / 2 );
+      mGuideMarker << QPoint( mRulerMinSize - guideMarkerSize, -guideMarkerSize / 2 ) << QPoint( mRulerMinSize, 0 ) << QPoint( mRulerMinSize - guideMarkerSize, guideMarkerSize / 2 );
       break;
   }
 }
@@ -90,7 +89,7 @@ void QgsLayoutRuler::paintEvent( QPaintEvent *event )
 
   drawGuideMarkers( &p, layout );
 
-  QTransform t = mTransform.inverted();
+  const QTransform t = mTransform.inverted();
   p.setFont( mRulerFont );
   // keep same default color, but lower opacity a tad
   QBrush brush = p.brush();
@@ -107,10 +106,10 @@ void QgsLayoutRuler::paintEvent( QPaintEvent *event )
   //find optimum scale for ruler (size of numbered divisions)
   int magnitude = 1;
   int multiple = 1;
-  int mmDisplay = optimumScale( mScaleMinPixelsWidth, magnitude, multiple );
+  const int mmDisplay = optimumScale( mScaleMinPixelsWidth, magnitude, multiple );
 
   //find optimum number of small divisions
-  int numSmallDivisions = optimumNumberDivisions( mmDisplay, multiple );
+  const int numSmallDivisions = optimumNumberDivisions( mmDisplay, multiple );
 
   switch ( mOrientation )
   {
@@ -122,8 +121,8 @@ void QgsLayoutRuler::paintEvent( QPaintEvent *event )
       }
 
       //start x-coordinate
-      double startX = t.map( QPointF( 0, 0 ) ).x();
-      double endX = t.map( QPointF( width(), 0 ) ).x();
+      const double startX = t.map( QPointF( 0, 0 ) ).x();
+      const double endX = t.map( QPointF( width(), 0 ) ).x();
 
       //start marker position in mm
       double markerPos = ( std::floor( startX / mmDisplay ) + 1 ) * mmDisplay;
@@ -133,11 +132,11 @@ void QgsLayoutRuler::paintEvent( QPaintEvent *event )
 
       while ( markerPos <= endX )
       {
-        double pixelCoord = mTransform.map( QPointF( markerPos, 0 ) ).x();
+        const double pixelCoord = mTransform.map( QPointF( markerPos, 0 ) ).x();
 
         //draw large division and text
         p.drawLine( pixelCoord, 0, pixelCoord, mRulerMinSize );
-        p.drawText( QPointF( pixelCoord + mPixelsBetweenLineAndText, mTextBaseline ), QString::number( markerPos ) );
+        p.drawText( QPointF( pixelCoord + mPixelsBetweenLineAndText, mTextBaseline ), QLocale().toString( markerPos ) );
 
         //draw small divisions
         drawSmallDivisions( &p, markerPos, numSmallDivisions, mmDisplay, endX );
@@ -153,8 +152,8 @@ void QgsLayoutRuler::paintEvent( QPaintEvent *event )
         return;
       }
 
-      double startY = t.map( QPointF( 0, 0 ) ).y(); //start position in mm (total including space between pages)
-      double endY = t.map( QPointF( 0, height() ) ).y(); //stop position in mm (total including space between pages)
+      const double startY = t.map( QPointF( 0, 0 ) ).y();      //start position in mm (total including space between pages)
+      const double endY = t.map( QPointF( 0, height() ) ).y(); //stop position in mm (total including space between pages)
 
       // work out start page
       int startPage = 0;
@@ -178,16 +177,16 @@ void QgsLayoutRuler::paintEvent( QPaintEvent *event )
       if ( startY < 0 )
       {
         double beforePageCoord = -mmDisplay;
-        double firstPageY = mTransform.map( QPointF( 0, 0 ) ).y();
+        const double firstPageY = mTransform.map( QPointF( 0, 0 ) ).y();
 
         //draw negative rulers which fall before first page
         while ( beforePageCoord > startY )
         {
-          double pixelCoord = mTransform.map( QPointF( 0, beforePageCoord ) ).y();
+          const double pixelCoord = mTransform.map( QPointF( 0, beforePageCoord ) ).y();
           p.drawLine( 0, pixelCoord, mRulerMinSize, pixelCoord );
           //calc size of label
-          QString label = QString::number( beforePageCoord );
-          int labelSize = mRulerFontMetrics->boundingRect( label ).width();
+          const QString label = QLocale().toString( beforePageCoord );
+          const int labelSize = mRulerFontMetrics->boundingRect( label ).width();
 
           //draw label only if it fits in before start of next page
           if ( pixelCoord + labelSize + 8 < firstPageY )
@@ -231,11 +230,11 @@ void QgsLayoutRuler::paintEvent( QPaintEvent *event )
 
         while ( ( totalCoord < nextPageStartPos ) || ( ( nextPageStartPos == 0 ) && ( totalCoord <= endY ) ) )
         {
-          double pixelCoord = mTransform.map( QPointF( 0, totalCoord ) ).y();
+          const double pixelCoord = mTransform.map( QPointF( 0, totalCoord ) ).y();
           p.drawLine( 0, pixelCoord, mRulerMinSize, pixelCoord );
           //calc size of label
-          QString label = QString::number( pageCoord );
-          int labelSize = mRulerFontMetrics->boundingRect( label ).width();
+          const QString label = QLocale().toString( pageCoord );
+          const int labelSize = mRulerFontMetrics->boundingRect( label ).width();
 
           //draw label only if it fits in before start of next page
           if ( ( pixelCoord + labelSize + 8 < nextPageStartPixel )
@@ -282,9 +281,9 @@ void QgsLayoutRuler::drawMarkerPos( QPainter *painter )
 
 void QgsLayoutRuler::drawGuideMarkers( QPainter *p, QgsLayout *layout )
 {
-  QList< QgsLayoutItemPage * > visiblePages = mView->visiblePages();
-  QList< QgsLayoutGuide * > guides = layout->guides().guides( mOrientation == Qt::Horizontal ? Qt::Vertical : Qt::Horizontal );
-  QgsScopedQPainterState painterState( p );
+  const QList<QgsLayoutItemPage *> visiblePages = mView->visiblePages();
+  const QList<QgsLayoutGuide *> guides = layout->guides().guides( mOrientation == Qt::Horizontal ? Qt::Vertical : Qt::Horizontal );
+  const QgsScopedQPainterState painterState( p );
   p->setRenderHint( QPainter::Antialiasing, true );
   p->setPen( Qt::NoPen );
   const auto constGuides = guides;
@@ -356,13 +355,13 @@ void QgsLayoutRuler::createTemporaryGuideItem()
 
 QPointF QgsLayoutRuler::convertLocalPointToLayout( QPoint localPoint ) const
 {
-  QPoint viewPoint = mView->mapFromGlobal( mapToGlobal( localPoint ) );
-  return  mView->mapToScene( viewPoint );
+  const QPoint viewPoint = mView->mapFromGlobal( mapToGlobal( localPoint ) );
+  return mView->mapToScene( viewPoint );
 }
 
 QPoint QgsLayoutRuler::convertLayoutPointToLocal( QPointF layoutPoint ) const
 {
-  QPoint viewPoint = mView->mapFromScene( layoutPoint );
+  const QPoint viewPoint = mView->mapFromScene( layoutPoint );
   return mapFromGlobal( mView->mapToGlobal( viewPoint ) );
 }
 
@@ -371,9 +370,9 @@ QgsLayoutGuide *QgsLayoutRuler::guideAtPoint( QPoint localPoint ) const
   if ( !mView->currentLayout() )
     return nullptr;
 
-  QPointF layoutPoint = convertLocalPointToLayout( localPoint );
-  QList< QgsLayoutItemPage * > visiblePages = mView->visiblePages();
-  QList< QgsLayoutGuide * > guides = mView->currentLayout()->guides().guides( mOrientation == Qt::Horizontal ? Qt::Vertical : Qt::Horizontal );
+  const QPointF layoutPoint = convertLocalPointToLayout( localPoint );
+  const QList<QgsLayoutItemPage *> visiblePages = mView->visiblePages();
+  const QList<QgsLayoutGuide *> guides = mView->currentLayout()->guides().guides( mOrientation == Qt::Horizontal ? Qt::Vertical : Qt::Horizontal );
   QgsLayoutGuide *closestGuide = nullptr;
   double minDelta = std::numeric_limits<double>::max();
   const auto constGuides = guides;
@@ -412,7 +411,7 @@ QgsLayoutGuide *QgsLayoutRuler::guideAtPoint( QPoint localPoint ) const
 
 void QgsLayoutRuler::drawRotatedText( QPainter *painter, QPointF pos, const QString &text )
 {
-  QgsScopedQPainterState painterState( painter );
+  const QgsScopedQPainterState painterState( painter );
   painter->translate( pos.x(), pos.y() );
   painter->rotate( 270 );
   painter->drawText( 0, 0, text );
@@ -425,7 +424,7 @@ void QgsLayoutRuler::drawSmallDivisions( QPainter *painter, double startPos, int
 
   //draw small divisions starting at startPos (in mm)
   double smallMarkerPos = startPos;
-  double smallDivisionSpacing = rulerScale / numDivisions;
+  const double smallDivisionSpacing = rulerScale / numDivisions;
 
   double pixelCoord = 0.0;
 
@@ -493,9 +492,9 @@ int QgsLayoutRuler::optimumScale( double minPixelDiff, int &magnitude, int &mult
   {
     for ( unsigned int multipleCandidate = 0; multipleCandidate < COUNT_VALID_MULTIPLES; ++multipleCandidate )
     {
-      int candidateScale = VALID_SCALE_MULTIPLES[multipleCandidate] * VALID_SCALE_MAGNITUDES[magnitudeCandidate];
+      const int candidateScale = VALID_SCALE_MULTIPLES[multipleCandidate] * VALID_SCALE_MAGNITUDES[magnitudeCandidate];
       //find pixel size for each step using this candidate scale
-      double pixelDiff = mTransform.map( QPointF( candidateScale, 0 ) ).x() - mTransform.map( QPointF( 0, 0 ) ).x();
+      const double pixelDiff = mTransform.map( QPointF( candidateScale, 0 ) ).x() - mTransform.map( QPointF( 0, 0 ) ).x();
       if ( pixelDiff > minPixelDiff )
       {
         //found the optimum major scale
@@ -512,7 +511,7 @@ int QgsLayoutRuler::optimumScale( double minPixelDiff, int &magnitude, int &mult
 int QgsLayoutRuler::optimumNumberDivisions( double rulerScale, int scaleMultiple )
 {
   //calculate size in pixels of each marked ruler unit
-  double largeDivisionSize = mTransform.map( QPointF( rulerScale, 0 ) ).x() - mTransform.map( QPointF( 0, 0 ) ).x();
+  const double largeDivisionSize = mTransform.map( QPointF( rulerScale, 0 ) ).x() - mTransform.map( QPointF( 0, 0 ) ).x();
 
   //now calculate optimum small tick scale, depending on marked ruler units
   QList<int> validSmallDivisions;
@@ -540,7 +539,7 @@ int QgsLayoutRuler::optimumNumberDivisions( double rulerScale, int scaleMultiple
   for ( divisions_it = validSmallDivisions.begin(); divisions_it != validSmallDivisions.end(); ++divisions_it )
   {
     //find pixel size for this small division
-    double candidateSize = largeDivisionSize / ( *divisions_it );
+    const double candidateSize = largeDivisionSize / ( *divisions_it );
     //check if this separation is more then allowed min separation
     if ( candidateSize >= mMinPixelsPerDivision )
     {
@@ -594,7 +593,7 @@ void QgsLayoutRuler::mouseMoveEvent( QMouseEvent *event )
     if ( mCreatingGuide )
     {
       QgsLayout *layout = mView->currentLayout();
-      int pageNo = layout->pageCollection()->pageNumberForPoint( displayPos );
+      const int pageNo = layout->pageCollection()->pageNumberForPoint( displayPos );
       QgsLayoutItemPage *page = layout->pageCollection()->page( pageNo );
       if ( !page )
         return;
@@ -699,6 +698,10 @@ void QgsLayoutRuler::mousePressEvent( QMouseEvent *event )
         createTemporaryGuideItem();
       }
     }
+    else
+    {
+      mDraggingGuideOldPosition = mDraggingGuide->layoutPosition();
+    }
     switch ( mOrientation )
     {
       case Qt::Horizontal:
@@ -724,7 +727,7 @@ void QgsLayoutRuler::mouseReleaseEvent( QMouseEvent *event )
     {
       QApplication::restoreOverrideCursor();
 
-      QPointF layoutPoint = convertLocalPointToLayout( event->pos() );
+      const QPointF layoutPoint = convertLocalPointToLayout( event->pos() );
 
       // delete guide if it ends outside of page
       QgsLayoutItemPage *page = mDraggingGuide->page();
@@ -775,18 +778,18 @@ void QgsLayoutRuler::mouseReleaseEvent( QMouseEvent *event )
       QgsLayout *layout = mView->currentLayout();
 
       // create guide
-      QPointF scenePos = convertLocalPointToLayout( event->pos() );
+      const QPointF scenePos = convertLocalPointToLayout( event->pos() );
       QgsLayoutItemPage *page = layout->pageCollection()->pageAtPoint( scenePos );
       if ( !page )
         return; // dragged outside of a page
 
-      std::unique_ptr< QgsLayoutGuide > guide;
+      std::unique_ptr<QgsLayoutGuide> guide;
       switch ( mOrientation )
       {
         case Qt::Horizontal:
         {
           //mouse is creating a horizontal guide
-          double posOnPage = layout->pageCollection()->positionOnPage( scenePos ).y();
+          const double posOnPage = layout->pageCollection()->positionOnPage( scenePos ).y();
           guide.reset( new QgsLayoutGuide( Qt::Horizontal, QgsLayoutMeasurement( posOnPage, layout->units() ), page ) );
           break;
         }
@@ -802,6 +805,18 @@ void QgsLayoutRuler::mouseReleaseEvent( QMouseEvent *event )
   }
   else if ( event->button() == Qt::RightButton )
   {
+    if ( mCreatingGuide || mDraggingGuide )
+    {
+      QApplication::restoreOverrideCursor();
+      delete mGuideItem;
+      mGuideItem = nullptr;
+      mCreatingGuide = false;
+      if ( mDraggingGuide )
+      {
+        mDraggingGuide->setLayoutPosition( mDraggingGuideOldPosition );
+      }
+      mDraggingGuide = nullptr;
+    }
     if ( mMenu )
       mMenu->popup( event->globalPos() );
   }

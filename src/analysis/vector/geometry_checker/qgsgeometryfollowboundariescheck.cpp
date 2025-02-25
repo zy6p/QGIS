@@ -47,24 +47,24 @@ void QgsGeometryFollowBoundariesCheck::collectErrors( const QMap<QString, QgsFea
 
   QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
   featureIds.remove( mCheckLayer->id() ); // Don't check layer against itself
-  QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext );
+  const QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext );
   for ( const QgsGeometryCheckerUtils::LayerFeature &layerFeature : layerFeatures )
   {
     const QgsAbstractGeometry *geom = layerFeature.geometry().constGet();
 
     // The geometry to crs of the check layer
-    QgsCoordinateTransform crst( layerFeature.layer()->crs(), mCheckLayer->crs(), QgsProject::instance() );
+    const QgsCoordinateTransform crst( layerFeature.layer()->crs(), mCheckLayer->crs(), QgsProject::instance() );
     QgsGeometry geomt( geom->clone() );
     geomt.transform( crst );
 
-    std::unique_ptr< QgsGeometryEngine > geomEngine = QgsGeometryCheckerUtils::createGeomEngine( geomt.constGet(), mContext->tolerance );
+    std::unique_ptr<QgsGeometryEngine> geomEngine( QgsGeometry::createGeometryEngine( geomt.constGet(), mContext->tolerance ) );
 
     // Get potential reference features
     QgsRectangle searchBounds = geomt.constGet()->boundingBox();
     searchBounds.grow( mContext->tolerance );
-    QgsFeatureIds refFeatureIds = qgis::listToSet( mIndex->intersects( searchBounds ) );
+    const QgsFeatureIds refFeatureIds = qgis::listToSet( mIndex->intersects( searchBounds ) );
 
-    QgsFeatureRequest refFeatureRequest = QgsFeatureRequest().setFilterFids( refFeatureIds ).setNoAttributes();
+    const QgsFeatureRequest refFeatureRequest = QgsFeatureRequest().setFilterFids( refFeatureIds ).setNoAttributes();
     QgsFeatureIterator refFeatureIt = mCheckLayer->getFeatures( refFeatureRequest );
 
     if ( refFeatureIds.isEmpty() )
@@ -79,8 +79,8 @@ void QgsGeometryFollowBoundariesCheck::collectErrors( const QMap<QString, QgsFea
       while ( refFeatureIt.nextFeature( refFeature ) )
       {
         const QgsAbstractGeometry *refGeom = refFeature.geometry().constGet();
-        std::unique_ptr<QgsGeometryEngine> refgeomEngine( QgsGeometryCheckerUtils::createGeomEngine( refGeom, mContext->tolerance ) );
-        QgsGeometry reducedRefGeom( refgeomEngine->buffer( -mContext->tolerance, 0 ) );
+        std::unique_ptr<QgsGeometryEngine> refgeomEngine( QgsGeometry::createGeometryEngine( refGeom, mContext->tolerance ) );
+        const QgsGeometry reducedRefGeom( refgeomEngine->buffer( -mContext->tolerance, 0 ) );
         if ( !( geomEngine->contains( reducedRefGeom.constGet() ) || geomEngine->disjoint( reducedRefGeom.constGet() ) ) )
         {
           errors.append( new QgsGeometryCheckError( this, layerFeature, QgsPointXY( geom->centroid() ) ) );
@@ -107,7 +107,7 @@ void QgsGeometryFollowBoundariesCheck::fixError( const QMap<QString, QgsFeatureP
 
 QStringList QgsGeometryFollowBoundariesCheck::resolutionMethods() const
 {
-  static QStringList methods = QStringList() << tr( "No action" );
+  static const QStringList methods = QStringList() << tr( "No action" );
   return methods;
 }
 

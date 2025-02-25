@@ -14,6 +14,7 @@
 ***************************************************************************/
 
 #include "qgslayoutitemcombobox.h"
+#include "moc_qgslayoutitemcombobox.cpp"
 #include "qgslayoutmodel.h"
 
 //
@@ -32,8 +33,8 @@ QgsLayoutItemComboBox::QgsLayoutItemComboBox( QWidget *parent, QgsLayout *layout
 void QgsLayoutItemComboBox::setCurrentLayout( QgsLayout *layout )
 {
   const bool prevAllowEmpty = mProxyModel && mProxyModel->allowEmptyItem();
-  int itemType = mProxyModel ? mProxyModel->filterType() : -1;
-  mProxyModel = std::make_unique< QgsLayoutProxyModel >( layout, this );
+  const int itemType = mProxyModel ? mProxyModel->filterType() : -1;
+  mProxyModel = std::make_unique<QgsLayoutProxyModel>( layout, this );
   connect( mProxyModel.get(), &QAbstractItemModel::rowsInserted, this, &QgsLayoutItemComboBox::rowsChanged );
   connect( mProxyModel.get(), &QAbstractItemModel::rowsRemoved, this, &QgsLayoutItemComboBox::rowsChanged );
   setModel( mProxyModel.get() );
@@ -41,7 +42,7 @@ void QgsLayoutItemComboBox::setCurrentLayout( QgsLayout *layout )
   mProxyModel->sort( QgsLayoutModel::ItemId, Qt::AscendingOrder );
   mProxyModel->setAllowEmptyItem( prevAllowEmpty );
   if ( itemType >= 0 )
-    mProxyModel->setFilterType( static_cast< QgsLayoutItemRegistry::ItemType >( itemType ) );
+    mProxyModel->setFilterType( static_cast<QgsLayoutItemRegistry::ItemType>( itemType ) );
 }
 
 QgsLayout *QgsLayoutItemComboBox::currentLayout()
@@ -54,10 +55,10 @@ void QgsLayoutItemComboBox::setItem( const QgsLayoutItem *item )
   if ( !mProxyModel->sourceLayerModel() )
     return;
 
-  QModelIndex idx = mProxyModel->sourceLayerModel()->indexForItem( const_cast< QgsLayoutItem * >( item ) );
+  const QModelIndex idx = mProxyModel->sourceLayerModel()->indexForItem( const_cast<QgsLayoutItem *>( item ) );
   if ( idx.isValid() )
   {
-    QModelIndex proxyIdx = mProxyModel->mapFromSource( idx );
+    const QModelIndex proxyIdx = mProxyModel->mapFromSource( idx );
     if ( proxyIdx.isValid() )
     {
       setCurrentIndex( proxyIdx.row() );
@@ -106,7 +107,7 @@ void QgsLayoutItemComboBox::setExceptedItemList( const QList<QgsLayoutItem *> &e
   mProxyModel->setExceptedItemList( exceptList );
 }
 
-QList< QgsLayoutItem *> QgsLayoutItemComboBox::exceptedItemList() const
+QList<QgsLayoutItem *> QgsLayoutItemComboBox::exceptedItemList() const
 {
   return mProxyModel->exceptedItemList();
 }
@@ -139,7 +140,7 @@ QgsLayoutItem *QgsLayoutItemComboBox::item( int index ) const
     return nullptr;
   }
 
-  QModelIndex sourceIndex = mProxyModel->mapToSource( proxyIndex );
+  const QModelIndex sourceIndex = mProxyModel->mapToSource( proxyIndex );
   if ( !sourceIndex.isValid() )
   {
     return nullptr;

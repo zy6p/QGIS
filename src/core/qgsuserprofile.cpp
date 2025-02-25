@@ -18,6 +18,7 @@
 #include "qgssqliteutils.h"
 
 #include <QDir>
+#include <QFileInfo>
 #include <QTextStream>
 #include <QSettings>
 #include <sqlite3.h>
@@ -44,7 +45,7 @@ QgsError QgsUserProfile::validate() const
 
 const QString QgsUserProfile::name() const
 {
-  QDir dir( mProfileFolder );
+  const QDir dir( mProfileFolder );
   return dir.dirName();
 }
 
@@ -81,7 +82,7 @@ const QString QgsUserProfile::alias() const
   {
     if ( preparedStatement.step() == SQLITE_ROW )
     {
-      QString alias = preparedStatement.columnAsText( 0 );
+      const QString alias = preparedStatement.columnAsText( 0 );
       if ( !alias.isEmpty() )
         profileAlias = alias;
     }
@@ -89,7 +90,7 @@ const QString QgsUserProfile::alias() const
   return profileAlias;
 }
 
-QgsError QgsUserProfile::setAlias( const QString &alias )
+QgsError QgsUserProfile::setAlias( const QString &alias ) const
 {
   QgsError error;
   const QString dbFile = qgisDB();
@@ -126,12 +127,16 @@ QgsError QgsUserProfile::setAlias( const QString &alias )
 
 const QIcon QgsUserProfile::icon() const
 {
-  QString path = mProfileFolder + QDir::separator() + "icon.svg";
-  if ( !QDir( path ).exists() )
+  const QStringList extensions = {".svg", ".png", ".jpg", ".jpeg", ".gif", ".bmp"};
+  const QString basename = mProfileFolder + QDir::separator() + "icon";
+
+  for ( const QString &extension : extensions )
   {
-    return QgsApplication::getThemeIcon( "user.svg" );
+    const QString path = basename + extension;
+    if ( QFileInfo::exists( path ) )
+      return QIcon( path );
   }
-  return QIcon( path );
+  return QgsApplication::getThemeIcon( "user.svg" );
 }
 
 QString QgsUserProfile::qgisDB() const
