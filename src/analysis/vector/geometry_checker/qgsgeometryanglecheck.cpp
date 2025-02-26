@@ -19,7 +19,7 @@
 #include "qgsfeaturepool.h"
 #include "qgsgeometrycheckerror.h"
 
-QList<QgsWkbTypes::GeometryType> QgsGeometryAngleCheck::compatibleGeometryTypes() const
+QList<Qgis::GeometryType> QgsGeometryAngleCheck::compatibleGeometryTypes() const
 {
   return factoryCompatibleGeometryTypes();
 }
@@ -27,8 +27,8 @@ QList<QgsWkbTypes::GeometryType> QgsGeometryAngleCheck::compatibleGeometryTypes(
 void QgsGeometryAngleCheck::collectErrors( const QMap<QString, QgsFeaturePool *> &featurePools, QList<QgsGeometryCheckError *> &errors, QStringList &messages, QgsFeedback *feedback, const LayerFeatureIds &ids ) const
 {
   Q_UNUSED( messages )
-  QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
-  QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, context() );
+  const QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
+  const QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, context() );
   for ( const QgsGeometryCheckerUtils::LayerFeature &layerFeature : layerFeatures )
   {
     const QgsAbstractGeometry *geom = layerFeature.geometry().constGet();
@@ -37,7 +37,7 @@ void QgsGeometryAngleCheck::collectErrors( const QMap<QString, QgsFeaturePool *>
       for ( int iRing = 0, nRings = geom->ringCount( iPart ); iRing < nRings; ++iRing )
       {
         bool closed = false;
-        int nVerts = QgsGeometryCheckerUtils::polyLineSize( geom, iPart, iRing, &closed );
+        const int nVerts = QgsGeometryCheckerUtils::polyLineSize( geom, iPart, iRing, &closed );
         // Less than three points, no angles to check
         if ( nVerts < 3 )
         {
@@ -60,7 +60,7 @@ void QgsGeometryAngleCheck::collectErrors( const QMap<QString, QgsFeaturePool *>
             continue;
           }
 
-          double angle = std::acos( v21 * v23 ) / M_PI * 180.0;
+          const double angle = std::acos( v21 * v23 ) / M_PI * 180.0;
           if ( angle < mMinAngle )
           {
             errors.append( new QgsGeometryCheckError( this, layerFeature, p2, QgsVertexId( iPart, iRing, iVert ), angle ) );
@@ -73,7 +73,7 @@ void QgsGeometryAngleCheck::collectErrors( const QMap<QString, QgsFeaturePool *>
 
 void QgsGeometryAngleCheck::fixError( const QMap<QString, QgsFeaturePool *> &featurePools, QgsGeometryCheckError *error, int method, const QMap<QString, int> & /*mergeAttributeIndices*/, Changes &changes ) const
 {
-  QgsFeaturePool *featurePool = featurePools[ error->layerId() ];
+  QgsFeaturePool *featurePool = featurePools[error->layerId()];
   QgsFeature feature;
   if ( !featurePool->getFeature( error->featureId(), feature ) )
   {
@@ -82,7 +82,7 @@ void QgsGeometryAngleCheck::fixError( const QMap<QString, QgsFeaturePool *> &fea
   }
   QgsGeometry featureGeometry = feature.geometry();
   QgsAbstractGeometry *geometry = featureGeometry.get();
-  QgsVertexId vidx = error->vidx();
+  const QgsVertexId vidx = error->vidx();
 
   // Check if point still exists
   if ( !vidx.isValid( geometry ) )
@@ -92,7 +92,7 @@ void QgsGeometryAngleCheck::fixError( const QMap<QString, QgsFeaturePool *> &fea
   }
 
   // Check if error still applies
-  int n = QgsGeometryCheckerUtils::polyLineSize( geometry, vidx.part, vidx.ring );
+  const int n = QgsGeometryCheckerUtils::polyLineSize( geometry, vidx.part, vidx.ring );
   if ( n == 0 )
   {
     error->setObsolete();
@@ -112,7 +112,7 @@ void QgsGeometryAngleCheck::fixError( const QMap<QString, QgsFeaturePool *> &fea
     error->setObsolete();
     return;
   }
-  double angle = std::acos( v21 * v23 ) / M_PI * 180.0;
+  const double angle = std::acos( v21 * v23 ) / M_PI * 180.0;
   if ( angle >= mMinAngle )
   {
     error->setObsolete();
@@ -138,9 +138,7 @@ void QgsGeometryAngleCheck::fixError( const QMap<QString, QgsFeaturePool *> &fea
     {
       changes[error->layerId()][error->featureId()].append( Change( ChangeNode, ChangeRemoved, vidx ) );
       // Avoid duplicate nodes as result of deleting spike vertex
-      if ( QgsGeometryUtils::sqrDistance2D( p1, p3 ) < mContext->tolerance &&
-           QgsGeometryCheckerUtils::canDeleteVertex( geometry, vidx.part, vidx.ring ) &&
-           geometry->deleteVertex( error->vidx() ) ) // error->vidx points to p3 after removing p2
+      if ( QgsGeometryUtils::sqrDistance2D( p1, p3 ) < ( mContext->tolerance * mContext->tolerance ) && QgsGeometryCheckerUtils::canDeleteVertex( geometry, vidx.part, vidx.ring ) && geometry->deleteVertex( error->vidx() ) ) // error->vidx points to p3 after removing p2
       {
         changes[error->layerId()][error->featureId()].append( Change( ChangeNode, ChangeRemoved, QgsVertexId( vidx.part, vidx.ring, ( vidx.vertex + 1 ) % n ) ) );
       }
@@ -157,7 +155,7 @@ void QgsGeometryAngleCheck::fixError( const QMap<QString, QgsFeaturePool *> &fea
 
 QStringList QgsGeometryAngleCheck::resolutionMethods() const
 {
-  static QStringList methods = QStringList() << tr( "Delete node with small angle" ) << tr( "No action" );
+  static const QStringList methods = QStringList() << tr( "Delete node with small angle" ) << tr( "No action" );
   return methods;
 }
 
@@ -181,9 +179,9 @@ QgsGeometryCheck::CheckType QgsGeometryAngleCheck::checkType() const
   return factoryCheckType();
 }
 
-QList<QgsWkbTypes::GeometryType> QgsGeometryAngleCheck::factoryCompatibleGeometryTypes()
+QList<Qgis::GeometryType> QgsGeometryAngleCheck::factoryCompatibleGeometryTypes()
 {
-  return {QgsWkbTypes::LineGeometry, QgsWkbTypes::PolygonGeometry};
+  return { Qgis::GeometryType::Line, Qgis::GeometryType::Polygon };
 }
 
 bool QgsGeometryAngleCheck::factoryIsCompatible( QgsVectorLayer *layer )

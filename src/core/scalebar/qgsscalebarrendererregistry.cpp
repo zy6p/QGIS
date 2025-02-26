@@ -49,7 +49,7 @@ QStringList QgsScaleBarRendererRegistry::sortedRendererList() const
 {
   QStringList ids = mRenderers.keys();
 
-  std::sort( ids.begin(), ids.end(), [ = ]( const QString & a, const QString & b )->bool
+  std::sort( ids.begin(), ids.end(), [this]( const QString & a, const QString & b )->bool
   {
     if ( sortKey( a ) < sortKey( b ) )
       return true;
@@ -57,7 +57,7 @@ QStringList QgsScaleBarRendererRegistry::sortedRendererList() const
       return false;
     else
     {
-      int res = QString::localeAwareCompare( visibleName( a ), visibleName( b ) );
+      const int res = QString::localeAwareCompare( visibleName( a ), visibleName( b ) );
       if ( res < 0 )
         return true;
       else if ( res > 0 )

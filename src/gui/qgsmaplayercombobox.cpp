@@ -14,10 +14,12 @@
 ***************************************************************************/
 
 #include "qgsmaplayercombobox.h"
+#include "moc_qgsmaplayercombobox.cpp"
 #include "qgsmaplayermodel.h"
 #include "qgsmimedatautils.h"
 #include <QDragEnterEvent>
 #include <QPainter>
+
 
 QgsMapLayerComboBox::QgsMapLayerComboBox( QWidget *parent )
   : QComboBox( parent )
@@ -25,7 +27,7 @@ QgsMapLayerComboBox::QgsMapLayerComboBox( QWidget *parent )
   mProxyModel = new QgsMapLayerProxyModel( this );
   setModel( mProxyModel );
 
-  connect( this, static_cast < void ( QComboBox::* )( int ) > ( &QComboBox::activated ), this, &QgsMapLayerComboBox::indexChanged );
+  connect( this, static_cast<void ( QComboBox::* )( int )>( &QComboBox::activated ), this, &QgsMapLayerComboBox::indexChanged );
   connect( mProxyModel, &QAbstractItemModel::rowsInserted, this, &QgsMapLayerComboBox::rowsChanged );
   connect( mProxyModel, &QAbstractItemModel::rowsRemoved, this, &QgsMapLayerComboBox::rowsChanged );
 
@@ -38,6 +40,12 @@ void QgsMapLayerComboBox::setExcludedProviders( const QStringList &providers )
 {
   mProxyModel->setExcludedProviders( providers );
 }
+
+void QgsMapLayerComboBox::setProject( QgsProject *project )
+{
+  mProxyModel->setProject( project );
+}
+
 
 QStringList QgsMapLayerComboBox::excludedProviders() const
 {
@@ -74,6 +82,16 @@ QStringList QgsMapLayerComboBox::additionalItems() const
   return mProxyModel->sourceLayerModel()->additionalItems();
 }
 
+void QgsMapLayerComboBox::setAdditionalLayers( const QList<QgsMapLayer *> &layers )
+{
+  mProxyModel->sourceLayerModel()->setAdditionalLayers( layers );
+}
+
+QList<QgsMapLayer *> QgsMapLayerComboBox::additionalLayers() const
+{
+  return mProxyModel->sourceLayerModel()->additionalLayers();
+}
+
 void QgsMapLayerComboBox::setLayer( QgsMapLayer *layer )
 {
   if ( layer == currentLayer() && ( layer || !isEditable() || currentText().isEmpty() ) )
@@ -86,10 +104,10 @@ void QgsMapLayerComboBox::setLayer( QgsMapLayer *layer )
     return;
   }
 
-  QModelIndex idx = mProxyModel->sourceLayerModel()->indexFromLayer( layer );
+  const QModelIndex idx = mProxyModel->sourceLayerModel()->indexFromLayer( layer );
   if ( idx.isValid() )
   {
-    QModelIndex proxyIdx = mProxyModel->mapFromSource( idx );
+    const QModelIndex proxyIdx = mProxyModel->mapFromSource( idx );
     if ( proxyIdx.isValid() )
     {
       setCurrentIndex( proxyIdx.row() );
@@ -230,9 +248,9 @@ void QgsMapLayerComboBox::paintEvent( QPaintEvent *e )
   if ( mDragActive || mHighlight )
   {
     QPainter p( this );
-    int width = 2;  // width of highlight rectangle inside frame
+    const int width = 2; // width of highlight rectangle inside frame
     p.setPen( QPen( palette().highlight(), width ) );
-    QRect r = rect().adjusted( width, width, -width, -width );
+    const QRect r = rect().adjusted( width, width, -width, -width );
     p.drawRect( r );
   }
 }

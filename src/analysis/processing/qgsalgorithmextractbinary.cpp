@@ -64,11 +64,9 @@ QgsExtractBinaryFieldAlgorithm *QgsExtractBinaryFieldAlgorithm::createInstance()
 
 void QgsExtractBinaryFieldAlgorithm::initAlgorithm( const QVariantMap & )
 {
-  addParameter( new QgsProcessingParameterFeatureSource( QStringLiteral( "INPUT" ),
-                QObject::tr( "Input layer" ), QList< int>() << QgsProcessing::TypeVector ) );
+  addParameter( new QgsProcessingParameterFeatureSource( QStringLiteral( "INPUT" ), QObject::tr( "Input layer" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::Vector ) ) );
 
-  addParameter( new QgsProcessingParameterField( QStringLiteral( "FIELD" ), QObject::tr( "Binary field" ), QVariant(),
-                QStringLiteral( "INPUT" ), QgsProcessingParameterField::Any ) );
+  addParameter( new QgsProcessingParameterField( QStringLiteral( "FIELD" ), QObject::tr( "Binary field" ), QVariant(), QStringLiteral( "INPUT" ), Qgis::ProcessingFieldParameterDataType::Any ) );
 
   addParameter( new QgsProcessingParameterExpression( QStringLiteral( "FILENAME" ), QObject::tr( "File name" ), QVariant(), QStringLiteral( "INPUT" ) ) );
 
@@ -77,24 +75,24 @@ void QgsExtractBinaryFieldAlgorithm::initAlgorithm( const QVariantMap & )
 
 QVariantMap QgsExtractBinaryFieldAlgorithm::processAlgorithm( const QVariantMap &parameters, QgsProcessingContext &context, QgsProcessingFeedback *feedback )
 {
-  std::unique_ptr< QgsProcessingFeatureSource > input( parameterAsSource( parameters, QStringLiteral( "INPUT" ), context ) );
+  std::unique_ptr<QgsProcessingFeatureSource> input( parameterAsSource( parameters, QStringLiteral( "INPUT" ), context ) );
   if ( !input )
     throw QgsProcessingException( invalidSourceError( parameters, QStringLiteral( "INPUT" ) ) );
 
-  QString fieldName = parameterAsString( parameters, QStringLiteral( "FIELD" ), context );
-  int fieldIndex = input->fields().lookupField( fieldName );
+  const QString fieldName = parameterAsString( parameters, QStringLiteral( "FIELD" ), context );
+  const int fieldIndex = input->fields().lookupField( fieldName );
   if ( fieldIndex < 0 )
     throw QgsProcessingException( QObject::tr( "Invalid binary field" ) );
 
   const QString folder = parameterAsString( parameters, QStringLiteral( "FOLDER" ), context );
-  if ( !QFileInfo::exists( folder ) )
-    throw QgsProcessingException( QObject::tr( "Destination folder %1 does not exist" ).arg( folder ) );
+  if ( !QDir().mkpath( folder ) )
+    throw QgsProcessingException( QObject::tr( "Failed to create output directory." ) );
 
-  QDir dir( folder );
+  const QDir dir( folder );
   const QString filenameExpressionString = parameterAsString( parameters, QStringLiteral( "FILENAME" ), context );
   QgsExpressionContext expressionContext = createExpressionContext( parameters, context, input.get() );
 
-  QSet< QString > fields;
+  QSet<QString> fields;
   fields.insert( fieldName );
   QgsFeatureRequest request;
 
@@ -103,10 +101,10 @@ QVariantMap QgsExtractBinaryFieldAlgorithm::processAlgorithm( const QVariantMap 
   fields.unite( filenameExpression.referencedColumns() );
   request.setSubsetOfAttributes( fields, input->fields() );
   if ( !filenameExpression.needsGeometry() )
-    request.setFlags( QgsFeatureRequest::NoGeometry );
+    request.setFlags( Qgis::FeatureRequestFlag::NoGeometry );
 
-  QgsFeatureIterator features = input->getFeatures( request, QgsProcessingFeatureSource::FlagSkipGeometryValidityChecks );
-  double step = input->featureCount() > 0 ? 100.0 / input->featureCount() : 1;
+  QgsFeatureIterator features = input->getFeatures( request, Qgis::ProcessingFeatureSourceFlag::SkipGeometryValidityChecks );
+  const double step = input->featureCount() > 0 ? 100.0 / input->featureCount() : 1;
   int i = 0;
   QgsFeature feat;
   while ( features.nextFeature( feat ) )
@@ -119,12 +117,12 @@ QVariantMap QgsExtractBinaryFieldAlgorithm::processAlgorithm( const QVariantMap 
 
     feedback->setProgress( i * step );
 
-    QByteArray ba = feat.attribute( fieldIndex ).toByteArray();
+    const QByteArray ba = feat.attribute( fieldIndex ).toByteArray();
     if ( ba.isEmpty() )
       continue;
 
     expressionContext.setFeature( feat );
-    QString name = filenameExpression.evaluate( &expressionContext ).toString();
+    const QString name = filenameExpression.evaluate( &expressionContext ).toString();
     if ( filenameExpression.hasEvalError() )
     {
       feedback->reportError( QObject::tr( "Error evaluating filename: %1" ).arg( filenameExpression.evalErrorString() ) );

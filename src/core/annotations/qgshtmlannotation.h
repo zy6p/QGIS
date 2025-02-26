@@ -29,7 +29,6 @@ class QgsWebPage;
  * \class QgsHtmlAnnotation
  * \ingroup core
  * \brief An annotation item that embeds HTML content.
- * \since QGIS 3.0
 */
 
 class CORE_EXPORT QgsHtmlAnnotation: public QgsAnnotation
@@ -57,6 +56,17 @@ class CORE_EXPORT QgsHtmlAnnotation: public QgsAnnotation
      * \see setSourceFile()
      */
     QString sourceFile() const { return mHtmlFile; }
+
+    /**
+     * Sets the html source directly (not coming from a file)
+     * \param htmlSource
+     */
+    void setHtmlSource( const QString &htmlSource );
+
+    /**
+     * Returns html source text
+     */
+    QString htmlSource() const { return mHtmlSource; }
 
     void writeXml( QDomElement &elem, QDomDocument &doc, const QgsReadWriteContext &context ) const override;
     void readXml( const QDomElement &itemElem, const QgsReadWriteContext &context ) override;

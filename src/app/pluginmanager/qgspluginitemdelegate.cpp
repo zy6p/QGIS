@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgspluginitemdelegate.h"
+#include "moc_qgspluginitemdelegate.cpp"
 #include "qgsrendercontext.h"
 #include <QPainter>
 #include <QFont>
@@ -25,7 +26,8 @@
 #include "qgspluginsortfilterproxymodel.h"
 
 
-QgsPluginItemDelegate::QgsPluginItemDelegate( QObject *parent ) : QStyledItemDelegate( parent ) {}
+QgsPluginItemDelegate::QgsPluginItemDelegate( QObject *parent )
+  : QStyledItemDelegate( parent ) {}
 
 
 QSize QgsPluginItemDelegate::sizeHint( const QStyleOptionViewItem &option, const QModelIndex &index ) const
@@ -33,17 +35,17 @@ QSize QgsPluginItemDelegate::sizeHint( const QStyleOptionViewItem &option, const
   Q_UNUSED( option )
   Q_UNUSED( index )
   // Calculate row height, adds some 20% padding
-  int pixelsHigh = QApplication::fontMetrics().height() * 1.4;
+  const int pixelsHigh = QApplication::fontMetrics().height() * 1.4;
   return QSize( pixelsHigh, pixelsHigh );
 }
 
 
 void QgsPluginItemDelegate::paint( QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index ) const
 {
-  QgsScopedQPainterState painterState( painter );
+  const QgsScopedQPainterState painterState( painter );
   painter->setRenderHint( QPainter::SmoothPixmapTransform );
   QStyle *style = QApplication::style();
-  int pixelsHigh = QApplication::fontMetrics().height();
+  const int pixelsHigh = QApplication::fontMetrics().height();
 
   // Draw the background
   style->drawPrimitive( QStyle::PE_PanelItemViewItem, &option, painter, nullptr );
@@ -65,11 +67,11 @@ void QgsPluginItemDelegate::paint( QPainter *painter, const QStyleOptionViewItem
   }
 
   // Draw the icon
-  QPixmap iconPixmap = index.data( Qt::DecorationRole ).value<QPixmap>();
+  const QPixmap iconPixmap = index.data( Qt::DecorationRole ).value<QPixmap>();
 
   if ( !iconPixmap.isNull() )
   {
-    int iconSize = pixelsHigh;
+    const int iconSize = pixelsHigh;
     painter->drawPixmap( option.rect.left() + 1.2 * pixelsHigh, option.rect.top() + 0.2 * pixelsHigh, iconSize, iconSize, iconPixmap );
   }
 
@@ -87,12 +89,12 @@ void QgsPluginItemDelegate::paint( QPainter *painter, const QStyleOptionViewItem
     painter->setPen( option.palette.text().color() );
   }
 
-  if ( ! index.data( PLUGIN_ERROR_ROLE ).toString().isEmpty() )
+  if ( !index.data( PLUGIN_ERROR_ROLE ).toString().isEmpty() )
   {
     painter->setPen( Qt::red );
   }
 
-  if ( ! index.data( PLUGIN_ERROR_ROLE ).toString().isEmpty()
+  if ( !index.data( PLUGIN_ERROR_ROLE ).toString().isEmpty()
        || index.data( PLUGIN_STATUS_ROLE ).toString() == QLatin1String( "upgradeable" )
        || index.data( PLUGIN_STATUS_ROLE ).toString() == QLatin1String( "new" ) )
   {

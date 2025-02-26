@@ -18,6 +18,7 @@
 
 #include "qgis_gui.h"
 #include "qgis_sip.h"
+#include "qgslayoutexporter.h"
 #include <QObject>
 
 class QgsLayout;
@@ -49,11 +50,9 @@ class QToolBar;
  * signal and gracefully cleanup any customizations before the designer dialog is
  * deleted.
  *
- * \since QGIS 3.0
  */
-class GUI_EXPORT QgsLayoutDesignerInterface: public QObject
+class GUI_EXPORT QgsLayoutDesignerInterface : public QObject
 {
-
 #ifdef SIP_RUN
     SIP_CONVERT_TO_SUBCLASS_CODE
     if ( qobject_cast<QgsLayoutDesignerInterface *>( sipCpp ) )
@@ -66,12 +65,11 @@ class GUI_EXPORT QgsLayoutDesignerInterface: public QObject
     Q_OBJECT
 
   public:
-
     //! Standard designer tools which are always available for use
     enum StandardTool
     {
       ToolMoveItemContent, //!< Move item content tool
-      ToolMoveItemNodes, //!< Move item nodes tool
+      ToolMoveItemNodes,   //!< Move item nodes tool
     };
 
     /**
@@ -114,7 +112,7 @@ class GUI_EXPORT QgsLayoutDesignerInterface: public QObject
     /**
      * Selects the specified \a items.
      */
-    virtual void selectItems( const QList< QgsLayoutItem * > &items ) = 0;
+    virtual void selectItems( const QList<QgsLayoutItem *> &items ) = 0;
 
     /**
      * Toggles whether the atlas preview mode should be \a enabled in the designer.
@@ -351,6 +349,36 @@ class GUI_EXPORT QgsLayoutDesignerInterface: public QObject
      */
     virtual void activateTool( StandardTool tool ) = 0;
 
+    /**
+     * \ingroup gui
+     * \brief Encapsulates the results of an export operation performed in the designer.
+     * \since QGIS 3.20
+     */
+    class ExportResults
+    {
+      public:
+        /**
+         * Result/error code of export.
+         */
+        QgsLayoutExporter::ExportResult result;
+
+        /**
+         * Returns the labeling results for all map items included in the export. Map keys are the item UUIDs (see QgsLayoutItem::uuid()).
+         *
+         * Ownership of the results remains with the layout designer.
+         */
+        QMap<QString, QgsLabelingResults *> labelingResults;
+    };
+
+    /**
+     * Returns the results of the last export operation performed in the designer.
+     *
+     * May be NULLPTR if no export has been performed in the designer.
+     *
+     * \since QGIS 3.20
+     */
+    virtual QgsLayoutDesignerInterface::ExportResults *lastExportResults() const = 0 SIP_FACTORY;
+
   public slots:
 
     /**
@@ -365,7 +393,24 @@ class GUI_EXPORT QgsLayoutDesignerInterface: public QObject
      */
     virtual void showRulers( bool visible ) = 0;
 
+  signals:
 
+    /**
+     * Emitted whenever a layout is exported from the layout designer.
+     *
+     * The results of the export can be retrieved by calling lastExportResults().
+     *
+     * \since QGIS 3.20
+     */
+    void layoutExported();
+
+
+    /**
+     * Emitted when a \a map item's preview has been refreshed.
+     *
+     * \since QGIS 3.20
+     */
+    void mapPreviewRefreshed( QgsLayoutItemMap *map );
 };
 
 #endif // QGSLAYOUTDESIGNERINTERFACE_H

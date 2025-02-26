@@ -6,6 +6,8 @@ set (HANA_SRCS
   qgshanaconnection.cpp
   qgshanaconnectionpool.cpp
   qgshanaconnectionstringbuilder.cpp
+  qgshanadataitems.cpp
+  qgshanadatatypes.cpp
   qgshanadriver.cpp
   qgshanaexpressioncompiler.cpp
   qgshanafeatureiterator.cpp
@@ -21,7 +23,6 @@ set (HANA_SRCS
 
 if (WITH_GUI)
   set(HANA_SRCS ${HANA_SRCS}
-    qgshanadataitems.cpp
     qgshanadataitemguiprovider.cpp
     qgshananewconnection.cpp
     qgshanaprovidergui.cpp
@@ -34,6 +35,7 @@ set(HANA_HDRS
   qgshanaconnection.h
   qgshanaconnectionpool.h
   qgshanaconnectionstringbuilder.h
+  qgshanadatatypes.h
   qgshanadriver.h
   qgshanaexception.h
   qgshanaexpressioncompiler.h
@@ -67,41 +69,46 @@ include_directories(
 )
 
 include_directories (SYSTEM
-  ${PROJ_INCLUDE_DIR}
-  ${GDAL_INCLUDE_DIR}
   ${ODBC_INCLUDE_DIRS}
   ${QCA_INCLUDE_DIR}
   ${QTKEYCHAIN_INCLUDE_DIR}
 )
 
-add_library(hanaprovider MODULE ${HANA_SRCS} ${HANA_HDRS})
-add_library(hanaprovider_a STATIC ${HANA_SRCS} ${HANA_HDRS})
+add_library(provider_hana MODULE ${HANA_SRCS} ${HANA_HDRS})
+add_library(provider_hana_a STATIC ${HANA_SRCS} ${HANA_HDRS})
+
+set_target_properties(provider_hana PROPERTIES UNITY_BUILD ${ENABLE_UNITY_BUILDS})
+set_target_properties(provider_hana_a PROPERTIES UNITY_BUILD ${ENABLE_UNITY_BUILDS})
 
 # require c++17
-target_compile_features(hanaprovider PRIVATE cxx_std_17)
-target_compile_features(hanaprovider_a PRIVATE cxx_std_17)
+target_compile_features(provider_hana PRIVATE cxx_std_17)
+target_compile_features(provider_hana_a PRIVATE cxx_std_17)
 
-target_compile_definitions(hanaprovider PUBLIC ODBC_STATIC)
-target_compile_definitions(hanaprovider_a PUBLIC ODBC_STATIC)
+target_compile_definitions(provider_hana
+    PRIVATE
+        $<TARGET_PROPERTY:odbccpp_static,INTERFACE_COMPILE_DEFINITIONS>)
+target_compile_definitions(provider_hana_a
+    PRIVATE
+        $<TARGET_PROPERTY:odbccpp_static,INTERFACE_COMPILE_DEFINITIONS>)
 
-target_link_libraries(hanaprovider
+target_link_libraries(provider_hana
   qgis_core
   odbccpp_static
   ${ODBC_LIBRARIES}
 )
 
-target_link_libraries(hanaprovider_a
+target_link_libraries(provider_hana_a
   qgis_core
   odbccpp_static
   ${ODBC_LIBRARIES}
 )
 
 if (WITH_GUI)
-  target_link_libraries (hanaprovider_a
+  target_link_libraries (provider_hana_a
     qgis_gui
   )
 
-  target_link_libraries (hanaprovider
+  target_link_libraries (provider_hana
     qgis_gui
   )
 endif()
@@ -109,7 +116,7 @@ endif()
 # clang-tidy
 if(CLANG_TIDY_EXE)
   set_target_properties(
-    hanaprovider PROPERTIES
+    provider_hana PROPERTIES
     CXX_CLANG_TIDY "${DO_CLANG_TIDY}"
   )
 endif()
@@ -117,6 +124,6 @@ endif()
 ########################################################
 # Install
 
-install (TARGETS hanaprovider
+install (TARGETS provider_hana
   RUNTIME DESTINATION ${QGIS_PLUGIN_DIR}
   LIBRARY DESTINATION ${QGIS_PLUGIN_DIR})

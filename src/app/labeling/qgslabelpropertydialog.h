@@ -26,19 +26,11 @@
 
 
 //! A dialog to enter data defined label attributes
-class APP_EXPORT QgsLabelPropertyDialog: public QDialog, private Ui::QgsLabelPropertyDialogBase
+class APP_EXPORT QgsLabelPropertyDialog : public QDialog, private Ui::QgsLabelPropertyDialogBase
 {
     Q_OBJECT
   public:
-    QgsLabelPropertyDialog( const QString &layerId,
-                            const QString &providerId,
-                            QgsFeatureId featureId,
-                            const QFont &labelFont,
-                            const QString &labelText,
-                            bool isPinned,
-                            const QgsPalLayerSettings &layerSettings,
-                            QWidget *parent = nullptr,
-                            Qt::WindowFlags f = Qt::WindowFlags() );
+    QgsLabelPropertyDialog( const QString &layerId, const QString &providerId, QgsFeatureId featureId, const QFont &labelFont, const QString &labelText, bool isPinned, const QgsPalLayerSettings &layerSettings, QgsMapCanvas *canvas, QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
 
     //! Returns properties changed by the user
     const QgsAttributeMap &changedProperties() const { return mChangedProperties; }
@@ -49,7 +41,6 @@ class APP_EXPORT QgsLabelPropertyDialog: public QDialog, private Ui::QgsLabelPro
 
     /**
      * Emitted when dialog settings are applied
-     * \since QGIS 2.9
      */
     void applied();
 
@@ -89,6 +80,8 @@ class APP_EXPORT QgsLabelPropertyDialog: public QDialog, private Ui::QgsLabelPro
     //! Block / unblock all input element signals
     void blockElementSignals( bool block );
 
+    int dataDefinedColumnIndex( QgsPalLayerSettings::Property p, const QgsVectorLayer *vlayer, const QgsExpressionContext &context ) const;
+
     void setDataDefinedValues( QgsVectorLayer *vlayer );
     void enableDataDefinedWidgets( QgsVectorLayer *vlayer );
 
@@ -107,8 +100,11 @@ class APP_EXPORT QgsLabelPropertyDialog: public QDialog, private Ui::QgsLabelPro
 
     void enableWidgetsForPinnedLabels();
 
+    QgsMapCanvas *mCanvas = nullptr;
+
     QgsAttributeMap mChangedProperties;
     QgsPropertyCollection mDataDefinedProperties;
+    QMap<int, int> mPropertyToFieldMap;
     QFont mLabelFont;
 
     QFontDatabase mFontDB;

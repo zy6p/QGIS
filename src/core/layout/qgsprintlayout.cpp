@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgsprintlayout.h"
+#include "moc_qgsprintlayout.cpp"
 #include "qgslayoutatlas.h"
 #include "qgsreadwritecontext.h"
 #include "qgsexpressioncontextutils.h"
@@ -30,11 +31,11 @@ QgsPrintLayout *QgsPrintLayout::clone() const
 {
   QDomDocument currentDoc;
 
-  QgsReadWriteContext context;
-  QDomElement elem = writeXml( currentDoc, context );
+  const QgsReadWriteContext context;
+  const QDomElement elem = writeXml( currentDoc, context );
   currentDoc.appendChild( elem );
 
-  std::unique_ptr< QgsPrintLayout > newLayout = std::make_unique< QgsPrintLayout >( project() );
+  auto newLayout = std::make_unique< QgsPrintLayout >( project() );
   bool ok = false;
   newLayout->loadFromTemplate( currentDoc, context, true, &ok );
   if ( !ok )
@@ -64,6 +65,7 @@ void QgsPrintLayout::setName( const QString &name )
 {
   mName = name;
   emit nameChanged( name );
+  layoutProject()->setDirty( true );
 }
 
 QDomElement QgsPrintLayout::writeXml( QDomDocument &document, const QgsReadWriteContext &context ) const
@@ -79,7 +81,7 @@ bool QgsPrintLayout::readXml( const QDomElement &layoutElement, const QDomDocume
   if ( !QgsLayout::readXml( layoutElement, document, context ) )
     return false;
 
-  QDomElement atlasElem = layoutElement.firstChildElement( QStringLiteral( "Atlas" ) );
+  const QDomElement atlasElem = layoutElement.firstChildElement( QStringLiteral( "Atlas" ) );
   mAtlas->readXml( atlasElem, document, context );
 
   setName( layoutElement.attribute( QStringLiteral( "name" ) ) );

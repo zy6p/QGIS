@@ -14,15 +14,19 @@
  ***************************************************************************/
 
 #include "qgsdataitemproviderregistry.h"
+#include "moc_qgsdataitemproviderregistry.cpp"
 
 #include "qgsdataitem.h"
 #include "qgsdataitemprovider.h"
 #include "qgsdataprovider.h"
 #include "qgslogger.h"
 #include "qgsproviderregistry.h"
+#include "qgsfilebaseddataitemprovider.h"
 
 QgsDataItemProviderRegistry::QgsDataItemProviderRegistry()
 {
+  mProviders << new QgsFileBasedDataItemProvider();
+
   QStringList providersList = QgsProviderRegistry::instance()->providerList();
 
   const auto constProvidersList = providersList;

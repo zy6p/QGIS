@@ -50,7 +50,7 @@ void QgsTranslationContext::registerTranslation( const QString &context, const Q
   mTranslatableObjects.append( translatableObject );
 }
 
-void QgsTranslationContext::writeTsFile( const QString &locale )
+void QgsTranslationContext::writeTsFile( const QString &locale ) const
 {
   //write xml
   QDomDocument doc( QStringLiteral( "TS" ) );
@@ -65,7 +65,7 @@ void QgsTranslationContext::writeTsFile( const QString &locale )
     tsElement.appendChild( contextElement );
 
     QDomElement nameElement = doc.createElement( QStringLiteral( "name" ) );
-    QDomText nameText = doc.createTextNode( translatableObject.context );
+    const QDomText nameText = doc.createTextNode( translatableObject.context );
     nameElement.appendChild( nameText );
     contextElement.appendChild( nameElement );
 
@@ -73,7 +73,7 @@ void QgsTranslationContext::writeTsFile( const QString &locale )
     contextElement.appendChild( messageElement );
 
     QDomElement sourceElement = doc.createElement( QStringLiteral( "source" ) );
-    QDomText sourceText = doc.createTextNode( translatableObject.source );
+    const QDomText sourceText = doc.createTextNode( translatableObject.source );
     sourceElement.appendChild( sourceText );
     messageElement.appendChild( sourceElement );
 
@@ -86,6 +86,9 @@ void QgsTranslationContext::writeTsFile( const QString &locale )
   QFile tsFile( fileName() );
   tsFile.open( QIODevice::WriteOnly );
   QTextStream stream( &tsFile );
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+  stream.setCodec( "UTF-8" );
+#endif
   stream << doc.toString();
   tsFile.close();
 }

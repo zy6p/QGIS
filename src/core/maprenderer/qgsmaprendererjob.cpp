@@ -14,40 +14,136 @@
  ***************************************************************************/
 
 #include "qgsmaprendererjob.h"
+#include "moc_qgsmaprendererjob.cpp"
 
 #include <QPainter>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QtConcurrentMap>
 
+#include <QPicture>
+
 #include "qgslogger.h"
 #include "qgsrendercontext.h"
 #include "qgsmaplayer.h"
-#include "qgsproject.h"
 #include "qgsmaplayerrenderer.h"
-#include "qgsmaplayerstylemanager.h"
 #include "qgsmaprenderercache.h"
+#include "qgsrasterlayer.h"
 #include "qgsmessagelog.h"
 #include "qgspallabeling.h"
 #include "qgsexception.h"
 #include "qgslabelingengine.h"
-#include "qgsmaplayerlistutils.h"
+#include "qgsmaplayerlistutils_p.h"
 #include "qgsvectorlayerlabeling.h"
-#include "qgssettings.h"
 #include "qgsexpressioncontextutils.h"
-#include "qgssymbol.h"
-#include "qgsrenderer.h"
-#include "qgssymbollayer.h"
 #include "qgsvectorlayerutils.h"
-#include "qgssymbollayerutils.h"
 #include "qgsmaplayertemporalproperties.h"
 #include "qgsmaplayerelevationproperties.h"
+#include "qgsmaplayerstyle.h"
 #include "qgsvectorlayerrenderer.h"
+#include "qgsrendereditemresults.h"
+#include "qgsgeometrypaintdevice.h"
+#include "qgsrasterrenderer.h"
+#include "qgselevationmap.h"
+#include "qgssettingsentryimpl.h"
+#include "qgssettingstree.h"
+#include "qgsruntimeprofiler.h"
+#include "qgsmeshlayer.h"
+#include "qgsmeshlayerlabeling.h"
+#include "qgsrasterlabeling.h"
+#include "qgsgeos.h"
+
+const QgsSettingsEntryBool *QgsMapRendererJob::settingsLogCanvasRefreshEvent = new QgsSettingsEntryBool( QStringLiteral( "logCanvasRefreshEvent" ), QgsSettingsTree::sTreeMap, false );
+const QgsSettingsEntryString *QgsMapRendererJob::settingsMaskBackend = new QgsSettingsEntryString( QStringLiteral( "mask-backend" ), QgsSettingsTree::sTreeMap, QString(), QStringLiteral( "Backend engine to use for selective masking" ) );
 
 ///@cond PRIVATE
 
 const QString QgsMapRendererJob::LABEL_CACHE_ID = QStringLiteral( "_labels_" );
+const QString QgsMapRendererJob::ELEVATION_MAP_CACHE_PREFIX = QStringLiteral( "_elevation_map_" );
 const QString QgsMapRendererJob::LABEL_PREVIEW_CACHE_ID = QStringLiteral( "_preview_labels_" );
+
+LayerRenderJob &LayerRenderJob::operator=( LayerRenderJob &&other )
+{
+  mContext = std::move( other.mContext );
+
+  img = other.img;
+  other.img = nullptr;
+
+  renderer = other.renderer;
+  other.renderer = nullptr;
+
+  previewRenderImage = other.previewRenderImage;
+  other.previewRenderImage = nullptr;
+
+  imageInitialized = other.imageInitialized;
+  previewRenderImageInitialized = other.previewRenderImageInitialized;
+
+  blendMode = other.blendMode;
+  opacity = other.opacity;
+  cached = other.cached;
+  layer = other.layer;
+  renderAboveLabels = other.renderAboveLabels;
+  completed = other.completed;
+  renderingTime = other.renderingTime;
+  estimatedRenderingTime = other.estimatedRenderingTime ;
+  errors = other.errors;
+  layerId = other.layerId;
+
+  maskPaintDevice = std::move( other.maskPaintDevice );
+
+  firstPassJob = other.firstPassJob;
+  other.firstPassJob = nullptr;
+
+  picture = std::move( other.picture );
+
+  maskJobs = other.maskJobs;
+
+  maskRequiresLayerRasterization = other.maskRequiresLayerRasterization;
+
+  elevationMap = other.elevationMap;
+  maskPainter = std::move( other.maskPainter );
+
+  return *this;
+}
+
+LayerRenderJob::LayerRenderJob( LayerRenderJob &&other )
+  : imageInitialized( other.imageInitialized )
+  , previewRenderImageInitialized( other.previewRenderImageInitialized )
+  , blendMode( other.blendMode )
+  , opacity( other.opacity )
+  , cached( other.cached )
+  , renderAboveLabels( other.renderAboveLabels )
+  , layer( other.layer )
+  , completed( other.completed )
+  , renderingTime( other.renderingTime )
+  , estimatedRenderingTime( other.estimatedRenderingTime )
+  , errors( other.errors )
+  , layerId( other.layerId )
+  , maskPainter( nullptr ) // should this be other.maskPainter??
+  , maskRequiresLayerRasterization( other.maskRequiresLayerRasterization )
+  , maskJobs( other.maskJobs )
+{
+  mContext = std::move( other.mContext );
+
+  img = other.img;
+  other.img = nullptr;
+
+  previewRenderImage = other.previewRenderImage;
+  other.previewRenderImage = nullptr;
+
+  renderer = other.renderer;
+  other.renderer = nullptr;
+
+  elevationMap = other.elevationMap;
+  other.elevationMap = nullptr;
+
+  maskPaintDevice = std::move( other.maskPaintDevice );
+
+  firstPassJob = other.firstPassJob;
+  other.firstPassJob = nullptr;
+
+  picture = std::move( other.picture );
+}
 
 bool LayerRenderJob::imageCanBeComposed() const
 {
@@ -70,10 +166,32 @@ bool LayerRenderJob::imageCanBeComposed() const
 
 QgsMapRendererJob::QgsMapRendererJob( const QgsMapSettings &settings )
   : mSettings( settings )
+  , mRenderedItemResults( std::make_unique< QgsRenderedItemResults >( settings.extent() ) )
+  , mLabelingEngineFeedback( new QgsLabelingEngineFeedback( this ) )
+{}
 
+QgsMapRendererJob::~QgsMapRendererJob() = default;
+
+void QgsMapRendererJob::start()
 {
+  if ( mSettings.hasValidSettings() )
+    startPrivate();
+  else
+  {
+    mErrors.append( QgsMapRendererJob::Error( QString(), tr( "Invalid map settings" ) ) );
+    emit finished();
+  }
 }
 
+QStringList QgsMapRendererJob::layersRedrawnFromCache() const
+{
+  return mLayersRedrawnFromCache;
+}
+
+QgsRenderedItemResults *QgsMapRendererJob::takeRenderedItemResults()
+{
+  return mRenderedItemResults.release();
+}
 
 QgsMapRendererQImageJob::QgsMapRendererQImageJob( const QgsMapSettings &settings )
   : QgsMapRendererJob( settings )
@@ -89,6 +207,11 @@ QgsMapRendererJob::Errors QgsMapRendererJob::errors() const
 void QgsMapRendererJob::setCache( QgsMapRendererCache *cache )
 {
   mCache = cache;
+}
+
+QgsLabelingEngineFeedback *QgsMapRendererJob::labelingEngineFeedback()
+{
+  return mLabelingEngineFeedback;
 }
 
 QHash<QgsMapLayer *, int> QgsMapRendererJob::perLayerRenderingTime() const
@@ -126,7 +249,7 @@ bool QgsMapRendererJob::prepareLabelCache() const
 
     switch ( ml->type() )
     {
-      case QgsMapLayerType::VectorLayer:
+      case Qgis::LayerType::Vector:
       {
         QgsVectorLayer *vl = qobject_cast< QgsVectorLayer *>( ml );
         if ( vl->labelsEnabled() && vl->labeling()->requiresAdvancedEffects() )
@@ -136,17 +259,37 @@ bool QgsMapRendererJob::prepareLabelCache() const
         break;
       }
 
-      case QgsMapLayerType::VectorTileLayer:
+      case Qgis::LayerType::Mesh:
+      {
+        QgsMeshLayer *l = qobject_cast< QgsMeshLayer *>( ml );
+        if ( l->labelsEnabled() && l->labeling()->requiresAdvancedEffects() )
+        {
+          canCache = false;
+        }
+        break;
+      }
+
+      case Qgis::LayerType::Raster:
+      {
+        QgsRasterLayer *l = qobject_cast< QgsRasterLayer *>( ml );
+        if ( l->labelsEnabled() && l->labeling()->requiresAdvancedEffects() )
+        {
+          canCache = false;
+        }
+        break;
+      }
+
+      case Qgis::LayerType::VectorTile:
       {
         // TODO -- add detection of advanced labeling effects for vector tile layers
         break;
       }
 
-      case QgsMapLayerType::RasterLayer:
-      case QgsMapLayerType::AnnotationLayer:
-      case QgsMapLayerType::PluginLayer:
-      case QgsMapLayerType::MeshLayer:
-      case QgsMapLayerType::PointCloudLayer:
+      case Qgis::LayerType::Annotation:
+      case Qgis::LayerType::Plugin:
+      case Qgis::LayerType::PointCloud:
+      case Qgis::LayerType::Group:
+      case Qgis::LayerType::TiledScene:
         break;
     }
 
@@ -160,7 +303,8 @@ bool QgsMapRendererJob::prepareLabelCache() const
     // we may need to clear label cache and re-register labeled features - check for that here
 
     // can we reuse the cached label solution?
-    bool canUseCache = canCache && qgis::listToSet( mCache->dependentLayers( LABEL_CACHE_ID ) ) == labeledLayers;
+    const QList< QgsMapLayer * > labelDependentLayers = mCache->dependentLayers( LABEL_CACHE_ID );
+    bool canUseCache = canCache && QSet< QgsMapLayer * >( labelDependentLayers.begin(), labelDependentLayers.end() ) == labeledLayers;
     if ( !canUseCache )
     {
       // no - participating layers have changed
@@ -193,13 +337,13 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
 
     if ( ml->crs().isGeographic() )
     {
-      if ( ml->type() == QgsMapLayerType::VectorLayer && !approxTransform.destinationCrs().isGeographic() )
+      if ( ml->type() == Qgis::LayerType::Vector && !approxTransform.destinationCrs().isGeographic() )
       {
         // if we transform from a projected coordinate system check
         // check if transforming back roughly returns the input
         // extend - otherwise render the world.
-        QgsRectangle extent1 = approxTransform.transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
-        QgsRectangle extent2 = approxTransform.transformBoundingBox( extent1, QgsCoordinateTransform::ForwardTransform );
+        QgsRectangle extent1 = approxTransform.transformBoundingBox( extent, Qgis::TransformDirection::Reverse );
+        QgsRectangle extent2 = approxTransform.transformBoundingBox( extent1, Qgis::TransformDirection::Forward );
 
         QgsDebugMsgLevel( QStringLiteral( "\n0:%1 %2x%3\n1:%4\n2:%5 %6x%7 (w:%8 h:%9)" )
                           .arg( extent.toString() ).arg( extent.width() ).arg( extent.height() )
@@ -227,15 +371,15 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
       {
         // Note: ll = lower left point
         QgsPointXY ll = approxTransform.transform( extent.xMinimum(), extent.yMinimum(),
-                        QgsCoordinateTransform::ReverseTransform );
+                        Qgis::TransformDirection::Reverse );
 
         //   and ur = upper right point
         QgsPointXY ur = approxTransform.transform( extent.xMaximum(), extent.yMaximum(),
-                        QgsCoordinateTransform::ReverseTransform );
+                        Qgis::TransformDirection::Reverse );
 
         QgsDebugMsgLevel( QStringLiteral( "in:%1 (ll:%2 ur:%3)" ).arg( extent.toString(), ll.toString(), ur.toString() ), 4 );
 
-        extent = approxTransform.transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
+        extent = approxTransform.transformBoundingBox( extent, Qgis::TransformDirection::Reverse );
 
         QgsDebugMsgLevel( QStringLiteral( "out:%1 (w:%2 h:%3)" ).arg( extent.toString() ).arg( extent.width() ).arg( extent.height() ), 4 );
 
@@ -272,12 +416,12 @@ bool QgsMapRendererJob::reprojectToLayerExtent( const QgsMapLayer *ml, const Qgs
         res = false;
       }
       else
-        extent = approxTransform.transformBoundingBox( extent, QgsCoordinateTransform::ReverseTransform );
+        extent = approxTransform.transformBoundingBox( extent, Qgis::TransformDirection::Reverse );
     }
   }
-  catch ( QgsCsException & )
+  catch ( QgsCsException &e )
   {
-    QgsDebugMsg( QStringLiteral( "Transform error caught" ) );
+    QgsDebugError( QStringLiteral( "Transform error caught: %1" ).arg( e.what() ) );
     extent = QgsRectangle( std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() );
     r2 = QgsRectangle( std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max() );
     res = false;
@@ -291,6 +435,8 @@ QImage *QgsMapRendererJob::allocateImage( QString layerId )
   QImage *image = new QImage( mSettings.deviceOutputSize(),
                               mSettings.outputImageFormat() );
   image->setDevicePixelRatio( static_cast<qreal>( mSettings.devicePixelRatio() ) );
+  image->setDotsPerMeterX( 1000 * mSettings.outputDpi() / 25.4 );
+  image->setDotsPerMeterY( 1000 * mSettings.outputDpi() / 25.4 );
   if ( image->isNull() )
   {
     mErrors.append( Error( layerId, tr( "Insufficient memory for image %1x%2" ).arg( mSettings.outputSize().width() ).arg( mSettings.outputSize().height() ) ) );
@@ -300,24 +446,40 @@ QImage *QgsMapRendererJob::allocateImage( QString layerId )
   return image;
 }
 
-QPainter *QgsMapRendererJob::allocateImageAndPainter( QString layerId, QImage *&image )
+QgsElevationMap *QgsMapRendererJob::allocateElevationMap( QString layerId )
+{
+  auto elevationMap = std::make_unique<QgsElevationMap>( mSettings.deviceOutputSize(), mSettings.devicePixelRatio() );
+  if ( !elevationMap->isValid() )
+  {
+    mErrors.append( Error( layerId, tr( "Insufficient memory for elevation map %1x%2" ).arg( mSettings.outputSize().width() ).arg( mSettings.outputSize().height() ) ) );
+    return nullptr;
+  }
+  return elevationMap.release();
+}
+
+QPainter *QgsMapRendererJob::allocateImageAndPainter( QString layerId, QImage *&image, const QgsRenderContext *context )
 {
   QPainter *painter = nullptr;
   image = allocateImage( layerId );
   if ( image )
   {
     painter = new QPainter( image );
-    painter->setRenderHint( QPainter::Antialiasing, mSettings.testFlag( QgsMapSettings::Antialiasing ) );
-#if QT_VERSION >= QT_VERSION_CHECK(5, 13, 0)
-    painter->setRenderHint( QPainter::LosslessImageRendering, mSettings.testFlag( QgsMapSettings::LosslessImageRendering ) );
-#endif
+    context->setPainterFlagsUsingContext( painter );
   }
   return painter;
 }
 
-LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter *painter, QgsLabelingEngine *labelingEngine2, bool deferredPainterSet )
+QgsMapRendererJob::PictureAndPainter QgsMapRendererJob::allocatePictureAndPainter( const QgsRenderContext *context )
 {
-  LayerRenderJobs layerJobs;
+  auto picture = std::make_unique<QPicture>();
+  QPainter *painter = new QPainter( picture.get() );
+  context->setPainterFlagsUsingContext( painter );
+  return { std::move( picture ), painter };
+}
+
+std::vector<LayerRenderJob> QgsMapRendererJob::prepareJobs( QPainter *painter, QgsLabelingEngine *labelingEngine2, bool deferredPainterSet )
+{
+  std::vector< LayerRenderJob > layerJobs;
 
   // render all layers in the stack, starting at the base
   QListIterator<QgsMapLayer *> li( mSettings.layers() );
@@ -363,7 +525,7 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter *painter, QgsLabelingEn
       continue;
     }
 
-    if ( !mSettings.zRange().isInfinite() && ml->elevationProperties() && !ml->elevationProperties()->isVisibleInZRange( mSettings.zRange() ) )
+    if ( !mSettings.zRange().isInfinite() && ml->elevationProperties() && !ml->elevationProperties()->isVisibleInZRange( mSettings.zRange(), ml ) )
     {
       QgsDebugMsgLevel( QStringLiteral( "Layer not rendered because it is not visible within the map's z range" ), 3 );
       continue;
@@ -399,27 +561,28 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter *painter, QgsLabelingEn
       }
     }
 
-    layerJobs.append( LayerRenderJob() );
-    LayerRenderJob &job = layerJobs.last();
-    job.cached = false;
-    job.img = nullptr;
+    layerJobs.emplace_back( LayerRenderJob() );
+    LayerRenderJob &job = layerJobs.back();
     job.layer = ml;
     job.layerId = ml->id();
+    job.renderAboveLabels = ml->customProperty( QStringLiteral( "rendering/renderAboveLabels" ) ).toBool();
     job.estimatedRenderingTime = mLayerRenderingTimeHints.value( ml->id(), 0 );
-    job.renderingTime = -1;
 
+    job.setContext( std::make_unique< QgsRenderContext >( QgsRenderContext::fromMapSettings( mSettings ) ) );
+    if ( !ml->customProperty( QStringLiteral( "_noset_layer_expression_context" ) ).toBool() )
+      job.context()->expressionContext().appendScope( QgsExpressionContextUtils::layerScope( ml ) );
+    job.context()->setPainter( painter );
+    job.context()->setLabelingEngine( labelingEngine2 );
+    job.context()->setLabelSink( labelSink() );
+    job.context()->setCoordinateTransform( ct );
+    job.context()->setExtent( r1 );
 
-    job.context = QgsRenderContext::fromMapSettings( mSettings );
-    job.context.expressionContext().appendScope( QgsExpressionContextUtils::layerScope( ml ) );
-    job.context.setPainter( painter );
-    job.context.setLabelingEngine( labelingEngine2 );
-    job.context.setCoordinateTransform( ct );
-    job.context.setExtent( r1 );
-    if ( !haveExtentInLayerCrs )
-      job.context.setFlag( QgsRenderContext::ApplyClipAfterReprojection, true );
+    // Also check geographic, see: https://github.com/qgis/QGIS/issues/45200
+    if ( !haveExtentInLayerCrs || ( ct.isValid() && ( ct.sourceCrs().isGeographic() != ct.destinationCrs().isGeographic() ) ) )
+      job.context()->setFlag( Qgis::RenderContextFlag::ApplyClipAfterReprojection, true );
 
     if ( mFeatureFilterProvider )
-      job.context.setFeatureFilterProvider( mFeatureFilterProvider );
+      job.context()->setFeatureFilterProvider( mFeatureFilterProvider );
 
     QgsMapLayerStyleOverride styleOverride( ml );
     if ( mSettings.layerStyleOverrides().contains( ml->id() ) )
@@ -427,41 +590,106 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter *painter, QgsLabelingEn
 
     job.blendMode = ml->blendMode();
 
-    // raster layer opacity is handled directly within the raster layer renderer, so don't
-    // apply default opacity handling here!
-    job.opacity = ml->type() != QgsMapLayerType::RasterLayer ? ml->opacity() : 1.0;
+    if ( ml->type() == Qgis::LayerType::Raster )
+    {
+      // raster layers are abnormal wrt opacity handling -- opacity is sometimes handled directly within the raster layer renderer
+      QgsRasterLayer *rl = qobject_cast< QgsRasterLayer * >( ml );
+      if ( rl->renderer()->flags() & Qgis::RasterRendererFlag::InternalLayerOpacityHandling )
+      {
+        job.opacity = 1.0;
+      }
+      else
+      {
+        job.opacity = ml->opacity();
+      }
+    }
+    else
+    {
+      job.opacity = ml->opacity();
+    }
+
+    const QgsElevationShadingRenderer shadingRenderer = mSettings.elevationShadingRenderer();
 
     // if we can use the cache, let's do it and avoid rendering!
-    if ( mCache && mCache->hasCacheImage( ml->id() ) )
+    const bool canUseCache = !mSettings.testFlag( Qgis::MapSettingsFlag::ForceVectorOutput ) && mCache;
+    if ( canUseCache && mCache->hasCacheImage( ml->id() ) )
     {
       job.cached = true;
       job.imageInitialized = true;
       job.img = new QImage( mCache->cacheImage( ml->id() ) );
+      if ( shadingRenderer.isActive() &&
+           ml->elevationProperties() &&
+           ml->elevationProperties()->hasElevation() &&
+           mCache->hasCacheImage( ELEVATION_MAP_CACHE_PREFIX + ml->id() ) )
+        job.elevationMap = new QgsElevationMap( mCache->cacheImage( ELEVATION_MAP_CACHE_PREFIX + ml->id() ) );
       job.img->setDevicePixelRatio( static_cast<qreal>( mSettings.devicePixelRatio() ) );
       job.renderer = nullptr;
-      job.context.setPainter( nullptr );
+      job.context()->setPainter( nullptr );
+      mLayersRedrawnFromCache.append( ml->id() );
       continue;
     }
 
     QElapsedTimer layerTime;
     layerTime.start();
-    job.renderer = ml->createMapRenderer( job.context );
+    job.renderer = ml->createMapRenderer( *( job.context() ) );
     if ( job.renderer )
+    {
       job.renderer->setLayerRenderingTimeHint( job.estimatedRenderingTime );
+      job.context()->setFeedback( job.renderer->feedback() );
+
+      if ( job.renderer->flags().testFlag( Qgis::MapLayerRendererFlag::AffectsLabeling ) )
+      {
+        mAdditionalLabelLayers.append( ml );
+      }
+    }
 
     // If we are drawing with an alternative blending mode then we need to render to a separate image
     // before compositing this on the map. This effectively flattens the layer and prevents
     // blending occurring between objects on the layer
-    if ( mCache || ( !painter && !deferredPainterSet ) || ( job.renderer && job.renderer->forceRasterRender() ) )
+    if ( canUseCache || ( !painter && !deferredPainterSet ) || ( job.renderer && job.renderer->forceRasterRender() ) )
     {
       // Flattened image for drawing when a blending mode is set
-      job.context.setPainter( allocateImageAndPainter( ml->id(), job.img ) );
+      job.context()->setPainter( allocateImageAndPainter( ml->id(), job.img, job.context() ) );
       if ( ! job.img )
       {
         delete job.renderer;
         job.renderer = nullptr;
-        layerJobs.removeLast();
+        layerJobs.pop_back();
         continue;
+      }
+    }
+
+    if ( shadingRenderer.isActive()
+         && ml->elevationProperties()
+         && ml->elevationProperties()->hasElevation() )
+    {
+      job.elevationMap = allocateElevationMap( ml->id() );
+      job.context()->setElevationMap( job.elevationMap );
+    }
+
+    if ( ( job.renderer->flags() & Qgis::MapLayerRendererFlag::RenderPartialOutputs ) && ( mSettings.flags() & Qgis::MapSettingsFlag::RenderPartialOutput ) )
+    {
+      if ( canUseCache && ( job.renderer->flags() & Qgis::MapLayerRendererFlag::RenderPartialOutputOverPreviousCachedImage ) && mCache->hasAnyCacheImage( job.layerId + QStringLiteral( "_preview" ) ) )
+      {
+        const QImage cachedImage = mCache->transformedCacheImage( job.layerId + QStringLiteral( "_preview" ), mSettings.mapToPixel() );
+        if ( !cachedImage.isNull() )
+        {
+          job.previewRenderImage = new QImage( cachedImage );
+          job.previewRenderImageInitialized = true;
+          job.context()->setPreviewRenderPainter( new QPainter( job.previewRenderImage ) );
+          job.context()->setPainterFlagsUsingContext( painter );
+        }
+      }
+      if ( !job.previewRenderImage )
+      {
+        job.context()->setPreviewRenderPainter( allocateImageAndPainter( ml->id(), job.previewRenderImage, job.context() ) );
+        job.previewRenderImageInitialized = false;
+      }
+
+      if ( !job.previewRenderImage )
+      {
+        delete job.context()->previewRenderPainter();
+        job.context()->setPreviewRenderPainter( nullptr );
       }
     }
 
@@ -471,156 +699,259 @@ LayerRenderJobs QgsMapRendererJob::prepareJobs( QPainter *painter, QgsLabelingEn
   return layerJobs;
 }
 
-LayerRenderJobs QgsMapRendererJob::prepareSecondPassJobs( LayerRenderJobs &firstPassJobs, LabelRenderJob &labelJob )
+std::vector< LayerRenderJob > QgsMapRendererJob::prepareSecondPassJobs( std::vector< LayerRenderJob > &firstPassJobs, LabelRenderJob &labelJob )
 {
-  LayerRenderJobs secondPassJobs;
+  std::vector< LayerRenderJob > secondPassJobs;
 
   // We will need to quickly access the associated rendering job of a layer
   QHash<QString, LayerRenderJob *> layerJobMapping;
 
-  // ... and whether a layer has a mask defined
-  QSet<QString> layerHasMask;
+  // ... and layer that contains a mask (and whether there is effects implied or not)
+  QMap<QString, bool> maskLayerHasEffects;
+  QMap<int, bool> labelHasEffects;
 
   struct MaskSource
   {
     QString layerId;
     QString labelRuleId;
     int labelMaskId;
-    MaskSource( const QString &layerId_, const QString &labelRuleId_, int labelMaskId_ ):
-      layerId( layerId_ ), labelRuleId( labelRuleId_ ), labelMaskId( labelMaskId_ ) {}
+    bool hasEffects;
+    MaskSource( const QString &layerId_, const QString &labelRuleId_, int labelMaskId_, bool hasEffects_ ):
+      layerId( layerId_ ), labelRuleId( labelRuleId_ ), labelMaskId( labelMaskId_ ), hasEffects( hasEffects_ ) {}
   };
 
   // We collect for each layer, the set of symbol layers that will be "masked"
   // and the list of source layers that have a mask
-  QHash<QString, QPair<QSet<QgsSymbolLayerId>, QList<MaskSource>>> maskedSymbolLayers;
+  QHash<QString, QPair<QSet<QString>, QList<MaskSource>>> maskedSymbolLayers;
 
+  const bool forceVector = mapSettings().testFlag( Qgis::MapSettingsFlag::ForceVectorOutput )
+                           && !mapSettings().testFlag( Qgis::MapSettingsFlag::ForceRasterMasks );
+
+  // First up, create a mapping of layer id to jobs. We need this to filter out any masking
+  // which refers to layers which we aren't rendering as part of this map render
+  for ( LayerRenderJob &job : firstPassJobs )
+  {
+    layerJobMapping[job.layerId] = &job;
+  }
+
+  // next, collate a master list of masked layers, skipping over any which refer to layers
+  // which don't have a corresponding render job
   for ( LayerRenderJob &job : firstPassJobs )
   {
     QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( job.layer );
     if ( ! vl )
       continue;
 
-    layerJobMapping[job.layer->id()] = &job;
-
     // lambda function to factor code for both label masks and symbol layer masks
-    auto collectMasks = [&]( QHash<QString, QSet<QgsSymbolLayerId>> *masks, QString sourceLayerId, QString ruleId = QString(), int labelMaskId = -1 )
+    auto collectMasks = [&]( QgsMaskedLayers * masks, QString sourceLayerId, QString ruleId = QString(), int labelMaskId = -1 )
     {
+      bool hasEffects = false;
       for ( auto it = masks->begin(); it != masks->end(); ++it )
       {
         auto lit = maskedSymbolLayers.find( it.key() );
         if ( lit == maskedSymbolLayers.end() )
         {
-          maskedSymbolLayers[it.key()] = qMakePair( it.value(), QList<MaskSource>() << MaskSource( sourceLayerId, ruleId, labelMaskId ) );
+          maskedSymbolLayers[it.key()] = qMakePair( it.value().symbolLayerIds, QList<MaskSource>() << MaskSource( sourceLayerId, ruleId, labelMaskId, it.value().hasEffects ) );
         }
         else
         {
-          if ( lit->first != it.value() )
+          if ( lit->first != it.value().symbolLayerIds )
           {
             QgsLogger::warning( QStringLiteral( "Layer %1 : Different sets of symbol layers are masked by different sources ! Only one (arbitrary) set will be retained !" ).arg( it.key() ) );
             continue;
           }
-          lit->second.push_back( MaskSource( sourceLayerId, ruleId, labelMaskId ) );
+          lit->second.push_back( MaskSource( sourceLayerId, ruleId, labelMaskId, hasEffects ) );
         }
+        hasEffects |= it.value().hasEffects;
       }
-      if ( ! masks->isEmpty() )
-        layerHasMask.insert( sourceLayerId );
+      if ( ! masks->isEmpty() && labelMaskId == -1 )
+        maskLayerHasEffects[ sourceLayerId ] = hasEffects;
     };
 
     // collect label masks
-    QHash<QString, QHash<QString, QSet<QgsSymbolLayerId>>> labelMasks = QgsVectorLayerUtils::labelMasks( vl );
+    QHash<QString, QgsMaskedLayers> labelMasks = QgsVectorLayerUtils::labelMasks( vl );
     for ( auto it = labelMasks.begin(); it != labelMasks.end(); it++ )
     {
       QString labelRule = it.key();
-      QHash<QString, QSet<QgsSymbolLayerId>> masks = it.value();
+      // this is a hash of layer id to masks
+      QgsMaskedLayers masks = it.value();
+
+      // filter out masks to those which we are actually rendering
+      QgsMaskedLayers usableMasks;
+      for ( auto mit = masks.begin(); mit != masks.end(); mit++ )
+      {
+        const QString sourceLayerId = mit.key();
+        // if we aren't rendering the source layer as part of this render, we can't process this mask
+        if ( !layerJobMapping.contains( sourceLayerId ) )
+          continue;
+        else
+          usableMasks.insert( sourceLayerId, mit.value() );
+      }
+
+      if ( usableMasks.empty() )
+        continue;
 
       // group layers by QSet<QgsSymbolLayerReference>
       QSet<QgsSymbolLayerReference> slRefs;
-      for ( auto mit = masks.begin(); mit != masks.end(); mit++ )
+      bool hasEffects = false;
+      for ( auto mit = usableMasks.begin(); mit != usableMasks.end(); mit++ )
       {
-        for ( auto slIt = mit.value().begin(); slIt != mit.value().end(); slIt++ )
-        {
-          slRefs.insert( QgsSymbolLayerReference( mit.key(), *slIt ) );
-        }
+        const QString sourceLayerId = mit.key();
+        // if we aren't rendering the source layer as part of this render, we can't process this mask
+        if ( !layerJobMapping.contains( sourceLayerId ) )
+          continue;
+
+        for ( const QString &symbolLayerId : mit.value().symbolLayerIds )
+          slRefs.insert( QgsSymbolLayerReference( sourceLayerId, symbolLayerId ) );
+
+        hasEffects |= mit.value().hasEffects;
       }
       // generate a new mask id for this set
       int labelMaskId = labelJob.maskIdProvider.insertLabelLayer( vl->id(), it.key(), slRefs );
+      labelHasEffects[ labelMaskId ] = hasEffects;
 
       // now collect masks
-      collectMasks( &masks, vl->id(), labelRule, labelMaskId );
+      collectMasks( &usableMasks, vl->id(), labelRule, labelMaskId );
     }
 
     // collect symbol layer masks
-    QHash<QString, QSet<QgsSymbolLayerId>> symbolLayerMasks = QgsVectorLayerUtils::symbolLayerMasks( vl );
+    QgsMaskedLayers symbolLayerMasks = QgsVectorLayerUtils::symbolLayerMasks( vl );
     collectMasks( &symbolLayerMasks, vl->id() );
   }
 
   if ( maskedSymbolLayers.isEmpty() )
     return secondPassJobs;
 
-  // Now that we know some layers have a mask, we have to allocate a mask image and painter
-  // for them in the first pass job
-  for ( LayerRenderJob &job : firstPassJobs )
-  {
-    QgsMapLayer *ml = job.layer;
-
-    if ( job.img == nullptr )
-    {
-      job.context.setPainter( allocateImageAndPainter( ml->id(), job.img ) );
-    }
-    if ( layerHasMask.contains( ml->id() ) )
-    {
-      // Note: we only need an alpha channel here, rather than a full RGBA image
-      job.context.setMaskPainter( allocateImageAndPainter( ml->id(), job.maskImage ) );
-      job.maskImage->fill( 0 );
-    }
-  }
-
-  // Allocate an image for labels
-  if ( labelJob.img == nullptr )
-  {
-    labelJob.img = allocateImage( QStringLiteral( "labels" ) );
-  }
-
   // Prepare label mask images
   for ( int maskId = 0; maskId < labelJob.maskIdProvider.size(); maskId++ )
   {
-    QImage *maskImage;
-    labelJob.context.setMaskPainter( allocateImageAndPainter( QStringLiteral( "label mask" ), maskImage ), maskId );
-    maskImage->fill( 0 );
-    labelJob.maskImages.push_back( maskImage );
+    QPaintDevice *maskPaintDevice = nullptr;
+    QPainter *maskPainter = nullptr;
+    if ( forceVector && !labelHasEffects[ maskId ] )
+    {
+      // set a painter to get all masking instruction in order to later clip masked symbol layer
+      auto geomPaintDevice = std::make_unique< QgsGeometryPaintDevice >( true );
+      geomPaintDevice->setStrokedPathSegments( 4 );
+      geomPaintDevice->setSimplificationTolerance( labelJob.context.maskSettings().simplifyTolerance() );
+      maskPaintDevice = geomPaintDevice.release();
+      maskPainter = new QPainter( maskPaintDevice );
+    }
+    else
+    {
+      // Note: we only need an alpha channel here, rather than a full RGBA image
+      QImage *maskImage = nullptr;
+      maskPainter = allocateImageAndPainter( QStringLiteral( "label mask" ), maskImage, &labelJob.context );
+      maskImage->fill( 0 );
+      maskPaintDevice = maskImage;
+    }
+
+    labelJob.context.setMaskPainter( maskPainter, maskId );
+    labelJob.maskPainters.push_back( std::unique_ptr<QPainter>( maskPainter ) );
+    labelJob.maskPaintDevices.push_back( std::unique_ptr<QPaintDevice>( maskPaintDevice ) );
   }
   labelJob.context.setMaskIdProvider( &labelJob.maskIdProvider );
 
   // Prepare second pass jobs
+  // - For raster rendering or vector rendering if effects are involved
+  // 1st pass, 2nd pass and mask are rendered in QImage and composed in composeSecondPass
+  // - For vector rendering if no effects are involved
+  // 1st pass is rendered in QImage, clip paths are generated according to mask and used during
+  // masked symbol layer rendering during second pass, which is rendered in QPicture, second
+  // pass job picture
+
+  // Allocate an image for labels
+  if ( !labelJob.img && !forceVector )
+  {
+    labelJob.img = allocateImage( QStringLiteral( "labels" ) );
+  }
+  else if ( !labelJob.picture && forceVector )
+  {
+    labelJob.picture.reset( new QPicture() );
+  }
+
+  // first we initialize painter and mask painter for all jobs
+  for ( LayerRenderJob &job : firstPassJobs )
+  {
+    job.maskRequiresLayerRasterization = false;
+
+    auto it = maskedSymbolLayers.find( job.layerId );
+    if ( it != maskedSymbolLayers.end() )
+    {
+      const QList<MaskSource> &sourceList = it->second;
+      for ( const MaskSource &source : sourceList )
+      {
+        job.maskRequiresLayerRasterization |= source.hasEffects;
+      }
+    }
+
+    // update first pass job painter and device if needed
+    const bool isRasterRendering = !forceVector || job.maskRequiresLayerRasterization || ( job.renderer && job.renderer->forceRasterRender() );
+    if ( isRasterRendering && !job.img )
+    {
+      job.context()->setPainter( allocateImageAndPainter( job.layerId, job.img, job.context() ) );
+    }
+    else if ( !isRasterRendering && !job.picture )
+    {
+      PictureAndPainter pictureAndPainter = allocatePictureAndPainter( job.context() );
+      job.picture = std::move( pictureAndPainter.first );
+      if ( job.context()->painter()->hasClipping() )
+      {
+        // need to copy clipping paths from original painter, so that e.g. the layout map bounds clipping path is respected
+        pictureAndPainter.second->setClipping( true );
+        pictureAndPainter.second->setClipPath( job.context()->painter()->clipPath() );
+      }
+      job.context()->setPainter( pictureAndPainter.second );
+      // force recreation of layer renderer so it initialize correctly the renderer
+      // especially the RasterLayerRender that need logicalDpiX from painting device
+      job.renderer = job.layer->createMapRenderer( *( job.context() ) );
+    }
+
+    // for layer that mask, generate mask in first pass job
+    if ( maskLayerHasEffects.contains( job.layerId ) )
+    {
+      QPaintDevice *maskPaintDevice = nullptr;
+      QPainter *maskPainter = nullptr;
+      if ( forceVector && !maskLayerHasEffects[ job.layerId ] )
+      {
+        // set a painter to get all masking instruction in order to later clip masked symbol layer
+        auto geomPaintDevice = std::make_unique< QgsGeometryPaintDevice >( );
+        geomPaintDevice->setStrokedPathSegments( 4 );
+        geomPaintDevice->setSimplificationTolerance( job.context()->maskSettings().simplifyTolerance() );
+        maskPaintDevice = geomPaintDevice.release();
+        maskPainter = new QPainter( maskPaintDevice );
+      }
+      else
+      {
+        // Note: we only need an alpha channel here, rather than a full RGBA image
+        QImage *maskImage = nullptr;
+        maskPainter = allocateImageAndPainter( job.layerId, maskImage, job.context() );
+        maskImage->fill( 0 );
+        maskPaintDevice = maskImage;
+      }
+
+      job.context()->setMaskPainter( maskPainter );
+      job.maskPainter.reset( maskPainter );
+      job.maskPaintDevice.reset( maskPaintDevice );
+    }
+  }
+
   for ( LayerRenderJob &job : firstPassJobs )
   {
     QgsMapLayer *ml = job.layer;
 
-    auto it = maskedSymbolLayers.find( ml->id() );
+    auto it = maskedSymbolLayers.find( job.layerId );
     if ( it == maskedSymbolLayers.end() )
       continue;
 
     QList<MaskSource> &sourceList = it->second;
-    const QSet<QgsSymbolLayerId> &symbolList = it->first;
+    const QSet<QString> symbolList = it->first;
 
-    // copy the initial job ...
-    secondPassJobs.append( LayerRenderJob() );
-    LayerRenderJob &job2 = secondPassJobs.last();
-    job2 = job;
-    job2.cached = false;
-    job2.firstPassJob = &job;
-    QgsVectorLayer *vl1 = qobject_cast<QgsVectorLayer *>( job.layer );
+    secondPassJobs.emplace_back( LayerRenderJob() );
+    LayerRenderJob &job2 = secondPassJobs.back();
 
-    // ... but clear the image
-    job2.context.setMaskPainter( nullptr );
-    job2.context.setPainter( allocateImageAndPainter( vl1->id(), job2.img ) );
-    if ( ! job2.img )
-    {
-      secondPassJobs.removeLast();
-      continue;
-    }
+    job2.maskRequiresLayerRasterization = job.maskRequiresLayerRasterization;
 
-    // Points to the first pass job. This will be needed during the second pass composition.
+    // Points to the masking jobs. This will be needed during the second pass composition.
     for ( MaskSource &source : sourceList )
     {
       if ( source.labelMaskId != -1 )
@@ -629,17 +960,107 @@ LayerRenderJobs QgsMapRendererJob::prepareSecondPassJobs( LayerRenderJobs &first
         job2.maskJobs.push_back( qMakePair( layerJobMapping[source.layerId], -1 ) );
     }
 
+    // copy the context from the initial job
+    job2.setContext( std::make_unique< QgsRenderContext >( *job.context() ) );
+    // also assign layer to match initial job
+    job2.layer = job.layer;
+    job2.renderAboveLabels = job.renderAboveLabels;
+    job2.layerId = job.layerId;
+
+    // associate first pass job with second pass job
+    job2.firstPassJob = &job;
+
+    if ( !forceVector || job2.maskRequiresLayerRasterization )
+    {
+      job2.context()->setPainter( allocateImageAndPainter( job.layerId, job2.img, job2.context() ) );
+    }
+    else
+    {
+      PictureAndPainter pictureAndPainter = allocatePictureAndPainter( job2.context() );
+      if ( job.context()->painter()->hasClipping() )
+      {
+        // need to copy clipping paths from original painter, so that e.g. the layout map bounds clipping path is respected
+        pictureAndPainter.second->setClipping( true );
+        pictureAndPainter.second->setClipPath( job.context()->painter()->clipPath() );
+      }
+      job2.picture = std::move( pictureAndPainter.first );
+      job2.context()->setPainter( pictureAndPainter.second );
+    }
+
+    if ( ! job2.img && ! job2.picture )
+    {
+      secondPassJobs.pop_back();
+      continue;
+    }
+
     // FIXME: another possibility here, to avoid allocating a new map renderer and reuse the one from
     // the first pass job, would be to be able to call QgsMapLayerRenderer::render() with a QgsRenderContext.
-    QgsVectorLayerRenderer *mapRenderer = static_cast<QgsVectorLayerRenderer *>( vl1->createMapRenderer( job2.context ) );
+    QgsVectorLayerRenderer *mapRenderer = static_cast<QgsVectorLayerRenderer *>( ml->createMapRenderer( *job2.context() ) );
     job2.renderer = mapRenderer;
+    if ( job2.renderer )
+    {
+      job2.context()->setFeedback( job2.renderer->feedback() );
+    }
 
-    // Modify the render context so that symbol layers get disabled as needed.
-    // The map renderer stores a reference to the context, so we can modify it even after the map renderer creation (what we need here)
-    job2.context.setDisabledSymbolLayers( QgsSymbolLayerUtils::toSymbolLayerPointers( mapRenderer->featureRenderer(), symbolList ) );
+    // Render only the non masked symbol layer and we will compose 2nd pass with mask and first pass rendering in composeSecondPass
+    // If vector output is enabled, disabled symbol layers would be actually rendered and masked with clipping path set in QgsMapRendererJob::initSecondPassJobs
+    job2.context()->setDisabledSymbolLayersV2( symbolList );
   }
 
   return secondPassJobs;
+}
+
+QList<QPointer<QgsMapLayer> > QgsMapRendererJob::participatingLabelLayers( QgsLabelingEngine *engine )
+{
+  QList<QPointer<QgsMapLayer> > res = _qgis_listRawToQPointer( engine->participatingLayers() );
+
+  for ( auto it : std::as_const( mAdditionalLabelLayers ) )
+  {
+    if ( !res.contains( it ) )
+      res.append( it );
+  }
+
+  return res;
+}
+
+void QgsMapRendererJob::initSecondPassJobs( std::vector< LayerRenderJob > &secondPassJobs, LabelRenderJob &labelJob ) const
+{
+  if ( !mapSettings().testFlag( Qgis::MapSettingsFlag::ForceVectorOutput ) || mapSettings().testFlag( Qgis::MapSettingsFlag::ForceRasterMasks ) )
+    return;
+
+  for ( LayerRenderJob &job : secondPassJobs )
+  {
+    if ( job.maskRequiresLayerRasterization )
+      continue;
+
+    // we draw disabled symbol layer but me mask them with clipping path produced during first pass job
+    // Resulting 2nd pass job picture will be the final rendering
+
+    for ( const QPair<LayerRenderJob *, int> &p : std::as_const( job.maskJobs ) )
+    {
+      QPainter *maskPainter = p.first ? p.first->maskPainter.get() : labelJob.maskPainters[p.second].get();
+
+      const QSet<QString> layers = job.context()->disabledSymbolLayersV2();
+      if ( QgsGeometryPaintDevice *geometryDevice = dynamic_cast<QgsGeometryPaintDevice *>( maskPainter->device() ) )
+      {
+        QgsGeometry geometry( geometryDevice->geometry().clone() );
+
+#if GEOS_VERSION_MAJOR==3 && GEOS_VERSION_MINOR<10
+        // structure would be better, but too old GEOS
+        geometry = geometry.makeValid( Qgis::MakeValidMethod::Linework );
+#else
+        geometry = geometry.makeValid( Qgis::MakeValidMethod::Structure );
+#endif
+
+        for ( const QString &symbolLayerId : layers )
+        {
+          job.context()->addSymbolLayerClipGeometry( symbolLayerId, geometry );
+        }
+      }
+    }
+
+    job.context()->setDisabledSymbolLayersV2( QSet<QString>() );
+  }
 }
 
 LabelRenderJob QgsMapRendererJob::prepareLabelingJob( QPainter *painter, QgsLabelingEngine *labelingEngine2, bool canUseLabelCache )
@@ -648,11 +1069,22 @@ LabelRenderJob QgsMapRendererJob::prepareLabelingJob( QPainter *painter, QgsLabe
   job.context = QgsRenderContext::fromMapSettings( mSettings );
   job.context.setPainter( painter );
   job.context.setLabelingEngine( labelingEngine2 );
-  job.context.setExtent( mSettings.visibleExtent() );
+  job.context.setFeedback( mLabelingEngineFeedback );
+  if ( labelingEngine2 )
+    job.context.labelingEngine()->prepare( job.context );
+
+  QgsRectangle r1 = mSettings.visibleExtent();
+  r1.grow( mSettings.extentBuffer() );
+  job.context.setExtent( r1 );
+
   job.context.setFeatureFilterProvider( mFeatureFilterProvider );
   QgsCoordinateTransform ct;
   ct.setDestinationCrs( mSettings.destinationCrs() );
   job.context.setCoordinateTransform( ct );
+
+  // no cache, no image allocation
+  if ( mSettings.testFlag( Qgis::MapSettingsFlag::ForceVectorOutput ) )
+    return job;
 
   // if we can use the cache, let's do it and avoid rendering!
   bool hasCache = canUseLabelCache && mCache && mCache->hasCacheImage( LABEL_CACHE_ID );
@@ -676,15 +1108,14 @@ LabelRenderJob QgsMapRendererJob::prepareLabelingJob( QPainter *painter, QgsLabe
 }
 
 
-void QgsMapRendererJob::cleanupJobs( LayerRenderJobs &jobs )
+void QgsMapRendererJob::cleanupJobs( std::vector<LayerRenderJob> &jobs )
 {
-  for ( LayerRenderJobs::iterator it = jobs.begin(); it != jobs.end(); ++it )
+  for ( LayerRenderJob &job : jobs )
   {
-    LayerRenderJob &job = *it;
     if ( job.img )
     {
-      delete job.context.painter();
-      job.context.setPainter( nullptr );
+      delete job.context()->painter();
+      job.context()->setPainter( nullptr );
 
       if ( mCache && !job.cached && job.completed && job.layer )
       {
@@ -697,19 +1128,52 @@ void QgsMapRendererJob::cleanupJobs( LayerRenderJobs &jobs )
       job.img = nullptr;
     }
 
-    // delete the mask image and painter
-    if ( job.maskImage )
+    if ( job.previewRenderImage )
     {
-      delete job.context.maskPainter();
-      job.context.setMaskPainter( nullptr );
-      delete job.maskImage;
+      delete job.context()->previewRenderPainter();
+      job.context()->setPreviewRenderPainter( nullptr );
+      delete job.previewRenderImage;
+      job.previewRenderImage = nullptr;
+    }
+
+    if ( job.elevationMap )
+    {
+      job.context()->setElevationMap( nullptr );
+      if ( mCache && !job.cached && job.completed && job.layer )
+      {
+        QgsDebugMsgLevel( QStringLiteral( "caching elevation map for %1" ).arg( job.layerId ), 2 );
+        mCache->setCacheImageWithParameters(
+          ELEVATION_MAP_CACHE_PREFIX + job.layerId,
+          job.elevationMap->rawElevationImage(),
+          mSettings.visibleExtent(),
+          mSettings.mapToPixel(),
+          QList< QgsMapLayer * >() << job.layer );
+        mCache->setCacheImageWithParameters(
+          ELEVATION_MAP_CACHE_PREFIX + job.layerId + QStringLiteral( "_preview" ),
+          job.elevationMap->rawElevationImage(),
+          mSettings.visibleExtent(),
+          mSettings.mapToPixel(),
+          QList< QgsMapLayer * >() << job.layer );
+      }
+
+      delete job.elevationMap;
+      job.elevationMap = nullptr;
+    }
+
+    if ( job.picture )
+    {
+      delete job.context()->painter();
+      job.context()->setPainter( nullptr );
+      job.picture.reset( nullptr );
     }
 
     if ( job.renderer )
     {
-      const auto constErrors = job.renderer->errors();
-      for ( const QString &message : constErrors )
+      const QStringList errors = job.renderer->errors();
+      for ( const QString &message : errors )
         mErrors.append( Error( job.renderer->layerId(), message ) );
+
+      mRenderedItemResults->appendResults( job.renderer->takeRenderedItemDetails(), *job.context() );
 
       delete job.renderer;
       job.renderer = nullptr;
@@ -717,22 +1181,39 @@ void QgsMapRendererJob::cleanupJobs( LayerRenderJobs &jobs )
 
     if ( job.layer )
       mPerLayerRenderingTime.insert( job.layer, job.renderingTime );
+
+    job.maskPainter.reset( nullptr );
+    job.maskPaintDevice.reset( nullptr );
   }
 
   jobs.clear();
 }
 
-void QgsMapRendererJob::cleanupSecondPassJobs( LayerRenderJobs &jobs )
+void QgsMapRendererJob::cleanupSecondPassJobs( std::vector< LayerRenderJob > &jobs )
 {
-  for ( auto &job : jobs )
+  for ( LayerRenderJob &job : jobs )
   {
     if ( job.img )
     {
-      delete job.context.painter();
-      job.context.setPainter( nullptr );
+      delete job.context()->painter();
+      job.context()->setPainter( nullptr );
 
       delete job.img;
       job.img = nullptr;
+    }
+
+    if ( job.previewRenderImage )
+    {
+      delete job.context()->previewRenderPainter();
+      job.context()->setPreviewRenderPainter( nullptr );
+      delete job.previewRenderImage;
+      job.previewRenderImage = nullptr;
+    }
+
+    if ( job.picture )
+    {
+      delete job.context()->painter();
+      job.context()->setPainter( nullptr );
     }
 
     if ( job.renderer )
@@ -763,23 +1244,19 @@ void QgsMapRendererJob::cleanupLabelJob( LabelRenderJob &job )
     job.img = nullptr;
   }
 
-  for ( int maskId = 0; maskId < job.maskImages.size(); maskId++ )
-  {
-    delete job.context.maskPainter( maskId );
-    job.context.setMaskPainter( nullptr, maskId );
-    delete job.maskImages[maskId];
-  }
+  job.picture.reset( nullptr );
+  job.maskPainters.clear();
+  job.maskPaintDevices.clear();
 }
 
 
 #define DEBUG_RENDERING 0
 
-QImage QgsMapRendererJob::composeImage(
-  const QgsMapSettings &settings,
-  const LayerRenderJobs &jobs,
-  const LabelRenderJob &labelJob,
-  const QgsMapRendererCache *cache
-)
+QImage QgsMapRendererJob::composeImage( const QgsMapSettings &settings,
+                                        const std::vector<LayerRenderJob> &jobs,
+                                        const LabelRenderJob &labelJob,
+                                        const QgsMapRendererCache *cache
+                                      )
 {
   QImage image( settings.deviceOutputSize(), settings.outputImageFormat() );
   image.setDevicePixelRatio( settings.devicePixelRatio() );
@@ -787,16 +1264,19 @@ QImage QgsMapRendererJob::composeImage(
   image.setDotsPerMeterY( static_cast<int>( settings.outputDpi() * 39.37 ) );
   image.fill( settings.backgroundColor().rgba() );
 
+  const QgsElevationShadingRenderer mapShadingRenderer = settings.elevationShadingRenderer();
+  std::unique_ptr<QgsElevationMap> mainElevationMap;
+  if ( mapShadingRenderer.isActive() )
+    mainElevationMap.reset( new QgsElevationMap( settings.deviceOutputSize(), settings.devicePixelRatio() ) );
+
   QPainter painter( &image );
 
 #if DEBUG_RENDERING
   int i = 0;
 #endif
-  for ( LayerRenderJobs::const_iterator it = jobs.constBegin(); it != jobs.constEnd(); ++it )
+  for ( const LayerRenderJob &job : jobs )
   {
-    const LayerRenderJob &job = *it;
-
-    if ( job.layer && job.layer->customProperty( QStringLiteral( "rendering/renderAboveLabels" ) ).toBool() )
+    if ( job.renderAboveLabels )
       continue; // skip layer for now, it will be rendered after labels
 
     QImage img = layerImageToBeComposed( settings, job, cache );
@@ -806,12 +1286,25 @@ QImage QgsMapRendererJob::composeImage(
     painter.setCompositionMode( job.blendMode );
     painter.setOpacity( job.opacity );
 
+    if ( mainElevationMap )
+    {
+      QgsElevationMap layerElevationMap = layerElevationToBeComposed( settings, job, cache );
+      if ( layerElevationMap.isValid() )
+        mainElevationMap->combine( layerElevationMap, mapShadingRenderer.combinedElevationMethod() );
+    }
+
+
 #if DEBUG_RENDERING
     img.save( QString( "/tmp/final_%1.png" ).arg( i ) );
     i++;
 #endif
 
     painter.drawImage( 0, 0, img );
+  }
+
+  if ( mapShadingRenderer.isActive() &&  mainElevationMap )
+  {
+    mapShadingRenderer.renderShading( *mainElevationMap.get(), image, QgsRenderContext::fromMapSettings( settings ) );
   }
 
   // IMPORTANT - don't draw labelJob img before the label job is complete,
@@ -835,11 +1328,9 @@ QImage QgsMapRendererJob::composeImage(
   }
 
   // render any layers with the renderAboveLabels flag now
-  for ( LayerRenderJobs::const_iterator it = jobs.constBegin(); it != jobs.constEnd(); ++it )
+  for ( const LayerRenderJob &job : jobs )
   {
-    const LayerRenderJob &job = *it;
-
-    if ( !job.layer || !job.layer->customProperty( QStringLiteral( "rendering/renderAboveLabels" ) ).toBool() )
+    if ( !job.renderAboveLabels )
       continue;
 
     QImage img = layerImageToBeComposed( settings, job, cache );
@@ -867,6 +1358,9 @@ QImage QgsMapRendererJob::layerImageToBeComposed(
 {
   if ( job.imageCanBeComposed() )
   {
+    if ( job.previewRenderImage && !job.completed )
+      return *job.previewRenderImage;
+
     Q_ASSERT( job.img );
     return *job.img;
   }
@@ -881,33 +1375,38 @@ QImage QgsMapRendererJob::layerImageToBeComposed(
   }
 }
 
-void QgsMapRendererJob::composeSecondPass( LayerRenderJobs &secondPassJobs, LabelRenderJob &labelJob )
+QgsElevationMap QgsMapRendererJob::layerElevationToBeComposed( const QgsMapSettings &settings, const LayerRenderJob &job, const QgsMapRendererCache *cache )
 {
-#if DEBUG_RENDERING
-  int i = 0;
-#endif
+  if ( job.imageCanBeComposed() && job.elevationMap )
+  {
+    return *job.elevationMap;
+  }
+  else
+  {
+    if ( cache && cache->hasAnyCacheImage( ELEVATION_MAP_CACHE_PREFIX + job.layerId + QStringLiteral( "_preview" ) ) )
+      return QgsElevationMap( cache->transformedCacheImage( ELEVATION_MAP_CACHE_PREFIX + job.layerId + QStringLiteral( "_preview" ), settings.mapToPixel() ) );
+    else
+      return QgsElevationMap();
+  }
+}
+
+void QgsMapRendererJob::composeSecondPass( std::vector<LayerRenderJob> &secondPassJobs, LabelRenderJob &labelJob, bool forceVector )
+{
   // compose the second pass with the mask
   for ( LayerRenderJob &job : secondPassJobs )
   {
-#if DEBUG_RENDERING
-    i++;
-    job.img->save( QString( "/tmp/second_%1.png" ).arg( i ) );
-    int mask = 0;
-#endif
+    const bool isRasterRendering = !forceVector || job.maskRequiresLayerRasterization;
 
     // Merge all mask images into the first one if we have more than one mask image
-    if ( job.maskJobs.size() > 1 )
+    if ( isRasterRendering && job.maskJobs.size() > 1 )
     {
       QPainter *maskPainter = nullptr;
       for ( QPair<LayerRenderJob *, int> p : job.maskJobs )
       {
-        QImage *maskImage = p.first ? p.first->maskImage : labelJob.maskImages[p.second];
-#if DEBUG_RENDERING
-        maskImage->save( QString( "/tmp/mask_%1_%2.png" ).arg( i ).arg( mask++ ) );
-#endif
-        if ( ! maskPainter )
+        QImage *maskImage = static_cast<QImage *>( p.first ? p.first->maskPaintDevice.get() : labelJob.maskPaintDevices[p.second].get() );
+        if ( !maskPainter )
         {
-          maskPainter = p.first ? p.first->context.maskPainter() : labelJob.context.maskPainter( p.second );
+          maskPainter = p.first ? p.first->maskPainter.get() : labelJob.maskPainters[ p.second ].get();
         }
         else
         {
@@ -920,81 +1419,71 @@ void QgsMapRendererJob::composeSecondPass( LayerRenderJobs &secondPassJobs, Labe
     {
       // All have been merged into the first
       QPair<LayerRenderJob *, int> p = *job.maskJobs.begin();
-      QImage *maskImage = p.first ? p.first->maskImage : labelJob.maskImages[p.second];
-#if DEBUG_RENDERING
-      maskImage->save( QString( "/tmp/mask_%1.png" ).arg( i ) );
-#endif
-
-      // Only retain parts of the second rendering that are "inside" the mask image
-      QPainter *painter = job.context.painter();
-      painter->setCompositionMode( QPainter::CompositionMode_DestinationIn );
-
-      //Create an "alpha binarized" image of the maskImage to :
-      //* Eliminate antialiasing artifact
-      //* Avoid applying mask opacity to elements under the mask but not masked
-      QImage maskBinAlpha = maskImage->createMaskFromColor( 0 );
-      QVector<QRgb> mswTable;
-      mswTable.push_back( qRgba( 0, 0, 0, 255 ) );
-      mswTable.push_back( qRgba( 0, 0, 0, 0 ) );
-      maskBinAlpha.setColorTable( mswTable );
-      painter->drawImage( 0, 0, maskBinAlpha );
-#if DEBUG_RENDERING
-      job.img->save( QString( "/tmp/second_%1_a.png" ).arg( i ) );
-#endif
-
-      // Modify the first pass' image ...
+      if ( isRasterRendering )
       {
-        QPainter tempPainter;
+        QImage *maskImage = static_cast<QImage *>( p.first ? p.first->maskPaintDevice.get() : labelJob.maskPaintDevices[p.second].get() );
 
-        // reuse the first pass painter, if available
-        QPainter *painter1 = job.firstPassJob->context.painter();
-        if ( ! painter1 )
+        // Only retain parts of the second rendering that are "inside" the mask image
+        QPainter *painter = job.context()->painter();
+
+        painter->setCompositionMode( QPainter::CompositionMode_DestinationIn );
+
+        //Create an "alpha binarized" image of the maskImage to :
+        //* Eliminate antialiasing artifact
+        //* Avoid applying mask opacity to elements under the mask but not masked
+        QImage maskBinAlpha = maskImage->createMaskFromColor( 0 );
+        QVector<QRgb> mswTable;
+        mswTable.push_back( qRgba( 0, 0, 0, 255 ) );
+        mswTable.push_back( qRgba( 0, 0, 0, 0 ) );
+        maskBinAlpha.setColorTable( mswTable );
+        painter->drawImage( 0, 0, maskBinAlpha );
+
+        // Modify the first pass' image ...
         {
-          tempPainter.begin( job.firstPassJob->img );
-          painter1 = &tempPainter;
-        }
-#if DEBUG_RENDERING
-        job.firstPassJob->img->save( QString( "/tmp/second_%1_first_pass_1.png" ).arg( i ) );
-#endif
-        // ... first retain parts that are "outside" the mask image
-        painter1->setCompositionMode( QPainter::CompositionMode_DestinationOut );
-        painter1->drawImage( 0, 0, *maskImage );
+          QPainter tempPainter;
 
-#if DEBUG_RENDERING
-        job.firstPassJob->img->save( QString( "/tmp/second_%1_first_pass_2.png" ).arg( i ) );
-#endif
-        // ... and overpaint the second pass' image on it
-        painter1->setCompositionMode( QPainter::CompositionMode_DestinationOver );
-        painter1->drawImage( 0, 0, *job.img );
-#if DEBUG_RENDERING
-        job.img->save( QString( "/tmp/second_%1_b.png" ).arg( i ) );
-        if ( job.firstPassJob )
-          job.firstPassJob->img->save( QString( "/tmp/second_%1_first_pass_3.png" ).arg( i ) );
-#endif
+          // reuse the first pass painter, if available
+          QPainter *painter1 = job.firstPassJob->context()->painter();
+          if ( ! painter1 )
+          {
+            tempPainter.begin( job.firstPassJob->img );
+            painter1 = &tempPainter;
+          }
+
+          // ... first retain parts that are "outside" the mask image
+          painter1->setCompositionMode( QPainter::CompositionMode_DestinationOut );
+          painter1->drawImage( 0, 0, *maskImage );
+
+          // ... and overpaint the second pass' image on it
+          painter1->setCompositionMode( QPainter::CompositionMode_DestinationOver );
+          painter1->drawImage( 0, 0, *job.img );
+        }
+      }
+      else
+      {
+        job.firstPassJob->picture = std::move( job.picture );
+        job.picture = nullptr;
       }
     }
   }
 }
 
-void QgsMapRendererJob::logRenderingTime( const LayerRenderJobs &jobs, const LayerRenderJobs &secondPassJobs, const LabelRenderJob &labelJob )
+void QgsMapRendererJob::logRenderingTime( const std::vector< LayerRenderJob > &jobs, const std::vector< LayerRenderJob > &secondPassJobs, const LabelRenderJob &labelJob )
 {
-  if ( !settingsLogCanvasRefreshEvent.value() )
+  if ( !settingsLogCanvasRefreshEvent->value() )
     return;
 
   QMultiMap<int, QString> elapsed;
-  const auto constJobs = jobs;
-  for ( const LayerRenderJob &job : constJobs )
+  for ( const LayerRenderJob &job : jobs )
     elapsed.insert( job.renderingTime, job.layerId );
-  const auto constSecondPassJobs = secondPassJobs;
-  for ( const LayerRenderJob &job : constSecondPassJobs )
+  for ( const LayerRenderJob &job : secondPassJobs )
     elapsed.insert( job.renderingTime, job.layerId + QString( " (second pass)" ) );
 
   elapsed.insert( labelJob.renderingTime, tr( "Labeling" ) );
 
   QList<int> tt( elapsed.uniqueKeys() );
   std::sort( tt.begin(), tt.end(), std::greater<int>() );
-  const auto constTt = tt;
-  for ( int t : constTt )
+  for ( int t : std::as_const( tt ) )
   {
     QgsMessageLog::logMessage( tr( "%1 ms: %2" ).arg( t ).arg( QStringList( elapsed.values( t ) ).join( QLatin1String( ", " ) ) ), tr( "Rendering" ) );
   }
@@ -1004,6 +1493,12 @@ void QgsMapRendererJob::logRenderingTime( const LayerRenderJobs &jobs, const Lay
 void QgsMapRendererJob::drawLabeling( QgsRenderContext &renderContext, QgsLabelingEngine *labelingEngine2, QPainter *painter )
 {
   QgsDebugMsgLevel( QStringLiteral( "Draw labeling start" ), 5 );
+
+  std::unique_ptr< QgsScopedRuntimeProfile > labelingProfile;
+  if ( renderContext.flags() & Qgis::RenderContextFlag::RecordProfile )
+  {
+    labelingProfile = std::make_unique< QgsScopedRuntimeProfile >( QObject::tr( "(labeling)" ), QStringLiteral( "rendering" ) );
+  }
 
   QElapsedTimer t;
   t.start();

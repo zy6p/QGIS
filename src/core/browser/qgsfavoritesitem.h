@@ -27,7 +27,6 @@
 /**
  * \ingroup core
  * \brief Contains various Favorites directories
- * \since QGIS 3.0
 */
 class CORE_EXPORT QgsFavoritesItem : public QgsDataCollectionItem
 {
@@ -39,6 +38,14 @@ class CORE_EXPORT QgsFavoritesItem : public QgsDataCollectionItem
      * the item.
      */
     QgsFavoritesItem( QgsDataItem *parent, const QString &name, const QString &path = QString() );
+
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    QString str = QStringLiteral( "<QgsFavoritesItem: \"%1\">" ).arg( sipCpp->name() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
 
     QVector<QgsDataItem *> createChildren() override;
 
@@ -78,7 +85,6 @@ class CORE_EXPORT QgsFavoritesItem : public QgsDataCollectionItem
  * \ingroup core
  * \brief A directory item showing the a single favorite directory.
  * \note Not available in Python bindings
- * \since QGIS 3.0
 */
 Q_NOWARN_DEPRECATED_PUSH  // rename is deprecated
 class CORE_EXPORT QgsFavoriteItem : public QgsDirectoryItem

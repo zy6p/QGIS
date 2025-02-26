@@ -17,6 +17,8 @@
 
 #include "qgsalgorithmnearestneighbouranalysis.h"
 #include "qgsapplication.h"
+#include "qgsdistancearea.h"
+#include "qgsspatialindex.h"
 #include <QTextStream>
 
 ///@cond PRIVATE
@@ -70,9 +72,8 @@ QgsNearestNeighbourAnalysisAlgorithm *QgsNearestNeighbourAnalysisAlgorithm::crea
 
 void QgsNearestNeighbourAnalysisAlgorithm::initAlgorithm( const QVariantMap & )
 {
-  addParameter( new QgsProcessingParameterFeatureSource( QStringLiteral( "INPUT" ), QObject::tr( "Input layer" ), QList< int >() << QgsProcessing::TypeVectorPoint ) );
-  addParameter( new QgsProcessingParameterFileDestination( QStringLiteral( "OUTPUT_HTML_FILE" ), QObject::tr( "Nearest neighbour" ),
-                QObject::tr( "HTML files (*.html *.HTML)" ), QVariant(), true ) );
+  addParameter( new QgsProcessingParameterFeatureSource( QStringLiteral( "INPUT" ), QObject::tr( "Input layer" ), QList<int>() << static_cast<int>( Qgis::ProcessingSourceType::VectorPoint ) ) );
+  addParameter( new QgsProcessingParameterFileDestination( QStringLiteral( "OUTPUT_HTML_FILE" ), QObject::tr( "Nearest neighbour" ), QObject::tr( "HTML files (*.html *.HTML)" ), QVariant(), true ) );
   addOutput( new QgsProcessingOutputNumber( QStringLiteral( "OBSERVED_MD" ), QObject::tr( "Observed mean distance" ) ) );
   addOutput( new QgsProcessingOutputNumber( QStringLiteral( "EXPECTED_MD" ), QObject::tr( "Expected mean distance" ) ) );
   addOutput( new QgsProcessingOutputNumber( QStringLiteral( "NN_INDEX" ), QObject::tr( "Nearest neighbour index" ) ) );
@@ -82,24 +83,24 @@ void QgsNearestNeighbourAnalysisAlgorithm::initAlgorithm( const QVariantMap & )
 
 QVariantMap QgsNearestNeighbourAnalysisAlgorithm::processAlgorithm( const QVariantMap &parameters, QgsProcessingContext &context, QgsProcessingFeedback *feedback )
 {
-  std::unique_ptr< QgsProcessingFeatureSource > source( parameterAsSource( parameters, QStringLiteral( "INPUT" ), context ) );
+  std::unique_ptr<QgsProcessingFeatureSource> source( parameterAsSource( parameters, QStringLiteral( "INPUT" ), context ) );
   if ( !source )
     throw QgsProcessingException( invalidSourceError( parameters, QStringLiteral( "INPUT" ) ) );
 
-  QString outputFile = parameterAsFileOutput( parameters, QStringLiteral( "OUTPUT_HTML_FILE" ), context );
+  const QString outputFile = parameterAsFileOutput( parameters, QStringLiteral( "OUTPUT_HTML_FILE" ), context );
 
-  QgsSpatialIndex spatialIndex( *source, feedback, QgsSpatialIndex::FlagStoreFeatureGeometries );
+  const QgsSpatialIndex spatialIndex( *source, feedback, QgsSpatialIndex::FlagStoreFeatureGeometries );
   QgsDistanceArea da;
   da.setSourceCrs( source->sourceCrs(), context.transformContext() );
   da.setEllipsoid( context.ellipsoid() );
 
-  double step = source->featureCount() ? 100.0 / source->featureCount() : 1;
-  QgsFeatureIterator it = source->getFeatures( QgsFeatureRequest().setSubsetOfAttributes( QList< int >() ) );
+  const double step = source->featureCount() ? 100.0 / source->featureCount() : 1;
+  QgsFeatureIterator it = source->getFeatures( QgsFeatureRequest().setSubsetOfAttributes( QList<int>() ) );
 
-  QgsFeatureRequest request;
-  QgsFeature neighbour;
+  const QgsFeatureRequest request;
+  const QgsFeature neighbour;
   double sumDist = 0.0;
-  double area = source->sourceExtent().width() * source->sourceExtent().height();
+  const double area = source->sourceExtent().width() * source->sourceExtent().height();
 
   int i = 0;
   QgsFeature f;
@@ -110,19 +111,26 @@ QVariantMap QgsNearestNeighbourAnalysisAlgorithm::processAlgorithm( const QVaria
       break;
     }
 
-    QgsFeatureId neighbourId = spatialIndex.nearestNeighbor( f.geometry().asPoint(), 2 ).at( 1 );
-    sumDist += da.measureLine( spatialIndex.geometry( neighbourId ).asPoint(), f.geometry().asPoint() );
+    const QgsFeatureId neighbourId = spatialIndex.nearestNeighbor( f.geometry().asPoint(), 2 ).at( 1 );
+    try
+    {
+      sumDist += da.measureLine( spatialIndex.geometry( neighbourId ).asPoint(), f.geometry().asPoint() );
+    }
+    catch ( QgsCsException & )
+    {
+      throw QgsProcessingException( QObject::tr( "An error occurred while calculating length" ) );
+    }
 
     i++;
     feedback->setProgress( i * step );
   }
 
-  int count = source->featureCount() > 0 ? source->featureCount() : 1;
-  double observedDistance = sumDist / count;
-  double expectedDistance = 0.5 / std::sqrt( count / area );
-  double nnIndex = observedDistance / expectedDistance;
-  double se = 0.26136 / std::sqrt( std::pow( count, 2 ) / area );
-  double zScore = ( observedDistance - expectedDistance ) / se;
+  const long long count = source->featureCount() > 0 ? source->featureCount() : 1;
+  const double observedDistance = sumDist / count;
+  const double expectedDistance = 0.5 / std::sqrt( count / area );
+  const double nnIndex = observedDistance / expectedDistance;
+  const double se = 0.26136 / std::sqrt( std::pow( count, 2 ) / area );
+  const double zScore = ( observedDistance - expectedDistance ) / se;
 
   QVariantMap outputs;
   outputs.insert( QStringLiteral( "OBSERVED_MD" ), observedDistance );
@@ -137,7 +145,7 @@ QVariantMap QgsNearestNeighbourAnalysisAlgorithm::processAlgorithm( const QVaria
     if ( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
     {
       QTextStream out( &file );
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
       out.setCodec( "UTF-8" );
 #endif
       out << QStringLiteral( "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\"/></head><body>\n" );

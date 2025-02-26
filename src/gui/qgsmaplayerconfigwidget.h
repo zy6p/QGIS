@@ -17,24 +17,101 @@
 
 #include <QWidget>
 #include <QIcon>
+#include <QPointer>
 
 #include "qgspanelwidget.h"
+#include "qgslayertreegroup.h"
 #include "qgis_gui.h"
 
 class QgsMapCanvas;
 class QgsMapLayer;
+class QgsMessageBar;
+
+/**
+ * \ingroup gui
+ * \class QgsMapLayerConfigWidgetContext
+ * \brief Encapsulates the context for a QgsMapLayerConfigWidget.
+ * \since QGIS 3.22
+ */
+class GUI_EXPORT QgsMapLayerConfigWidgetContext
+{
+  public:
+    /**
+     * Returns the item ID of the target annotation, when modifying
+     * an annotation from a QgsAnnotationLayer.
+     *
+     * \see setAnnotationId()
+     */
+    QString annotationId() const { return mAnnotationId; }
+
+    /**
+     * Sets the item \a id of the target annotation, when modifying
+     * an annotation from a QgsAnnotationLayer.
+     *
+     * \see annotationId()
+     */
+    void setAnnotationId( const QString &id ) { mAnnotationId = id; }
+
+    /**
+     * Sets the map \a canvas associated with the widget. This allows the widget to retrieve the current
+     * map scale and other properties from the canvas.
+     *
+     * \see mapCanvas()
+     */
+    void setMapCanvas( QgsMapCanvas *canvas ) { mMapCanvas = canvas; }
+
+    /**
+     * Returns the map canvas associated with the widget.
+     * \see setMapCanvas()
+     */
+    QgsMapCanvas *mapCanvas() const { return mMapCanvas; }
+
+    /**
+     * Sets the message \a bar associated with the widget. This allows the widget to push feedback messages
+     * to the appropriate message bar.
+     * \see messageBar()
+     */
+    void setMessageBar( QgsMessageBar *bar ) { mMessageBar = bar; }
+
+    /**
+     * Returns the message bar associated with the widget.
+     * \see setMessageBar()
+     */
+    QgsMessageBar *messageBar() const { return mMessageBar; }
+
+    /**
+     * Sets the layer tree \a group associated with the widget.
+     *
+     * \see layerTreeGroup()
+     * \since QGIS 3.24
+     */
+    void setLayerTreeGroup( QgsLayerTreeGroup *group );
+
+    /**
+     * Returns the layer tree group associated with the widget.
+     *
+     * \see setLayerTreeGroup()
+     * \since QGIS 3.24
+     */
+    QgsLayerTreeGroup *layerTreeGroup() const;
+
+  private:
+    QString mAnnotationId;
+    QgsMapCanvas *mMapCanvas = nullptr;
+    QgsMessageBar *mMessageBar = nullptr;
+    QPointer<QgsLayerTreeGroup> mLayerTreeGroup = nullptr;
+};
+
 
 /**
  * \ingroup gui
  * \class QgsMapLayerConfigWidget
  * \brief A panel widget that can be shown in the map style dock
- * \since QGIS 2.16
  */
 class GUI_EXPORT QgsMapLayerConfigWidget : public QgsPanelWidget
 {
     Q_OBJECT
   public:
-
     /**
        * \brief A panel widget that can be shown in the map style dock
        * \param layer The layer active in the dock.
@@ -53,11 +130,26 @@ class GUI_EXPORT QgsMapLayerConfigWidget : public QgsPanelWidget
      */
     virtual bool shouldTriggerLayerRepaint() const { return true; }
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Woverloaded-virtual"
+#endif
+
     /**
      * Reset to original (vector layer) values
      * \since QGIS 3.14
      */
     virtual void syncToLayer( QgsMapLayer *layer ) { Q_UNUSED( layer ) }
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+    /**
+     * Sets the \a context under which the widget is being shown.
+     *
+     * Subclasses should take care to call the base class implementation when overriding this method.
+     */
+    virtual void setMapLayerConfigWidgetContext( const QgsMapLayerConfigWidgetContext &context );
 
   public slots:
 
@@ -66,6 +158,13 @@ class GUI_EXPORT QgsMapLayerConfigWidget : public QgsPanelWidget
      * Will be called when live update is enabled.
      */
     virtual void apply() = 0;
+
+    /**
+     * Focuses the default widget for the page.
+     *
+     * \since QGIS 3.22
+     */
+    virtual void focusDefaultWidget();
 
   signals:
 
@@ -84,6 +183,7 @@ class GUI_EXPORT QgsMapLayerConfigWidget : public QgsPanelWidget
   protected:
     QgsMapLayer *mLayer = nullptr;
     QgsMapCanvas *mMapCanvas = nullptr;
+    QgsMapLayerConfigWidgetContext mMapLayerConfigWidgetContext;
 };
 
 #endif // QGSMAPLAYERCONFIGWIDGET_H

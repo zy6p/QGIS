@@ -3,9 +3,8 @@
  *                                                                      *
  * src/core/browser/qgsbrowsermodel.h                                   *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
-
 
 
 
@@ -51,13 +50,16 @@ Constructor for QgsBrowserModel, with the specified ``parent`` object.
 
     ~QgsBrowserModel();
 
-    enum ItemDataRole
-    {
-      PathRole,
-      CommentRole,
-      SortRole,
-      ProviderKeyRole,
+
+    enum class CustomRole
+      {
+      Path,
+      Comment,
+      Sort,
+      ProviderKey,
+      LayerMetadata,
     };
+
 
     virtual Qt::ItemFlags flags( const QModelIndex &index ) const;
 
@@ -140,11 +142,12 @@ items, i.e. it does not fetch children.
 .. versionadded:: 3.6
 %End
 
- void connectItem( QgsDataItem *item ) /Deprecated/;
+ void connectItem( QgsDataItem *item ) /Deprecated="Since 3.4. This method has no effect, and is dangerous to call in earlier QGIS versions. Any usage should be removed (and will have no harmful side-effects!)."/;
 %Docstring
 
-.. deprecated::
-   Deprecated since QGIS 3.4 -- this method has no effect, and is dangerous to call in earlier QGIS versions. Any usage should be removed (and will have no harmful side-effects!).
+.. deprecated:: 3.4
+
+   This method has no effect, and is dangerous to call in earlier QGIS versions. Any usage should be removed (and will have no harmful side-effects!).
 %End
 
     bool initialized() const;
@@ -163,9 +166,17 @@ and on Linux the "/" root directory.
 
 .. versionadded:: 3.6
 %End
+
+    QVector<QgsDataItem *> rootItems() const;
+%Docstring
+Returns the root items for the model.
+
+.. versionadded:: 3.28
+%End
+
   signals:
 
-    void stateChanged( const QModelIndex &index, QgsDataItem::State oldState );
+    void stateChanged( const QModelIndex &index, Qgis::BrowserItemState oldState );
 %Docstring
 Emitted when item children fetch was finished
 %End
@@ -196,7 +207,11 @@ drives and adding newly added drives.
     void beginRemoveItems( QgsDataItem *parent, int first, int last );
     void endRemoveItems();
     void itemDataChanged( QgsDataItem *item );
-    void itemStateChanged( QgsDataItem *item, QgsDataItem::State oldState );
+
+    void itemStateChanged( QgsDataItem *item, Qgis::BrowserItemState oldState );
+%Docstring
+Emitted when an ``item``'s state is changed.
+%End
 
     void addFavoriteDirectory( const QString &directory, const QString &name = QString() );
 %Docstring
@@ -206,8 +221,6 @@ If ``name`` is specified, it will be used as the favorite's name. Otherwise
 the name will be set to match ``directory``.
 
 .. seealso:: :py:func:`removeFavorite`
-
-.. versionadded:: 3.0
 %End
 
     void removeFavorite( const QModelIndex &index );
@@ -215,8 +228,6 @@ the name will be set to match ``directory``.
 Removes a favorite directory from its corresponding model index.
 
 .. seealso:: :py:func:`addFavoriteDirectory`
-
-.. versionadded:: 3.0
 %End
 
 
@@ -249,5 +260,5 @@ Populates the model
  *                                                                      *
  * src/core/browser/qgsbrowsermodel.h                                   *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

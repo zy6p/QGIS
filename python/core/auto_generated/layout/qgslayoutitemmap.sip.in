@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/layout/qgslayoutitemmap.h                                   *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -289,8 +289,6 @@ class QgsLayoutItemMap : QgsLayoutItem, QgsTemporalRangeObject
 {
 %Docstring(signature="appended")
 Layout graphical items for displaying a map.
-
-.. versionadded:: 3.0
 %End
 
 %TypeHeaderCode
@@ -363,7 +361,13 @@ The caller takes responsibility for deleting the returned object.
 
     virtual void paint( QPainter *painter, const QStyleOptionGraphicsItem *itemStyle, QWidget *pWidget );
 
- virtual int numberExportLayers() const /Deprecated/;
+
+ virtual int numberExportLayers() const /Deprecated="Since 3.10. "/;
+
+%Docstring
+
+.. deprecated:: 3.10
+%End
 
     virtual void startLayeredExport();
 
@@ -508,12 +512,17 @@ be used instead.
 
     void setLayers( const QList<QgsMapLayer *> &layers );
 %Docstring
-Sets the stored ``layers`` set. If empty, the current project layers will
-be used instead.
+Sets the stored ``layers`` set. If empty, the current project layers will be used.
+If the map item is set to follow a map theme (via :py:func:`~QgsLayoutItemMap.followVisibilityPreset` and :py:func:`~QgsLayoutItemMap.followVisibilityPresetName` ),
+then this method will have no effect and the layers rendered in the map will always follow the map theme.
 
 .. seealso:: :py:func:`layers`
 
 .. seealso:: :py:func:`keepLayerSet`
+
+.. seealso:: :py:func:`followVisibilityPreset`
+
+.. seealso:: :py:func:`followVisibilityPresetName`
 %End
 
     bool keepLayerStyles() const;
@@ -867,6 +876,15 @@ Returns map rendering errors
 :return: list of errors
 %End
 
+    QgsLabelingResults *previewLabelingResults() const;
+%Docstring
+Returns the labeling results of the most recent preview map render. May be ``None`` if no map preview has been rendered in the item.
+
+The map item retains ownership of the returned results.
+
+.. versionadded:: 3.20
+%End
+
     virtual bool accept( QgsStyleEntityVisitorInterface *visitor ) const;
 
 
@@ -912,6 +930,63 @@ Returns the map's item based clip path settings.
 
 .. versionadded:: 3.16
 %End
+
+    void setZRangeEnabled( bool enabled );
+%Docstring
+Sets whether the z range is ``enabled`` (i.e. whether the map will be filtered
+to content within the :py:func:`~QgsLayoutItemMap.zRange`.)
+
+.. seealso:: :py:func:`zRangeEnabled`
+
+.. versionadded:: 3.38
+%End
+
+    bool zRangeEnabled() const;
+%Docstring
+Returns whether the z range is enabled (i.e. whether the map will be filtered
+to content within the :py:func:`~QgsLayoutItemMap.zRange`.)
+
+.. seealso:: :py:func:`setZRangeEnabled`
+
+.. seealso:: :py:func:`zRange`
+
+.. versionadded:: 3.38
+%End
+
+    QgsDoubleRange zRange() const;
+%Docstring
+Returns the map's z range, which is used to filter the map's content to only
+display features within the specified z range.
+
+.. note::
+
+   This is only considered when :py:func:`~QgsLayoutItemMap.zRangeEnabled` is ``True``.
+
+.. seealso:: :py:func:`setZRange`
+
+.. seealso:: :py:func:`zRangeEnabled`
+
+.. versionadded:: 3.38
+%End
+
+    void setZRange( const QgsDoubleRange &range );
+%Docstring
+Sets the map's z ``range``, which is used to filter the map's content to only
+display features within the specified z range.
+
+.. note::
+
+   This is only considered when :py:func:`~QgsLayoutItemMap.zRangeEnabled` is ``True``.
+
+.. seealso:: :py:func:`zRange`
+
+.. seealso:: :py:func:`setZRangeEnabled`
+
+.. versionadded:: 3.38
+%End
+
+    virtual double estimatedFrameBleed() const;
+
 
   protected:
 
@@ -997,6 +1072,13 @@ Emitted when the map's coordinate reference system is changed.
 .. versionadded:: 3.18
 %End
 
+    void previewRefreshed();
+%Docstring
+Emitted whenever the item's map preview has been refreshed.
+
+.. versionadded:: 3.20
+%End
+
   public slots:
 
     virtual void refresh();
@@ -1010,7 +1092,7 @@ Emitted when the map's coordinate reference system is changed.
 Updates the bounding rect of this item. Call this function before doing any changes related to annotation out of the map rectangle
 %End
 
-    virtual void refreshDataDefinedProperty( QgsLayoutObject::DataDefinedProperty property = QgsLayoutObject::AllProperties );
+    virtual void refreshDataDefinedProperty( QgsLayoutObject::DataDefinedProperty property = QgsLayoutObject::DataDefinedProperty::AllProperties );
 
 
 };
@@ -1023,5 +1105,5 @@ QFlags<QgsLayoutItemMap::MapItemFlag> operator|(QgsLayoutItemMap::MapItemFlag f1
  *                                                                      *
  * src/core/layout/qgslayoutitemmap.h                                   *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

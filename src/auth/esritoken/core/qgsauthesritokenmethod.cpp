@@ -15,17 +15,23 @@
  ***************************************************************************/
 
 #include "qgsauthesritokenmethod.h"
+#include "moc_qgsauthesritokenmethod.cpp"
 
 #include "qgsauthmanager.h"
 #include "qgslogger.h"
 #include "qgsapplication.h"
 
+#ifdef HAVE_GUI
+#include "qgsauthesritokenedit.h"
+#endif
+
 #include <QNetworkProxy>
 #include <QMutexLocker>
 #include <QUuid>
 
-static const QString AUTH_METHOD_KEY = QStringLiteral( "EsriToken" );
-static const QString AUTH_METHOD_DESCRIPTION = QStringLiteral( "ESRI token" );
+const QString QgsAuthEsriTokenMethod::AUTH_METHOD_KEY = QStringLiteral( "EsriToken" );
+const QString QgsAuthEsriTokenMethod::AUTH_METHOD_DESCRIPTION = QStringLiteral( "ESRI token" );
+const QString QgsAuthEsriTokenMethod::AUTH_METHOD_DISPLAY_DESCRIPTION = tr( "ESRI token" );
 
 QMap<QString, QgsAuthMethodConfig> QgsAuthEsriTokenMethod::sAuthConfigCache = QMap<QString, QgsAuthMethodConfig>();
 
@@ -34,10 +40,7 @@ QgsAuthEsriTokenMethod::QgsAuthEsriTokenMethod()
 {
   setVersion( 2 );
   setExpansions( QgsAuthMethod::NetworkRequest );
-  setDataProviders( QStringList()
-                    << QStringLiteral( "arcgismapserver" )
-                    << QStringLiteral( "arcgisfeatureserver" ) );
-
+  setDataProviders( QStringList() << QStringLiteral( "arcgismapserver" ) << QStringLiteral( "arcgisfeatureserver" ) );
 }
 
 QString QgsAuthEsriTokenMethod::key() const
@@ -52,25 +55,24 @@ QString QgsAuthEsriTokenMethod::description() const
 
 QString QgsAuthEsriTokenMethod::displayDescription() const
 {
-  return tr( "ESRI token based authentication" );
+  return AUTH_METHOD_DISPLAY_DESCRIPTION;
 }
 
-bool QgsAuthEsriTokenMethod::updateNetworkRequest( QNetworkRequest &request, const QString &authcfg,
-    const QString &dataprovider )
+bool QgsAuthEsriTokenMethod::updateNetworkRequest( QNetworkRequest &request, const QString &authcfg, const QString &dataprovider )
 {
   Q_UNUSED( dataprovider )
-  QgsAuthMethodConfig mconfig = getMethodConfig( authcfg );
-  if ( !mconfig.isValid() )
+  const QgsAuthMethodConfig config = getMethodConfig( authcfg );
+  if ( !config.isValid() )
   {
-    QgsDebugMsg( QStringLiteral( "Update request config FAILED for authcfg: %1: config invalid" ).arg( authcfg ) );
+    QgsDebugError( QStringLiteral( "Update request config FAILED for authcfg: %1: config invalid" ).arg( authcfg ) );
     return false;
   }
 
-  const QString token = mconfig.config( QStringLiteral( "token" ) );
+  const QString token = config.config( QStringLiteral( "token" ) );
 
   if ( !token.isEmpty() )
   {
-    request.setRawHeader( "X-Esri-Authorization",  QStringLiteral( "Bearer %1 " ).arg( token ).toLocal8Bit() );
+    request.setRawHeader( "X-Esri-Authorization", QStringLiteral( "Bearer %1 " ).arg( token ).toLocal8Bit() );
   }
   return true;
 }
@@ -84,7 +86,7 @@ void QgsAuthEsriTokenMethod::updateMethodConfig( QgsAuthMethodConfig &mconfig )
 {
   if ( mconfig.hasConfig( QStringLiteral( "oldconfigstyle" ) ) )
   {
-    QgsDebugMsg( QStringLiteral( "Updating old style auth method config" ) );
+    QgsDebugMsgLevel( QStringLiteral( "Updating old style auth method config" ), 2 );
   }
 
   // NOTE: add updates as method version() increases due to config storage changes
@@ -92,21 +94,21 @@ void QgsAuthEsriTokenMethod::updateMethodConfig( QgsAuthMethodConfig &mconfig )
 
 QgsAuthMethodConfig QgsAuthEsriTokenMethod::getMethodConfig( const QString &authcfg, bool fullconfig )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   QgsAuthMethodConfig mconfig;
 
   // check if it is cached
   if ( sAuthConfigCache.contains( authcfg ) )
   {
     mconfig = sAuthConfigCache.value( authcfg );
-    QgsDebugMsg( QStringLiteral( "Retrieved config for authcfg: %1" ).arg( authcfg ) );
+    QgsDebugMsgLevel( QStringLiteral( "Retrieved config for authcfg: %1" ).arg( authcfg ), 2 );
     return mconfig;
   }
 
   // else build basic bundle
   if ( !QgsApplication::authManager()->loadAuthenticationConfig( authcfg, mconfig, fullconfig ) )
   {
-    QgsDebugMsg( QStringLiteral( "Retrieve config FAILED for authcfg: %1" ).arg( authcfg ) );
+    QgsDebugError( QStringLiteral( "Retrieve config FAILED for authcfg: %1" ).arg( authcfg ) );
     return QgsAuthMethodConfig();
   }
 
@@ -118,61 +120,36 @@ QgsAuthMethodConfig QgsAuthEsriTokenMethod::getMethodConfig( const QString &auth
 
 void QgsAuthEsriTokenMethod::putMethodConfig( const QString &authcfg, const QgsAuthMethodConfig &mconfig )
 {
-  QMutexLocker locker( &mMutex );
-  QgsDebugMsg( QStringLiteral( "Putting token config for authcfg: %1" ).arg( authcfg ) );
+  const QMutexLocker locker( &mMutex );
+  QgsDebugMsgLevel( QStringLiteral( "Putting token config for authcfg: %1" ).arg( authcfg ), 2 );
   sAuthConfigCache.insert( authcfg, mconfig );
 }
 
 void QgsAuthEsriTokenMethod::removeMethodConfig( const QString &authcfg )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
   if ( sAuthConfigCache.contains( authcfg ) )
   {
     sAuthConfigCache.remove( authcfg );
-    QgsDebugMsg( QStringLiteral( "Removed token config for authcfg: %1" ).arg( authcfg ) );
+    QgsDebugMsgLevel( QStringLiteral( "Removed token config for authcfg: %1" ).arg( authcfg ), 2 );
   }
 }
+
+#ifdef HAVE_GUI
+QWidget *QgsAuthEsriTokenMethod::editWidget( QWidget *parent ) const
+{
+  return new QgsAuthEsriTokenEdit( parent );
+}
+#endif
 
 //////////////////////////////////////////////
 // Plugin externals
 //////////////////////////////////////////////
 
-/**
- * Required class factory to return a pointer to a newly created object
- */
-QGISEXTERN QgsAuthEsriTokenMethod *classFactory()
-{
-  return new QgsAuthEsriTokenMethod();
-}
 
-/**
- * Required key function (used to map the plugin to a data store type)
- */
-QGISEXTERN QString authMethodKey()
+#ifndef HAVE_STATIC_PROVIDERS
+QGISEXTERN QgsAuthMethodMetadata *authMethodMetadataFactory()
 {
-  return AUTH_METHOD_KEY;
+  return new QgsAuthEsriTokenMethodMetadata();
 }
-
-/**
- * Required description function
- */
-QGISEXTERN QString description()
-{
-  return AUTH_METHOD_DESCRIPTION;
-}
-
-/**
- * Required isAuthMethod function. Used to determine if this shared library
- * is an authentication method plugin
- */
-QGISEXTERN bool isAuthMethod()
-{
-  return true;
-}
-
-/**
- * Required cleanup function
- */
-QGISEXTERN void cleanupAuthMethod() // pass QgsAuthMethod *method, then delete method  ?
-{
-}
+#endif

@@ -16,6 +16,7 @@
 #include <QPushButton>
 
 #include "qgsmaptoolsimplify.h"
+#include "moc_qgsmaptoolsimplify.cpp"
 
 #include "qgsfeatureiterator.h"
 #include "qgsgeometry.h"
@@ -41,9 +42,9 @@ QgsSimplifyUserInputWidget::QgsSimplifyUserInputWidget( QWidget *parent )
   mMethodComboBox->addItem( tr( "Simplify by Area (Visvalingam)" ), QgsMapToolSimplify::SimplifyVisvalingam );
   mMethodComboBox->addItem( tr( "Smooth" ), QgsMapToolSimplify::Smooth );
 
-  mToleranceUnitsComboBox->addItem( tr( "Layer Units" ), QgsTolerance::LayerUnits );
-  mToleranceUnitsComboBox->addItem( tr( "Pixels" ), QgsTolerance::Pixels );
-  mToleranceUnitsComboBox->addItem( tr( "Map Units" ), QgsTolerance::ProjectUnits );
+  mToleranceUnitsComboBox->addItem( tr( "Layer Units" ), QVariant::fromValue( Qgis::MapToolUnit::Layer ) );
+  mToleranceUnitsComboBox->addItem( tr( "Pixels" ), QVariant::fromValue( Qgis::MapToolUnit::Pixels ) );
+  mToleranceUnitsComboBox->addItem( tr( "Map Units" ), QVariant::fromValue( Qgis::MapToolUnit::Project ) );
 
   mToleranceSpinBox->setShowClearButton( false );
 
@@ -55,19 +56,18 @@ QgsSimplifyUserInputWidget::QgsSimplifyUserInputWidget( QWidget *parent )
     mOptionsStackedWidget->setCurrentIndex( 1 );
 
   // communication with map tool
-  connect( mToleranceSpinBox, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ), this, &QgsSimplifyUserInputWidget::toleranceChanged );
-  connect( mToleranceUnitsComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [ = ]( const int index ) {emit toleranceUnitsChanged( ( QgsTolerance::UnitType )index );} );
-  connect( mMethodComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [ = ]( const int method ) {emit methodChanged( ( QgsMapToolSimplify::Method )method );} );
-  connect( mMethodComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [ = ]
-  {
+  connect( mToleranceSpinBox, static_cast<void ( QDoubleSpinBox::* )( double )>( &QDoubleSpinBox::valueChanged ), this, &QgsSimplifyUserInputWidget::toleranceChanged );
+  connect( mToleranceUnitsComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [=]( int ) { emit toleranceUnitsChanged( mToleranceUnitsComboBox->currentData().value<Qgis::MapToolUnit>() ); } );
+  connect( mMethodComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [=]( const int method ) { emit methodChanged( ( QgsMapToolSimplify::Method ) method ); } );
+  connect( mMethodComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, [=] {
     if ( mMethodComboBox->currentData().toInt() != QgsMapToolSimplify::Smooth )
       mOptionsStackedWidget->setCurrentIndex( 0 );
     else
       mOptionsStackedWidget->setCurrentIndex( 1 );
   } );
 
-  connect( mOffsetSpin, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), this, [ = ]( const int offset ) {emit smoothOffsetChanged( offset / 100.0 );} );
-  connect( mIterationsSpin, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), this, &QgsSimplifyUserInputWidget::smoothIterationsChanged );
+  connect( mOffsetSpin, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, [=]( const int offset ) { emit smoothOffsetChanged( offset / 100.0 ); } );
+  connect( mIterationsSpin, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, &QgsSimplifyUserInputWidget::smoothIterationsChanged );
 
   connect( mButtonBox, &QDialogButtonBox::accepted, this, &QgsSimplifyUserInputWidget::accepted );
   connect( mButtonBox, &QDialogButtonBox::rejected, this, &QgsSimplifyUserInputWidget::rejected );
@@ -79,16 +79,12 @@ QgsSimplifyUserInputWidget::QgsSimplifyUserInputWidget( QWidget *parent )
   setFocusProxy( mButtonBox );
 }
 
-void QgsSimplifyUserInputWidget::setConfig( QgsMapToolSimplify::Method method,
-    double tolerance,
-    QgsTolerance::UnitType units,
-    double smoothOffset,
-    int smoothIterations )
+void QgsSimplifyUserInputWidget::setConfig( QgsMapToolSimplify::Method method, double tolerance, Qgis::MapToolUnit units, double smoothOffset, int smoothIterations )
 {
   mMethodComboBox->setCurrentIndex( mMethodComboBox->findData( method ) );
 
   mToleranceSpinBox->setValue( tolerance );
-  mToleranceUnitsComboBox->setCurrentIndex( mToleranceUnitsComboBox->findData( units ) );
+  mToleranceUnitsComboBox->setCurrentIndex( mToleranceUnitsComboBox->findData( QVariant::fromValue( units ) ) );
   mOffsetSpin->setValue( 100 * smoothOffset );
   mIterationsSpin->setValue( smoothIterations );
 }
@@ -140,10 +136,10 @@ void QgsSimplifyUserInputWidget::keyReleaseEvent( QKeyEvent *event )
 QgsMapToolSimplify::QgsMapToolSimplify( QgsMapCanvas *canvas )
   : QgsMapToolEdit( canvas )
 {
-  QgsSettings settings;
+  const QgsSettings settings;
   mTolerance = settings.value( QStringLiteral( "digitizing/simplify_tolerance" ), 1 ).toDouble();
-  mToleranceUnits = static_cast< QgsTolerance::UnitType >( settings.value( QStringLiteral( "digitizing/simplify_tolerance_units" ), 0 ).toInt() );
-  mMethod = static_cast< QgsMapToolSimplify::Method >( settings.value( QStringLiteral( "digitizing/simplify_method" ), 0 ).toInt() );
+  mToleranceUnits = static_cast<Qgis::MapToolUnit>( settings.value( QStringLiteral( "digitizing/simplify_tolerance_units" ), 0 ).toInt() );
+  mMethod = static_cast<QgsMapToolSimplify::Method>( settings.value( QStringLiteral( "digitizing/simplify_method" ), 0 ).toInt() );
   mSmoothIterations = settings.value( QStringLiteral( "digitizing/smooth_iterations" ), 1 ).toInt();
   mSmoothOffset = settings.value( QStringLiteral( "digitizing/smooth_offset" ), 0.25 ).toDouble();
 }
@@ -165,12 +161,12 @@ void QgsMapToolSimplify::setTolerance( double tolerance )
     updateSimplificationPreview();
 }
 
-void QgsMapToolSimplify::setToleranceUnits( QgsTolerance::UnitType units )
+void QgsMapToolSimplify::setToleranceUnits( Qgis::MapToolUnit units )
 {
   mToleranceUnits = units;
 
   QgsSettings settings;
-  settings.setValue( QStringLiteral( "digitizing/simplify_tolerance_units" ), units );
+  settings.setValue( QStringLiteral( "digitizing/simplify_tolerance_units" ), QVariant::fromValue( units ) );
 
   if ( !mSelectedFeatures.isEmpty() )
     updateSimplificationPreview();
@@ -180,7 +176,7 @@ void QgsMapToolSimplify::updateSimplificationPreview()
 {
   QgsVectorLayer *vl = currentVectorLayer();
 
-  double layerTolerance = QgsTolerance::toleranceInMapUnits( mTolerance, vl, mCanvas->mapSettings(), mToleranceUnits );
+  const double layerTolerance = QgsTolerance::toleranceInMapUnits( mTolerance, vl, mCanvas->mapSettings(), mToleranceUnits );
   mReducedHasErrors = false;
   mReducedVertexCount = 0;
   int i = 0;
@@ -188,7 +184,7 @@ void QgsMapToolSimplify::updateSimplificationPreview()
   const auto constMSelectedFeatures = mSelectedFeatures;
   for ( const QgsFeature &fSel : constMSelectedFeatures )
   {
-    QgsGeometry g = processGeometry( fSel.geometry(), layerTolerance );
+    const QgsGeometry g = processGeometry( fSel.geometry(), layerTolerance );
     if ( !g.isNull() )
     {
       mReducedVertexCount += g.constGet()->nCoordinates();
@@ -208,7 +204,7 @@ void QgsMapToolSimplify::updateSimplificationPreview()
 
 void QgsMapToolSimplify::createUserInputWidget()
 {
-  mSimplifyUserWidget = new QgsSimplifyUserInputWidget( );
+  mSimplifyUserWidget = new QgsSimplifyUserInputWidget();
   mSimplifyUserWidget->setConfig( method(), tolerance(), toleranceUnits(), smoothOffset(), smoothIterations() );
 
   connect( mSimplifyUserWidget, &QgsSimplifyUserInputWidget::methodChanged, this, &QgsMapToolSimplify::setMethod );
@@ -233,14 +229,12 @@ QgsGeometry QgsMapToolSimplify::processGeometry( const QgsGeometry &geometry, do
     case SimplifySnapToGrid:
     case SimplifyVisvalingam:
     {
-
-      QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, tolerance, mMethod == SimplifySnapToGrid ? QgsMapToPixelSimplifier::SnapToGrid : QgsMapToPixelSimplifier::Visvalingam );
+      const QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, tolerance, mMethod == SimplifySnapToGrid ? Qgis::VectorSimplificationAlgorithm::SnapToGrid : Qgis::VectorSimplificationAlgorithm::Visvalingam );
       return simplifier.simplify( geometry );
     }
 
     case Smooth:
       return geometry.smooth( mSmoothIterations, mSmoothOffset );
-
   }
   return QgsGeometry(); //no warnings
 }
@@ -296,7 +290,7 @@ void QgsMapToolSimplify::setMethod( QgsMapToolSimplify::Method method )
 void QgsMapToolSimplify::storeSimplified()
 {
   QgsVectorLayer *vlayer = currentVectorLayer();
-  double layerTolerance = QgsTolerance::toleranceInMapUnits( mTolerance, vlayer, mCanvas->mapSettings(), mToleranceUnits );
+  const double layerTolerance = QgsTolerance::toleranceInMapUnits( mTolerance, vlayer, mCanvas->mapSettings(), mToleranceUnits );
 
   vlayer->beginEditCommand( tr( "Geometry simplified" ) );
   const auto constMSelectedFeatures = mSelectedFeatures;
@@ -342,7 +336,7 @@ void QgsMapToolSimplify::canvasMoveEvent( QgsMapMouseEvent *e )
   {
     mDragging = true;
     delete mSelectionRubberBand;
-    mSelectionRubberBand = new QgsRubberBand( mCanvas, QgsWkbTypes::PolygonGeometry );
+    mSelectionRubberBand = new QgsRubberBand( mCanvas, Qgis::GeometryType::Polygon );
     QColor color( Qt::blue );
     color.setAlpha( 63 );
     mSelectionRubberBand->setColor( color );
@@ -423,13 +417,12 @@ void QgsMapToolSimplify::keyReleaseEvent( QKeyEvent *e )
 void QgsMapToolSimplify::selectOneFeature( QPoint canvasPoint )
 {
   QgsVectorLayer *vlayer = currentVectorLayer();
-  QgsPointXY layerCoords = toLayerCoordinates( vlayer, canvasPoint );
-  double r = QgsTolerance::vertexSearchRadius( vlayer, mCanvas->mapSettings() );
-  QgsRectangle selectRect = QgsRectangle( layerCoords.x() - r, layerCoords.y() - r,
-                                          layerCoords.x() + r, layerCoords.y() + r );
+  const QgsPointXY layerCoords = toLayerCoordinates( vlayer, canvasPoint );
+  const double r = QgsTolerance::vertexSearchRadius( vlayer, mCanvas->mapSettings() );
+  const QgsRectangle selectRect = QgsRectangle( layerCoords.x() - r, layerCoords.y() - r, layerCoords.x() + r, layerCoords.y() + r );
   QgsFeatureIterator fit = vlayer->getFeatures( QgsFeatureRequest().setFilterRect( selectRect ).setNoAttributes() );
 
-  QgsGeometry geometry = QgsGeometry::fromPointXY( layerCoords );
+  const QgsGeometry geometry = QgsGeometry::fromPointXY( layerCoords );
   double minDistance = std::numeric_limits<double>::max();
   double currentDistance;
   QgsFeature minDistanceFeature;
@@ -454,14 +447,14 @@ void QgsMapToolSimplify::selectOneFeature( QPoint canvasPoint )
 void QgsMapToolSimplify::selectFeaturesInRect()
 {
   QgsVectorLayer *vlayer = currentVectorLayer();
-  QgsPointXY pt1 = toMapCoordinates( mSelectionRect.topLeft() );
-  QgsPointXY pt2 = toMapCoordinates( mSelectionRect.bottomRight() );
-  QgsRectangle rect = toLayerCoordinates( vlayer, QgsRectangle( pt1, pt2 ) );
+  const QgsPointXY pt1 = toMapCoordinates( mSelectionRect.topLeft() );
+  const QgsPointXY pt2 = toMapCoordinates( mSelectionRect.bottomRight() );
+  const QgsRectangle rect = toLayerCoordinates( vlayer, QgsRectangle( pt1, pt2 ) );
 
   QgsFeature f;
   QgsFeatureRequest request;
   request.setFilterRect( rect );
-  request.setFlags( QgsFeatureRequest::ExactIntersect );
+  request.setFlags( Qgis::FeatureRequestFlag::ExactIntersect );
   request.setNoAttributes();
   QgsFeatureIterator fit = vlayer->getFeatures( request );
   while ( fit.nextFeature( f ) )
@@ -488,9 +481,12 @@ void QgsMapToolSimplify::deactivate()
 
 QString QgsMapToolSimplify::statusText() const
 {
-  int percent = mOriginalVertexCount ? ( 100 * mReducedVertexCount / mOriginalVertexCount ) : 0;
+  const int percent = mOriginalVertexCount ? ( 100 * mReducedVertexCount / mOriginalVertexCount ) : 0;
   QString txt = tr( "%1 feature(s): %2 to %3 vertices (%4%)" )
-                .arg( mSelectedFeatures.count() ).arg( mOriginalVertexCount ).arg( mReducedVertexCount ).arg( percent );
+                  .arg( mSelectedFeatures.count() )
+                  .arg( mOriginalVertexCount )
+                  .arg( mReducedVertexCount )
+                  .arg( percent );
   if ( mReducedHasErrors )
     txt += '\n' + tr( "Simplification failed!" );
   return txt;

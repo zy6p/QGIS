@@ -26,7 +26,7 @@ void QgsHistogram::prepareValues()
   std::sort( mValues.begin(), mValues.end() );
 
   QgsStatisticalSummary s;
-  s.setStatistics( QgsStatisticalSummary::Max | QgsStatisticalSummary::Min | QgsStatisticalSummary::InterQuartileRange );
+  s.setStatistics( Qgis::Statistic::Max | Qgis::Statistic::Min | Qgis::Statistic::InterQuartileRange );
   s.calculate( mValues );
   mMin = s.min();
   mMax = s.max();
@@ -67,7 +67,7 @@ int QgsHistogram::optimalNumberBins() const
 
 QList<double> QgsHistogram::binEdges( int bins ) const
 {
-  double binWidth = ( mMax - mMin ) / bins;
+  const double binWidth = ( mMax - mMin ) / bins;
 
   QList<double> edges;
   edges.reserve( bins + 1 );
@@ -83,7 +83,7 @@ QList<double> QgsHistogram::binEdges( int bins ) const
 
 QList<int> QgsHistogram::counts( int bins ) const
 {
-  QList<double> edges = binEdges( bins );
+  const QList<double> edges = binEdges( bins );
 
   QList<int> binCounts;
   binCounts.reserve( bins );

@@ -17,10 +17,13 @@
  ***************************************************************************/
 
 #include "qgsnetworkcontentfetcher.h"
+#include "moc_qgsnetworkcontentfetcher.cpp"
 #include "qgsnetworkaccessmanager.h"
+#include "qgssetrequestinitiator_p.h"
 #include "qgsmessagelog.h"
 #include "qgsapplication.h"
 #include "qgsauthmanager.h"
+#include "qgsvariantutils.h"
 #include <QNetworkReply>
 #include <QTextCodec>
 
@@ -45,6 +48,7 @@ void QgsNetworkContentFetcher::fetchContent( const QUrl &url, const QString &aut
 void QgsNetworkContentFetcher::fetchContent( const QNetworkRequest &r, const QString &authcfg )
 {
   QNetworkRequest request( r );
+  request.setAttribute( QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy );
 
   mAuthCfg = authcfg;
   if ( !mAuthCfg.isEmpty() )
@@ -69,8 +73,17 @@ void QgsNetworkContentFetcher::fetchContent( const QNetworkRequest &r, const QSt
     QgsApplication::authManager()->updateNetworkReply( mReply, mAuthCfg );
   }
   mReply->setParent( nullptr ); // we don't want thread locale QgsNetworkAccessManagers to delete the reply - we want ownership of it to belong to this object
-  connect( mReply, &QNetworkReply::finished, this, [ = ] { contentLoaded(); } );
+  connect( mReply, &QNetworkReply::finished, this, [this] { contentLoaded(); } );
   connect( mReply, &QNetworkReply::downloadProgress, this, &QgsNetworkContentFetcher::downloadProgress );
+
+  auto onError = [this]( QNetworkReply::NetworkError code )
+  {
+    // could have been canceled in the meantime
+    if ( mReply )
+      emit errorOccurred( code, mReply->errorString() );
+  };
+
+  connect( mReply, &QNetworkReply::errorOccurred, this, onError );
 }
 
 QNetworkReply *QgsNetworkContentFetcher::reply()
@@ -81,6 +94,11 @@ QNetworkReply *QgsNetworkContentFetcher::reply()
   }
 
   return mReply;
+}
+
+QString QgsNetworkContentFetcher::contentDispositionFilename() const
+{
+  return mReply ? QgsNetworkReplyContent::extractFilenameFromContentDispositionHeader( mReply ) : QString();
 }
 
 QString QgsNetworkContentFetcher::contentAsString() const
@@ -129,13 +147,13 @@ QTextCodec *QgsNetworkContentFetcher::codecForHtml( QByteArray &array ) const
   }
 
   //check for meta charset tag
-  QByteArray header = array.left( 1024 ).toLower();
+  const QByteArray header = array.left( 1024 ).toLower();
   int pos = header.indexOf( "meta charset=" );
   if ( pos != -1 )
   {
     pos += int( strlen( "meta charset=" ) ) + 1;
-    int pos2 = header.indexOf( '\"', pos );
-    QByteArray cs = header.mid( pos, pos2 - pos );
+    const int pos2 = header.indexOf( '\"', pos );
+    const QByteArray cs = header.mid( pos, pos2 - pos );
     codec = QTextCodec::codecForName( cs );
     if ( codec )
     {
@@ -172,12 +190,12 @@ void QgsNetworkContentFetcher::contentLoaded( bool ok )
     return;
   }
 
-  QVariant redirect = mReply->attribute( QNetworkRequest::RedirectionTargetAttribute );
-  if ( redirect.isNull() )
+  const QVariant redirect = mReply->attribute( QNetworkRequest::RedirectionTargetAttribute );
+  if ( QgsVariantUtils::isNull( redirect ) )
   {
     //no error or redirect, got target
-    QVariant status = mReply->attribute( QNetworkRequest::HttpStatusCodeAttribute );
-    if ( !status.isNull() && status.toInt() >= 400 )
+    const QVariant status = mReply->attribute( QNetworkRequest::HttpStatusCodeAttribute );
+    if ( !QgsVariantUtils::isNull( status ) && status.toInt() >= 400 )
     {
       QgsMessageLog::logMessage( tr( "HTTP fetch %1 failed with error %2" ).arg( mReply->url().toString(), status.toString() ) );
     }
@@ -190,7 +208,3 @@ void QgsNetworkContentFetcher::contentLoaded( bool ok )
   mReply->deleteLater();
   fetchContent( redirect.toUrl(), mAuthCfg );
 }
-
-
-
-

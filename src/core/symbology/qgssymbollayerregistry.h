@@ -24,6 +24,7 @@ class QgsVectorLayer;
 class QgsSymbolLayerWidget SIP_EXTERNAL;
 class QgsSymbolLayer;
 class QDomElement;
+class QgsReadWriteContext;
 
 /**
  * \ingroup core
@@ -67,13 +68,26 @@ class CORE_EXPORT QgsSymbolLayerAbstractMetadata
      * when saving is FALSE, paths are converted from relative to absolute.
      * This ensures that paths in project files can be relative, but in symbol layer
      * instances the paths are always absolute
-     * \since QGIS 3.0
      */
     virtual void resolvePaths( QVariantMap &properties, const QgsPathResolver &pathResolver, bool saving )
     {
       Q_UNUSED( properties )
       Q_UNUSED( pathResolver )
       Q_UNUSED( saving )
+    }
+
+    /**
+     * Resolve fonts from the  symbol layer's \a properties.
+     *
+     * This tests whether the required fonts from the encoded \a properties are available on the system, and records
+     * warnings in the \a context if not.
+     *
+     * \since QGIS 3.20
+     */
+    virtual void resolveFonts( const QVariantMap &properties, const QgsReadWriteContext &context )
+    {
+      Q_UNUSED( properties )
+      Q_UNUSED( context )
     }
 
   protected:
@@ -86,6 +100,7 @@ typedef QgsSymbolLayer *( *QgsSymbolLayerCreateFunc )( const QVariantMap & ) SIP
 typedef QgsSymbolLayerWidget *( *QgsSymbolLayerWidgetFunc )( QgsVectorLayer * ) SIP_SKIP;
 typedef QgsSymbolLayer *( *QgsSymbolLayerCreateFromSldFunc )( QDomElement & ) SIP_SKIP;
 typedef void ( *QgsSymbolLayerPathResolverFunc )( QVariantMap &, const QgsPathResolver &, bool ) SIP_SKIP;
+typedef void ( *QgsSymbolLayerFontResolverFunc )( const QVariantMap &, const QgsReadWriteContext & ) SIP_SKIP;
 
 /**
  * \ingroup core
@@ -100,25 +115,27 @@ class CORE_EXPORT QgsSymbolLayerMetadata : public QgsSymbolLayerAbstractMetadata
                             QgsSymbolLayerCreateFunc pfCreate,
                             QgsSymbolLayerCreateFromSldFunc pfCreateFromSld = nullptr,
                             QgsSymbolLayerPathResolverFunc pfPathResolver = nullptr,
-                            QgsSymbolLayerWidgetFunc pfWidget = nullptr ) SIP_SKIP
+                            QgsSymbolLayerWidgetFunc pfWidget = nullptr,
+                            QgsSymbolLayerFontResolverFunc pfFontResolver = nullptr ) SIP_SKIP
   : QgsSymbolLayerAbstractMetadata( name, visibleName, type )
     , mCreateFunc( pfCreate )
     , mWidgetFunc( pfWidget )
     , mCreateFromSldFunc( pfCreateFromSld )
     , mPathResolverFunc( pfPathResolver )
+    , mFontResolverFunc( pfFontResolver )
     {}
 
     //! \note not available in Python bindings
-    QgsSymbolLayerCreateFunc createFunction() const { return mCreateFunc; } SIP_SKIP
+    QgsSymbolLayerCreateFunc createFunction() const SIP_SKIP { return mCreateFunc; }
     //! \note not available in Python bindings
-    QgsSymbolLayerWidgetFunc widgetFunction() const { return mWidgetFunc; } SIP_SKIP
+    QgsSymbolLayerWidgetFunc widgetFunction() const SIP_SKIP { return mWidgetFunc; }
     //! \note not available in Python bindings
-    QgsSymbolLayerCreateFromSldFunc createFromSldFunction() const { return mCreateFromSldFunc; } SIP_SKIP
+    QgsSymbolLayerCreateFromSldFunc createFromSldFunction() const SIP_SKIP { return mCreateFromSldFunc; }
     //! \note not available in Python bindings
-    QgsSymbolLayerPathResolverFunc pathResolverFunction() const { return mPathResolverFunc; } SIP_SKIP
+    QgsSymbolLayerPathResolverFunc pathResolverFunction() const SIP_SKIP { return mPathResolverFunc; }
 
     //! \note not available in Python bindings
-    void setWidgetFunction( QgsSymbolLayerWidgetFunc f ) { mWidgetFunc = f; } SIP_SKIP
+    void setWidgetFunction( QgsSymbolLayerWidgetFunc f ) SIP_SKIP { mWidgetFunc = f; }
 
     QgsSymbolLayer *createSymbolLayer( const QVariantMap &map ) override SIP_FACTORY { return mCreateFunc ? mCreateFunc( map ) : nullptr; }
     QgsSymbolLayerWidget *createSymbolLayerWidget( QgsVectorLayer *vl ) override SIP_FACTORY { return mWidgetFunc ? mWidgetFunc( vl ) : nullptr; }
@@ -129,11 +146,24 @@ class CORE_EXPORT QgsSymbolLayerMetadata : public QgsSymbolLayerAbstractMetadata
         mPathResolverFunc( properties, pathResolver, saving );
     }
 
+    void resolveFonts( const QVariantMap &properties, const QgsReadWriteContext &context ) override
+    {
+      if ( mFontResolverFunc )
+        mFontResolverFunc( properties, context );
+    }
+
   protected:
     QgsSymbolLayerCreateFunc mCreateFunc;
     QgsSymbolLayerWidgetFunc mWidgetFunc;
     QgsSymbolLayerCreateFromSldFunc mCreateFromSldFunc;
     QgsSymbolLayerPathResolverFunc mPathResolverFunc;
+
+    /**
+     * Font resolver function pointer.
+     *
+     * \since QGIS 3.20
+     */
+    QgsSymbolLayerFontResolverFunc mFontResolverFunc;
 
   private:
 #ifdef SIP_RUN
@@ -156,16 +186,20 @@ class CORE_EXPORT QgsSymbolLayerRegistry
     QgsSymbolLayerRegistry();
     ~QgsSymbolLayerRegistry();
 
-    //! QgsSymbolLayerRegistry cannot be copied.
     QgsSymbolLayerRegistry( const QgsSymbolLayerRegistry &rh ) = delete;
-    //! QgsSymbolLayerRegistry cannot be copied.
     QgsSymbolLayerRegistry &operator=( const QgsSymbolLayerRegistry &rh ) = delete;
 
     //! Returns metadata for specified symbol layer. Returns NULLPTR if not found
     QgsSymbolLayerAbstractMetadata *symbolLayerMetadata( const QString &name ) const;
 
-    //! register a new symbol layer type. Takes ownership of the metadata instance.
+    //! Registers a new symbol layer type. Takes ownership of the metadata instance.
     bool addSymbolLayerType( QgsSymbolLayerAbstractMetadata *metadata SIP_TRANSFER );
+
+    /**
+     * Removes a symbol layer type
+     * \since QGIS 3.22.2
+     */
+    bool removeSymbolLayerType( QgsSymbolLayerAbstractMetadata *metadata );
 
     //! create a new instance of symbol layer given symbol layer name and properties
     QgsSymbolLayer *createSymbolLayer( const QString &name, const QVariantMap &properties = QVariantMap() ) const SIP_FACTORY;
@@ -177,9 +211,18 @@ class CORE_EXPORT QgsSymbolLayerRegistry
      * Resolve paths in properties of a particular symbol layer.
      * This normally means converting relative paths to absolute paths when loading
      * and converting absolute paths to relative paths when saving.
-     * \since QGIS 3.0
      */
     void resolvePaths( const QString &name, QVariantMap &properties, const QgsPathResolver &pathResolver, bool saving ) const;
+
+    /**
+     * Resolve fonts from the \a properties of a particular symbol layer.
+     *
+     * This tests whether the required fonts from the encoded \a properties are available on the system, and records
+     * warnings in the \a context if not.
+     *
+     * \since QGIS 3.20
+     */
+    void resolveFonts( const QString &name, QVariantMap &properties, const QgsReadWriteContext &context ) const;
 
     //! Returns a list of available symbol layers for a specified symbol type
     QStringList symbolLayersForType( Qgis::SymbolType type );

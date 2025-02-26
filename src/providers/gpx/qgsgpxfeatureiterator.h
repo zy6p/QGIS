@@ -19,11 +19,12 @@
 
 #include "gpsdata.h"
 #include "qgsgpxprovider.h"
+#include "qgscoordinatetransform.h"
 
 class QgsGPXProvider;
 
 
-class QgsGPXFeatureSource final: public QgsAbstractFeatureSource
+class QgsGPXFeatureSource final : public QgsAbstractFeatureSource
 {
   public:
     explicit QgsGPXFeatureSource( const QgsGPXProvider *p );
@@ -34,8 +35,8 @@ class QgsGPXFeatureSource final: public QgsAbstractFeatureSource
   private:
     QString mFileName;
     QgsGPXProvider::DataType mFeatureType;
-    QgsGpsData *data = nullptr;
-    QVector<int> indexToAttr;
+    QgsGpsData *mData = nullptr;
+    QVector<int> mIndexToAttr;
     QgsFields mFields;
     QgsCoordinateReferenceSystem mCrs;
 
@@ -43,7 +44,7 @@ class QgsGPXFeatureSource final: public QgsAbstractFeatureSource
 };
 
 
-class QgsGPXFeatureIterator final: public QgsAbstractFeatureIteratorFromSource<QgsGPXFeatureSource>
+class QgsGPXFeatureIterator final : public QgsAbstractFeatureIteratorFromSource<QgsGPXFeatureSource>
 {
   public:
     QgsGPXFeatureIterator( QgsGPXFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
@@ -54,11 +55,9 @@ class QgsGPXFeatureIterator final: public QgsAbstractFeatureIteratorFromSource<Q
     bool close() override;
 
   protected:
-
     bool fetchFeature( QgsFeature &feature ) override;
 
   private:
-
     bool readFid( QgsFeature &feature );
 
     bool readWaypoint( const QgsWaypoint &wpt, QgsFeature &feature );
@@ -84,6 +83,8 @@ class QgsGPXFeatureIterator final: public QgsAbstractFeatureIteratorFromSource<Q
 
     QgsCoordinateTransform mTransform;
     QgsRectangle mFilterRect;
+    QgsGeometry mDistanceWithinGeom;
+    std::unique_ptr<QgsGeometryEngine> mDistanceWithinEngine;
 };
 
 #endif // QGSGPXFEATUREITERATOR_H

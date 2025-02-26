@@ -16,10 +16,10 @@
  ***************************************************************************/
 
 #include "qgslayercapabilitiesmodel.h"
+#include "moc_qgslayercapabilitiesmodel.cpp"
 
 #include "qgslayertree.h"
 #include "qgslayertreemodel.h"
-#include "qgsvectorlayer.h"
 #include "qgsproject.h"
 
 QgsLayerCapabilitiesModel::QgsLayerCapabilitiesModel( QgsProject *project, QObject *parent )
@@ -29,7 +29,7 @@ QgsLayerCapabilitiesModel::QgsLayerCapabilitiesModel( QgsProject *project, QObje
   for ( QMap<QString, QgsMapLayer *>::const_iterator it = mapLayers.constBegin(); it != mapLayers.constEnd(); ++it )
   {
     mReadOnlyLayers.insert( it.value(), it.value()->readOnly() );
-    mSearchableLayers.insert( it.value(), it.value()->type() == QgsMapLayerType::VectorLayer && it.value()->flags().testFlag( QgsMapLayer::Searchable ) );
+    mSearchableLayers.insert( it.value(), it.value()->type() == Qgis::LayerType::Vector && it.value()->flags().testFlag( QgsMapLayer::Searchable ) );
     mIdentifiableLayers.insert( it.value(), it.value()->flags().testFlag( QgsMapLayer::Identifiable ) );
     mRemovableLayers.insert( it.value(), it.value()->flags().testFlag( QgsMapLayer::Removable ) );
     mPrivateLayers.insert( it.value(), it.value()->flags().testFlag( QgsMapLayer::Private ) );
@@ -61,7 +61,7 @@ void QgsLayerCapabilitiesModel::toggleSelectedItems( const QModelIndexList &chec
 {
   for ( const QModelIndex &index : checkedIndexes )
   {
-    bool isChecked = data( index, Qt::CheckStateRole ) == Qt::Checked;
+    const bool isChecked = data( index, Qt::CheckStateRole ) == Qt::Checked;
     if ( setData( index, isChecked ? Qt::Unchecked : Qt::Checked, Qt::CheckStateRole ) )
       emit dataChanged( index, index );
   }
@@ -127,10 +127,13 @@ QVariant QgsLayerCapabilitiesModel::headerData( int section, Qt::Orientation ori
       switch ( section )
       {
         case LayerColumn:
-        case IdentifiableColumn:
-        case ReadOnlyColumn:
-        case SearchableColumn:
           return QVariant();
+        case IdentifiableColumn:
+          return tr( "Layers which can be queried with the \"Identify features\" tool." );
+        case ReadOnlyColumn:
+          return tr( "Layers which are protected from edit." );
+        case SearchableColumn:
+          return tr( "Layers which can be queried with the locator search tool." );
         case RequiredColumn:
           return tr( "Layers which are protected from inadvertent removal from the project." );
         case PrivateColumn:
@@ -162,7 +165,7 @@ Qt::ItemFlags QgsLayerCapabilitiesModel::flags( const QModelIndex &idx ) const
       {
         if ( layer->isSpatial() )
         {
-          return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsUserCheckable;
+          return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable;
         }
         else
         {
@@ -171,9 +174,9 @@ Qt::ItemFlags QgsLayerCapabilitiesModel::flags( const QModelIndex &idx ) const
       }
       case ReadOnlyColumn:
       {
-        if ( layer->type() == QgsMapLayerType::VectorLayer )
+        if ( layer->type() == Qgis::LayerType::Vector )
         {
-          return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsUserCheckable;
+          return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable;
         }
         else
         {
@@ -182,9 +185,9 @@ Qt::ItemFlags QgsLayerCapabilitiesModel::flags( const QModelIndex &idx ) const
       }
       case SearchableColumn:
       {
-        if ( layer->type() == QgsMapLayerType::VectorLayer )
+        if ( layer->type() == Qgis::LayerType::Vector )
         {
-          return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsUserCheckable;
+          return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable;
         }
         else
         {
@@ -193,11 +196,11 @@ Qt::ItemFlags QgsLayerCapabilitiesModel::flags( const QModelIndex &idx ) const
       }
       case RequiredColumn:
       {
-        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsUserCheckable;
+        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable;
       }
       case PrivateColumn:
       {
-        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsUserCheckable;
+        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable;
       }
     }
   }
@@ -247,7 +250,7 @@ QModelIndex QgsLayerCapabilitiesModel::parent( const QModelIndex &child ) const
 
 QModelIndex QgsLayerCapabilitiesModel::sibling( int row, int column, const QModelIndex &idx ) const
 {
-  QModelIndex parent = idx.parent();
+  const QModelIndex parent = idx.parent();
   return index( row, column, parent );
 }
 
@@ -268,8 +271,8 @@ QVariant QgsLayerCapabilitiesModel::data( const QModelIndex &idx, int role ) con
 
     if ( role == Qt::CheckStateRole || role == Qt::UserRole )
     {
-      QVariant trueValue = role == Qt::CheckStateRole ? QVariant( Qt::Checked ) : QVariant( true );
-      QVariant falseValue = role == Qt::CheckStateRole ? QVariant( Qt::Unchecked ) : QVariant( false );
+      const QVariant trueValue = role == Qt::CheckStateRole ? QVariant( Qt::Checked ) : QVariant( true );
+      const QVariant falseValue = role == Qt::CheckStateRole ? QVariant( Qt::Unchecked ) : QVariant( false );
       switch ( idx.column() )
       {
         case LayerColumn:
@@ -282,13 +285,13 @@ QVariant QgsLayerCapabilitiesModel::data( const QModelIndex &idx, int role ) con
 
         case ReadOnlyColumn:
 
-          if ( layer->type() == QgsMapLayerType::VectorLayer )
+          if ( layer->type() == Qgis::LayerType::Vector )
             return mReadOnlyLayers.value( layer, true ) ? trueValue : falseValue;
           break;
 
         case SearchableColumn:
 
-          if ( layer->type() == QgsMapLayerType::VectorLayer )
+          if ( layer->type() == Qgis::LayerType::Vector )
             return mSearchableLayers.value( layer, true ) ? trueValue : falseValue;
           break;
 
@@ -319,7 +322,7 @@ bool QgsLayerCapabilitiesModel::setData( const QModelIndex &index, const QVarian
         {
           if ( layer->isSpatial() )
           {
-            bool identifiable = value == Qt::Checked;
+            const bool identifiable = value == Qt::Checked;
             if ( identifiable != mIdentifiableLayers.value( layer, true ) )
             {
               mIdentifiableLayers.insert( layer, identifiable );
@@ -331,9 +334,9 @@ bool QgsLayerCapabilitiesModel::setData( const QModelIndex &index, const QVarian
         }
         case ReadOnlyColumn:
         {
-          if ( layer->type() == QgsMapLayerType::VectorLayer )
+          if ( layer->type() == Qgis::LayerType::Vector )
           {
-            bool readOnly = value == Qt::Checked;
+            const bool readOnly = value == Qt::Checked;
             if ( readOnly != mReadOnlyLayers.value( layer, true ) )
             {
               mReadOnlyLayers.insert( layer, readOnly );
@@ -345,9 +348,9 @@ bool QgsLayerCapabilitiesModel::setData( const QModelIndex &index, const QVarian
         }
         case SearchableColumn:
         {
-          if ( layer->type() == QgsMapLayerType::VectorLayer )
+          if ( layer->type() == Qgis::LayerType::Vector )
           {
-            bool searchable = value == Qt::Checked;
+            const bool searchable = value == Qt::Checked;
             if ( searchable != mSearchableLayers.value( layer, true ) )
             {
               mSearchableLayers.insert( layer, searchable );
@@ -359,7 +362,7 @@ bool QgsLayerCapabilitiesModel::setData( const QModelIndex &index, const QVarian
         }
         case RequiredColumn:
         {
-          bool removable = value == Qt::Unchecked;
+          const bool removable = value == Qt::Unchecked;
           if ( removable != mRemovableLayers.value( layer, true ) )
           {
             mRemovableLayers.insert( layer, removable );

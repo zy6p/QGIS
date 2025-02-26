@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsfindfilesbypatternwidget.h"
+#include "moc_qgsfindfilesbypatternwidget.cpp"
 #include "qgsgui.h"
 #include "qgssettings.h"
 
@@ -36,16 +37,14 @@ QgsFindFilesByPatternWidget::QgsFindFilesByPatternWidget( QWidget *parent )
 
   connect( mFindButton, &QPushButton::clicked, this, &QgsFindFilesByPatternWidget::find );
 
-  QgsSettings settings;
+  const QgsSettings settings;
   mFolderWidget->setFilePath( settings.value( QStringLiteral( "qgis/lastFindRecursiveFolder" ) ).toString() );
   mFindButton->setEnabled( !mFolderWidget->filePath().isEmpty() );
-  connect( mFolderWidget, &QgsFileWidget::fileChanged, this, [ = ]( const QString & filePath )
-  {
+  connect( mFolderWidget, &QgsFileWidget::fileChanged, this, [=]( const QString &filePath ) {
     QgsSettings settings;
     settings.setValue( QStringLiteral( "qgis/lastFindRecursiveFolder" ), filePath );
     mFindButton->setEnabled( !filePath.isEmpty() );
   } );
-
 }
 
 void QgsFindFilesByPatternWidget::find()
@@ -61,20 +60,19 @@ void QgsFindFilesByPatternWidget::find()
   const QString pattern = mPatternLineEdit->text();
   const QString path = mFolderWidget->filePath();
 
-  QDir startDir( path );
+  const QDir startDir( path );
 
   QStringList filter;
   if ( !pattern.isEmpty() )
     filter << pattern;
 
   QDirIterator it( path, filter, QDir::AllEntries | QDir::NoSymLinks | QDir::NoDotAndDotDot, mRecursiveCheckBox->isChecked() ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags );
-  QStringList files;
   while ( it.hasNext() )
   {
     const QString fullPath = it.next();
     mFiles << fullPath;
 
-    QFileInfo fi( fullPath );
+    const QFileInfo fi( fullPath );
 
     const QString toolTip = QDir::toNativeSeparators( fullPath );
     const QString fileName = fi.fileName();
@@ -135,8 +133,7 @@ QgsFindFilesByPatternDialog::QgsFindFilesByPatternDialog( QWidget *parent )
   setLayout( vLayout );
 
   mButtonBox->button( QDialogButtonBox::Ok )->setEnabled( false );
-  connect( mWidget, &QgsFindFilesByPatternWidget::findComplete, this, [ = ]( const QStringList & files )
-  {
+  connect( mWidget, &QgsFindFilesByPatternWidget::findComplete, this, [=]( const QStringList &files ) {
     mButtonBox->button( QDialogButtonBox::Ok )->setEnabled( !files.empty() );
   } );
 }

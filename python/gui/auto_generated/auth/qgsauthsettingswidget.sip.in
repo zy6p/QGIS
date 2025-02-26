@@ -3,7 +3,7 @@
  *                                                                      *
  * src/gui/auth/qgsauthsettingswidget.h                                 *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -17,26 +17,19 @@ and by using QGIS Authentication Database and its authentication configurations.
 
 The widget also offers the functionality to convert username/password credentials
 to an authentication configuration.
-
-.. versionadded:: 3.0
 %End
 
 %TypeHeaderCode
 #include "qgsauthsettingswidget.h"
 %End
   public:
-
     enum WarningType
     {
       ProjectFile,
       UserSettings
     };
 
-    explicit QgsAuthSettingsWidget( QWidget *parent /TransferThis/ = 0,
-                                    const QString &configId = QString(),
-                                    const QString &username = QString(),
-                                    const QString &password = QString(),
-                                    const QString &dataprovider = QString() );
+    explicit QgsAuthSettingsWidget( QWidget *parent /TransferThis/ = 0, const QString &configId = QString(), const QString &username = QString(), const QString &password = QString(), const QString &dataprovider = QString() );
 %Docstring
 Create a dialog for setting an associated authentication config, either
 from existing configs, or creating/removing them from auth database
@@ -46,6 +39,13 @@ from existing configs, or creating/removing them from auth database
 :param username:
 :param password:
 :param dataprovider: The key of the calling layer provider, if applicable
+%End
+
+    void removeBasicSettings();
+%Docstring
+Removes the basic authentication tab from the widget.
+
+.. versionadded:: 3.42
 %End
 
     void setWarningText( const QString &warningText );
@@ -64,7 +64,7 @@ setBasicText set the text of the warning label
 :param basicText: the text of the basic tab label
 %End
 
-    const QString username( ) const;
+    QString username() const;
 %Docstring
 username
 
@@ -78,7 +78,7 @@ setUsername set the username
 :param username: the user name
 %End
 
-    const QString password( ) const;
+    QString password() const;
 %Docstring
 password
 
@@ -92,7 +92,7 @@ setPassword set the password
 :param password: the password
 %End
 
-    const QString configId( ) const;
+    QString configId() const;
 %Docstring
 configId
 
@@ -112,14 +112,14 @@ setDataprovider set the data provider key for filtering compatible authenticatio
 :param dataprovider: data provider key
 %End
 
-    const QString dataprovider( ) const;
+    QString dataprovider() const;
 %Docstring
 dataprovider
 
 :return: the data provider key used to filter compatible authentication configurations
 %End
 
-    static const QString formattedWarning( WarningType warning );
+    static QString formattedWarning( WarningType warning );
 %Docstring
 warning text message based upon where credentials are stored
 
@@ -128,7 +128,7 @@ warning text message based upon where credentials are stored
 :return: pre-formatted warning text
 %End
 
-    bool btnConvertToEncryptedIsEnabled( ) const;
+    bool btnConvertToEncryptedIsEnabled() const;
 %Docstring
 convertButtonEnabled, mainly useful for unit tests
 
@@ -156,28 +156,28 @@ setStoreUsernameChecked check the "Store" checkbox for the username
 
     void setStorePasswordChecked( bool checked );
 %Docstring
-setStorePasswordCheched check the "Store" checkbox for the password
+setStorePasswordChecked check the "Store" checkbox for the password
 
 :param checked:
 
 .. seealso:: :py:func:`showStoreCheckboxes`
 %End
 
-    bool storePasswordIsChecked( ) const;
+    bool storePasswordIsChecked() const;
 %Docstring
 storePassword
 
 :return: ``True`` if "Store" checkbox for the password is checked
 %End
 
-    bool storeUsernameIsChecked( ) const;
+    bool storeUsernameIsChecked() const;
 %Docstring
 storeUsername
 
 :return: ``True`` if "Store" checkbox for the username is checked
 %End
 
-    bool configurationTabIsSelected( );
+    bool configurationTabIsSelected();
 %Docstring
 configurationTabIsSelected
 
@@ -186,7 +186,7 @@ configurationTabIsSelected
 
   public slots:
 
-    bool convertToEncrypted( );
+    bool convertToEncrypted();
 %Docstring
 convertToEncrypted is called when the convert to encrypted button is
 clicked and it creates a Basic authentication configuration from
@@ -195,8 +195,28 @@ username and password specified in the Basic tab
 :return: return ``True`` on success
 %End
 
+  signals:
 
+    void usernameChanged();
+%Docstring
+Emitted when the plain text username defined in the dialog is changed.
 
+.. versionadded:: 3.22
+%End
+
+    void passwordChanged();
+%Docstring
+Emitted when the plain text password defined in the dialog is changed.
+
+.. versionadded:: 3.22
+%End
+
+    void configIdChanged();
+%Docstring
+Emitted when the auth configuration ID selected in the dialog is changed.
+
+.. versionadded:: 3.22
+%End
 
 };
 
@@ -205,5 +225,5 @@ username and password specified in the Basic tab
  *                                                                      *
  * src/gui/auth/qgsauthsettingswidget.h                                 *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

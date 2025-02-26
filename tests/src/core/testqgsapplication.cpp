@@ -15,16 +15,21 @@ Email                : sherman at mrcc dot com
 #include "qgstest.h"
 #include <QPixmap>
 
-#define CPL_SUPRESS_CPLUSPLUS  //#spellok
+#define CPL_SUPRESS_CPLUSPLUS //#spellok
 #include <gdal.h>
 
 //header for class being tested
 #include <qgsapplication.h>
-#include "qgsrenderchecker.h"
 
-class TestQgsApplication: public QObject
+class TestQgsApplication : public QgsTest
 {
     Q_OBJECT
+
+  public:
+    TestQgsApplication()
+      : QgsTest( QStringLiteral( "QgsApplication Tests" ), QStringLiteral( "application" ) )
+    {}
+
   private slots:
     void checkPaths();
     void checkGdalSkip();
@@ -34,52 +39,45 @@ class TestQgsApplication: public QObject
     void accountName();
     void osName();
     void platformName();
+    void applicationFullName();
     void themeIcon();
 
   private:
     QString getQgisPath();
-    bool renderCheck( const QString &testName, QImage &image, int mismatchCount = 0 );
-    QString mReport;
 };
 
 
 void TestQgsApplication::initTestCase()
 {
-  //
   // Runs once before any tests are run
-  //
+
+
+  // Set up the QgsSettings environment
+  QCoreApplication::setOrganizationName( QStringLiteral( "QGIS" ) );
+  QCoreApplication::setOrganizationDomain( QStringLiteral( "qgis.org" ) );
+  QCoreApplication::setApplicationName( QStringLiteral( "QGIS-TEST" ) );
+
   // init QGIS's paths - true means that all path will be inited from prefix
   QgsApplication::init();
   QgsApplication::initQgis();
   qDebug( "%s", QgsApplication::showSettings().toUtf8().constData() );
-
-  mReport = QStringLiteral( "<h1>QgsApplication Tests</h1>\n" );
-
 }
 
 void TestQgsApplication::cleanupTestCase()
 {
-  QString myReportFile = QDir::tempPath() + QDir::separator() + "qgistest.html";
-  QFile myFile( myReportFile );
-  if ( myFile.open( QIODevice::WriteOnly | QIODevice::Append ) )
-  {
-    QTextStream myQTextStream( &myFile );
-    myQTextStream << mReport;
-    myFile.close();
-  }
   QgsApplication::exitQgis();
 }
 
 void TestQgsApplication::accountName()
 {
-  QString loginName = QgsApplication::userLoginName();
+  const QString loginName = QgsApplication::userLoginName();
   qDebug() << QStringLiteral( "Got login name: '%1'" ).arg( loginName );
   QVERIFY( !loginName.isEmpty() );
   //test cached return works correctly
   QCOMPARE( loginName, QgsApplication::userLoginName() );
 
   //can't test contents, as it can be validly empty (e.g., on Travis). Just testing that we don't crash
-  QString fullName = QgsApplication::userFullName();
+  const QString fullName = QgsApplication::userFullName();
   qDebug() << QStringLiteral( "Got full name: '%1'" ).arg( fullName );
   //test cached return works correctly
   QCOMPARE( fullName, QgsApplication::userFullName() );
@@ -94,8 +92,14 @@ void TestQgsApplication::osName()
 
 void TestQgsApplication::platformName()
 {
-  // test will always be run under desktop platform
-  QCOMPARE( QgsApplication::platform(), QString( "desktop" ) );
+  // test will always be run under external platform
+  QCOMPARE( QgsApplication::platform(), QString( "external" ) );
+}
+
+void TestQgsApplication::applicationFullName()
+{
+  // test will always be run under external platform
+  QCOMPARE( QgsApplication::applicationFullName(), QString( "QGIS-TEST external" ) );
 }
 
 void TestQgsApplication::themeIcon()
@@ -103,37 +107,22 @@ void TestQgsApplication::themeIcon()
   QIcon icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconFolder.svg" ) );
   QVERIFY( !icon.isNull() );
   QImage im( icon.pixmap( 16, 16 ).toImage() );
-  QVERIFY( renderCheck( QStringLiteral( "theme_icon" ), im, 0 ) );
+  QVERIFY( QGSIMAGECHECK( QStringLiteral( "theme_icon" ), QStringLiteral( "theme_icon" ), im, QString(), 0 ) );
 
   // with colors
   icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconFolderParams.svg" ), QColor( 255, 100, 100 ), QColor( 255, 0, 0 ) );
   im = QImage( icon.pixmap( 16, 16 ).toImage() );
-  QVERIFY( renderCheck( QStringLiteral( "theme_icon_colors_1" ), im, 0 ) );
+  QVERIFY( QGSIMAGECHECK( QStringLiteral( "theme_icon_colors_1" ), QStringLiteral( "theme_icon_colors_1" ), im, QString(), 0 ) );
 
   // different colors
   icon = QgsApplication::getThemeIcon( QStringLiteral( "/mIconFolderParams.svg" ), QColor( 170, 255, 170 ), QColor( 0, 255, 0 ) );
   im = QImage( icon.pixmap( 16, 16 ).toImage() );
-  QVERIFY( renderCheck( QStringLiteral( "theme_icon_colors_2" ), im, 0 ) );
-}
-
-bool TestQgsApplication::renderCheck( const QString &testName, QImage &image, int mismatchCount )
-{
-  mReport += "<h2>" + testName + "</h2>\n";
-  QString myTmpDir = QDir::tempPath() + '/';
-  QString myFileName = myTmpDir + testName + ".png";
-  image.save( myFileName, "PNG" );
-  QgsRenderChecker myChecker;
-  myChecker.setControlPathPrefix( QStringLiteral( "application" ) );
-  myChecker.setControlName( "expected_" + testName );
-  myChecker.setRenderedImage( myFileName );
-  bool myResultFlag = myChecker.compareImages( testName, mismatchCount );
-  mReport += myChecker.report();
-  return myResultFlag;
+  QVERIFY( QGSIMAGECHECK( QStringLiteral( "theme_icon_colors_2" ), QStringLiteral( "theme_icon_colors_2" ), im, QString(), 0 ) );
 }
 
 void TestQgsApplication::checkPaths()
 {
-  QString myPath = QgsApplication::authorsFilePath();
+  const QString myPath = QgsApplication::authorsFilePath();
   qDebug( "Checking authors file exists:" );
   qDebug( "%s", myPath.toLocal8Bit().constData() );
   QVERIFY( !myPath.isEmpty() );

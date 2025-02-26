@@ -46,9 +46,9 @@ QString QgsAttributeIndexAlgorithm::groupId() const
   return QStringLiteral( "vectorgeneral" );
 }
 
-QgsProcessingAlgorithm::Flags QgsAttributeIndexAlgorithm::flags() const
+Qgis::ProcessingAlgorithmFlags QgsAttributeIndexAlgorithm::flags() const
 {
-  return QgsProcessingAlgorithm::flags() | QgsProcessingAlgorithm::FlagNoThreading;
+  return QgsProcessingAlgorithm::flags() | Qgis::ProcessingAlgorithmFlag::NoThreading;
 }
 
 
@@ -66,7 +66,7 @@ QgsAttributeIndexAlgorithm *QgsAttributeIndexAlgorithm::createInstance() const
 
 void QgsAttributeIndexAlgorithm::initAlgorithm( const QVariantMap & )
 {
-  addParameter( new QgsProcessingParameterVectorLayer( QStringLiteral( "INPUT" ), QObject::tr( "Input layer" ) ) );
+  addParameter( new QgsProcessingParameterVectorLayer( QStringLiteral( "INPUT" ), QObject::tr( "Input layer" ), QList<int> { static_cast<int>( Qgis::ProcessingSourceType::Vector ) } ) );
   addParameter( new QgsProcessingParameterField( QStringLiteral( "FIELD" ), QObject::tr( "Attribute to index" ), QVariant(), QStringLiteral( "INPUT" ) ) );
 
   addOutput( new QgsProcessingOutputVectorLayer( QStringLiteral( "OUTPUT" ), QObject::tr( "Indexed layer" ) ) );
@@ -79,19 +79,19 @@ QVariantMap QgsAttributeIndexAlgorithm::processAlgorithm( const QVariantMap &par
   if ( !layer )
     throw QgsProcessingException( QObject::tr( "Could not load source layer for %1." ).arg( QLatin1String( "INPUT" ) ) );
 
-  QString field = parameterAsString( parameters, QStringLiteral( "FIELD" ), context );
+  const QString field = parameterAsString( parameters, QStringLiteral( "FIELD" ), context );
 
   QgsVectorDataProvider *provider = layer->dataProvider();
 
-  int fieldIndex = layer->fields().lookupField( field );
-  if ( fieldIndex < 0 || layer->fields().fieldOrigin( fieldIndex ) != QgsFields::OriginProvider )
+  const int fieldIndex = layer->fields().lookupField( field );
+  if ( fieldIndex < 0 || layer->fields().fieldOrigin( fieldIndex ) != Qgis::FieldOrigin::Provider )
   {
     feedback->pushInfo( QObject::tr( "Can not create attribute index on %1" ).arg( field ) );
   }
   else
   {
-    int providerIndex = layer->fields().fieldOriginIndex( fieldIndex );
-    if ( provider->capabilities() & QgsVectorDataProvider::CreateAttributeIndex )
+    const int providerIndex = layer->fields().fieldOriginIndex( fieldIndex );
+    if ( provider->capabilities() & Qgis::VectorProviderCapability::CreateAttributeIndex )
     {
       if ( !provider->createAttributeIndex( providerIndex ) )
       {

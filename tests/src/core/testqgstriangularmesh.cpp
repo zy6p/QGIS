@@ -37,10 +37,10 @@ class TestQgsTriangularMesh : public QObject
     TestQgsTriangularMesh() = default;
 
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init() {} // will be called before each testfunction is executed.
-    void cleanup() {} // will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init() {}          // will be called before each testfunction is executed.
+    void cleanup() {}       // will be called after every testfunction.
 
     void test_triangulate();
 
@@ -48,7 +48,6 @@ class TestQgsTriangularMesh : public QObject
 
   private:
     void populateMeshVertices( QgsTriangularMesh &mesh );
-
 };
 
 void TestQgsTriangularMesh::populateMeshVertices( QgsTriangularMesh &mesh )
@@ -81,7 +80,7 @@ void TestQgsTriangularMesh::test_triangulate()
   {
     QgsTriangularMesh mesh;
     populateMeshVertices( mesh );
-    QgsMeshFace point = { 0 };
+    const QgsMeshFace point = { 0 };
     mesh.triangulate( point, 0 );
     QCOMPARE( 0, mesh.mTriangularMesh.faces.size() );
   }
@@ -89,7 +88,7 @@ void TestQgsTriangularMesh::test_triangulate()
   {
     QgsTriangularMesh mesh;
     populateMeshVertices( mesh );
-    QgsMeshFace line = { 0, 1 };
+    const QgsMeshFace line = { 0, 1 };
     mesh.triangulate( line, 0 );
     QCOMPARE( 0, mesh.mTriangularMesh.faces.size() );
   }
@@ -97,29 +96,29 @@ void TestQgsTriangularMesh::test_triangulate()
   {
     QgsTriangularMesh mesh;
     populateMeshVertices( mesh );
-    QgsMeshFace triangle = { 0, 1, 2 };
+    const QgsMeshFace triangle = { 0, 1, 2 };
     mesh.triangulate( triangle, 0 );
     QCOMPARE( 1, mesh.mTriangularMesh.faces.size() );
-    QgsMeshFace firstTriangle = {1, 2, 0};
+    const QgsMeshFace firstTriangle = { 1, 2, 0 };
     QCOMPARE( firstTriangle, mesh.mTriangularMesh.faces[0] );
   }
 
   {
     QgsTriangularMesh mesh;
     populateMeshVertices( mesh );
-    QgsMeshFace quad = { 0, 1, 2, 3 };
+    const QgsMeshFace quad = { 0, 1, 2, 3 };
     mesh.triangulate( quad, 0 );
     QCOMPARE( 2, mesh.mTriangularMesh.faces.size() );
-    QgsMeshFace firstTriangle = {2, 3, 0};
+    const QgsMeshFace firstTriangle = { 2, 3, 0 };
     QCOMPARE( firstTriangle, mesh.mTriangularMesh.faces[0] );
-    QgsMeshFace secondTriangle = {1, 2, 0};
+    const QgsMeshFace secondTriangle = { 1, 2, 0 };
     QCOMPARE( secondTriangle, mesh.mTriangularMesh.faces[1] );
   }
 
   {
     QgsTriangularMesh mesh;
     populateMeshVertices( mesh );
-    QgsMeshFace poly = { 1, 2, 3, 4, 5, 6, 7 };
+    const QgsMeshFace poly = { 1, 2, 3, 4, 5, 6, 7 };
     mesh.triangulate( poly, 0 );
     QCOMPARE( 5, mesh.mTriangularMesh.faces.size() );
   }
@@ -133,7 +132,7 @@ void TestQgsTriangularMesh::test_centroids()
   nativeMesh.vertices << QgsMeshVertex( 0, 10, 0 ) << QgsMeshVertex( 10, 10, 0 ) << QgsMeshVertex( 10, 0, 0 ) << QgsMeshVertex( 0, 0, 0 )
                       << QgsMeshVertex( 20, 0, 0 ) << QgsMeshVertex( 30, 10, 0 ) << QgsMeshVertex( 20, 10, 0 );
 
-  nativeMesh.faces << QgsMeshFace( {0, 1, 2, 3} ) << QgsMeshFace( {1, 2, 4, 5} );
+  nativeMesh.faces << QgsMeshFace( { 0, 1, 2, 3 } ) << QgsMeshFace( { 1, 2, 4, 5 } );
 
   triangularMesh.update( &nativeMesh, QgsCoordinateTransform() );
 
@@ -153,7 +152,7 @@ void TestQgsTriangularMesh::test_centroids()
   nativeMesh.vertices << QgsMeshVertex( 900000000, 300000010, 0 ) << QgsMeshVertex( 900000010, 300000010, 0 ) << QgsMeshVertex( 900000010, 300000000, 0 ) << QgsMeshVertex( 900000000, 300000000, 0 )
                       << QgsMeshVertex( 900000020, 300000000, 0 ) << QgsMeshVertex( 900000030, 300000010, 0 ) << QgsMeshVertex( 900000020, 300000010, 0 );
 
-  nativeMesh.faces << QgsMeshFace( {0, 1, 2, 3} ) << QgsMeshFace( {1, 2, 4, 5} );
+  nativeMesh.faces << QgsMeshFace( { 0, 1, 2, 3 } ) << QgsMeshFace( { 1, 2, 4, 5 } );
   triangularMesh.update( &nativeMesh, QgsCoordinateTransform() );
 
   centroids = triangularMesh.faceCentroids();
@@ -164,7 +163,6 @@ void TestQgsTriangularMesh::test_centroids()
   QVERIFY( qgsDoubleNear( centroids.at( 0 ).y(), 300000005, 0.00001 ) );
   QVERIFY( qgsDoubleNear( centroids.at( 1 ).x(), 900000017.777777, 0.00001 ) );
   QVERIFY( qgsDoubleNear( centroids.at( 1 ).y(), 300000005.555555, 0.00001 ) );
-
 }
 
 QGSTEST_MAIN( TestQgsTriangularMesh )

@@ -16,8 +16,10 @@
  ***************************************************************************/
 
 #include "qgsrasterfilewritertask.h"
+#include "moc_qgsrasterfilewritertask.cpp"
 #include "qgsrasterinterface.h"
 #include "qgsrasterdataprovider.h"
+#include "qgsrasterpipe.h"
 
 // Deprecated!
 QgsRasterFileWriterTask::QgsRasterFileWriterTask( const QgsRasterFileWriter &writer, QgsRasterPipe *pipe, int columns, int rows,
@@ -41,7 +43,12 @@ QgsRasterFileWriterTask::QgsRasterFileWriterTask( const QgsRasterFileWriter &wri
   , mFeedback( new QgsRasterBlockFeedback() )
   , mTransformContext( transformContext )
 {
+  QgsRenderContext renderContext;
+  renderContext.setRendererUsage( Qgis::RendererUsage::Export );
+  mFeedback->setRenderContext( renderContext );
 }
+
+QgsRasterFileWriterTask::~QgsRasterFileWriterTask() = default;
 
 void QgsRasterFileWriterTask::cancel()
 {
@@ -58,7 +65,7 @@ bool QgsRasterFileWriterTask::run()
 
   mError = mWriter.writeRaster( mPipe.get(), mColumns, mRows, mExtent, mCrs, mTransformContext, mFeedback.get() );
 
-  return mError == QgsRasterFileWriter::NoError;
+  return mError == Qgis::RasterFileWriterResult::Success;
 }
 
 void QgsRasterFileWriterTask::finished( bool result )
@@ -67,11 +74,11 @@ void QgsRasterFileWriterTask::finished( bool result )
     emit writeComplete( mWriter.outputUrl() );
   else
   {
-    emit errorOccurred( mError );
+    emit errorOccurred( static_cast< int >( mError ) );
     QString errorMsg;
     if ( !mFeedback->errors().isEmpty() )
       errorMsg = mFeedback->errors().front();
-    emit errorOccurred( mError, errorMsg );
+    emit errorOccurred( static_cast< int >( mError ), errorMsg );
   }
 }
 

@@ -26,10 +26,10 @@ QString QgsGeometryDuplicateCheckError::duplicatesString( const QMap<QString, Qg
   QStringList str;
   for ( auto it = duplicates.constBegin(); it != duplicates.constEnd(); ++it )
   {
-    str.append( featurePools[it.key()]->layer()->name() + ":" );
+    str.append( featurePools[it.key()]->layerName() + ":" );
     QStringList ids;
     ids.reserve( it.value().length() );
-    for ( QgsFeatureId id : it.value() )
+    for ( const QgsFeatureId id : it.value() )
     {
       ids.append( QString::number( id ) );
     }
@@ -41,17 +41,17 @@ QString QgsGeometryDuplicateCheckError::duplicatesString( const QMap<QString, Qg
 
 void QgsGeometryDuplicateCheck::collectErrors( const QMap<QString, QgsFeaturePool *> &featurePools, QList<QgsGeometryCheckError *> &errors, QStringList &messages, QgsFeedback *feedback, const LayerFeatureIds &ids ) const
 {
-  QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
-  QgsGeometryCheckerUtils::LayerFeatures layerFeaturesA( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext, true );
+  const QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
+  const QgsGeometryCheckerUtils::LayerFeatures layerFeaturesA( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext, true );
   QList<QString> layerIds = featureIds.keys();
   for ( const QgsGeometryCheckerUtils::LayerFeature &layerFeatureA : layerFeaturesA )
   {
     // Ensure each pair of layers only gets compared once: remove the current layer from the layerIds, but add it to the layerList for layerFeaturesB
     layerIds.removeOne( layerFeatureA.layer()->id() );
 
-    QgsGeometry geomA = layerFeatureA.geometry();
-    QgsRectangle bboxA = geomA.boundingBox();
-    std::unique_ptr< QgsGeometryEngine > geomEngineA = QgsGeometryCheckerUtils::createGeomEngine( geomA.constGet(), mContext->tolerance );
+    const QgsGeometry geomA = layerFeatureA.geometry();
+    const QgsRectangle bboxA = geomA.boundingBox();
+    std::unique_ptr<QgsGeometryEngine> geomEngineA( QgsGeometry::createGeometryEngine( geomA.constGet(), mContext->tolerance, Qgis::GeosCreationFlags() ) );
     if ( !geomEngineA->isValid() )
     {
       messages.append( tr( "Duplicate check failed for (%1): the geometry is invalid" ).arg( layerFeatureA.id() ) );
@@ -59,19 +59,20 @@ void QgsGeometryDuplicateCheck::collectErrors( const QMap<QString, QgsFeaturePoo
     }
     QMap<QString, QList<QgsFeatureId>> duplicates;
 
-    QgsWkbTypes::GeometryType geomType = geomA.type();
-    QgsGeometryCheckerUtils::LayerFeatures layerFeaturesB( featurePools, QList<QString>() << layerFeatureA.layer()->id() << layerIds, bboxA, {geomType}, mContext );
+    const Qgis::GeometryType geomType = geomA.type();
+    const QgsGeometryCheckerUtils::LayerFeatures layerFeaturesB( featurePools, QList<QString>() << layerFeatureA.layer()->id() << layerIds, bboxA, { geomType }, mContext );
     for ( const QgsGeometryCheckerUtils::LayerFeature &layerFeatureB : layerFeaturesB )
     {
-      // > : only report overlaps within same layer once
+      // only report overlaps within same layer once
       if ( layerFeatureA.layer()->id() == layerFeatureB.layer()->id() && layerFeatureB.feature().id() >= layerFeatureA.feature().id() )
       {
         continue;
       }
+
+      const QgsGeometry geomB = layerFeatureB.geometry();
       QString errMsg;
-      QgsGeometry geomB = layerFeatureB.geometry();
-      std::unique_ptr<QgsAbstractGeometry> diffGeom( geomEngineA->symDifference( geomB.constGet(), &errMsg ) );
-      if ( errMsg.isEmpty() && ( !diffGeom || diffGeom->isEmpty() ) )
+      const bool equal = geomEngineA->isEqual( geomB.constGet(), &errMsg );
+      if ( equal && errMsg.isEmpty() )
       {
         duplicates[layerFeatureB.layer()->id()].append( layerFeatureB.feature().id() );
       }
@@ -89,7 +90,7 @@ void QgsGeometryDuplicateCheck::collectErrors( const QMap<QString, QgsFeaturePoo
 
 void QgsGeometryDuplicateCheck::fixError( const QMap<QString, QgsFeaturePool *> &featurePools, QgsGeometryCheckError *error, int method, const QMap<QString, int> & /*mergeAttributeIndices*/, Changes &changes ) const
 {
-  QgsFeaturePool *featurePoolA = featurePools[ error->layerId() ];
+  QgsFeaturePool *featurePoolA = featurePools[error->layerId()];
   QgsFeature featureA;
   if ( !featurePoolA->getFeature( error->featureId(), featureA ) )
   {
@@ -103,25 +104,25 @@ void QgsGeometryDuplicateCheck::fixError( const QMap<QString, QgsFeaturePool *> 
   }
   else if ( method == RemoveDuplicates )
   {
-    QgsGeometryCheckerUtils::LayerFeature layerFeatureA( featurePoolA, featureA, mContext, true );
-    std::unique_ptr< QgsGeometryEngine > geomEngineA = QgsGeometryCheckerUtils::createGeomEngine( layerFeatureA.geometry().constGet(), mContext->tolerance );
+    const QgsGeometryCheckerUtils::LayerFeature layerFeatureA( featurePoolA, featureA, mContext, true );
+    std::unique_ptr<QgsGeometryEngine> geomEngineA( QgsGeometry::createGeometryEngine( layerFeatureA.geometry().constGet(), mContext->tolerance ) );
 
     QgsGeometryDuplicateCheckError *duplicateError = static_cast<QgsGeometryDuplicateCheckError *>( error );
     const QMap<QString, QList<QgsFeatureId>> duplicates = duplicateError->duplicates();
     for ( auto it = duplicates.constBegin(); it != duplicates.constEnd(); ++it )
     {
       const QString layerIdB = it.key();
-      QgsFeaturePool *featurePoolB = featurePools[ layerIdB ];
-      const QList< QgsFeatureId > ids = it.value();
-      for ( QgsFeatureId idB : ids )
+      QgsFeaturePool *featurePoolB = featurePools[layerIdB];
+      const QList<QgsFeatureId> ids = it.value();
+      for ( const QgsFeatureId idB : ids )
       {
         QgsFeature featureB;
         if ( !featurePoolB->getFeature( idB, featureB ) )
         {
           continue;
         }
-        QgsGeometryCheckerUtils::LayerFeature layerFeatureB( featurePoolB, featureB, mContext, true );
-        std::unique_ptr< QgsAbstractGeometry > diffGeom( geomEngineA->symDifference( layerFeatureB.geometry().constGet() ) );
+        const QgsGeometryCheckerUtils::LayerFeature layerFeatureB( featurePoolB, featureB, mContext, true );
+        std::unique_ptr<QgsAbstractGeometry> diffGeom( geomEngineA->symDifference( layerFeatureB.geometry().constGet() ) );
         if ( !diffGeom || diffGeom->isEmpty() )
         {
           featurePoolB->deleteFeature( featureB.id() );
@@ -139,9 +140,9 @@ void QgsGeometryDuplicateCheck::fixError( const QMap<QString, QgsFeaturePool *> 
 
 QStringList QgsGeometryDuplicateCheck::resolutionMethods() const
 {
-  static QStringList methods = QStringList()
-                               << tr( "No action" )
-                               << tr( "Remove duplicates" );
+  static const QStringList methods = QStringList()
+                                     << tr( "No action" )
+                                     << tr( "Remove duplicates" );
   return methods;
 }
 

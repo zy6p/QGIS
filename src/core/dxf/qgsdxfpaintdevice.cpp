@@ -36,6 +36,7 @@ QPaintEngine *QgsDxfPaintDevice::paintEngine() const
 
 int QgsDxfPaintDevice::metric( PaintDeviceMetric metric ) const
 {
+  // NOLINTBEGIN(bugprone-branch-clone)
   switch ( metric )
   {
     case QPaintDevice::PdmWidth:
@@ -59,7 +60,14 @@ int QgsDxfPaintDevice::metric( PaintDeviceMetric metric ) const
       return 1;
     case QPaintDevice::PdmDevicePixelRatioScaled:
       return 1;
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 8, 0))
+    case PdmDevicePixelRatioF_EncodedA:
+      return 1;
+    case PdmDevicePixelRatioF_EncodedB:
+      return 1;
+#endif
   }
+  // NOLINTEND(bugprone-branch-clone)
   return 0;
 }
 
@@ -70,8 +78,8 @@ double QgsDxfPaintDevice::widthScaleFactor() const
     return 1.0;
   }
 
-  double widthFactor = mRectangle.width() / mDrawingSize.width();
-  double heightFactor = mRectangle.height() / mDrawingSize.height();
+  const double widthFactor = mRectangle.width() / mDrawingSize.width();
+  const double heightFactor = mRectangle.height() / mDrawingSize.height();
   return ( widthFactor + heightFactor ) / 2.0;
 }
 
@@ -82,8 +90,8 @@ QPointF QgsDxfPaintDevice::dxfCoordinates( QPointF pt ) const
     return QPointF( pt.x(), pt.y() );
   }
 
-  double x = mRectangle.left() + pt.x() * ( mRectangle.width() / mDrawingSize.width() );
-  double y = mRectangle.bottom() - pt.y() * ( mRectangle.height() / mDrawingSize.height() );
+  const double x = mRectangle.left() + pt.x() * ( mRectangle.width() / mDrawingSize.width() );
+  const double y = mRectangle.bottom() - pt.y() * ( mRectangle.height() / mDrawingSize.height() );
   return QPointF( x, y );
 }
 

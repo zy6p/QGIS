@@ -21,21 +21,24 @@
 #include <locale>
 #include <iomanip>
 
-struct formatter : std::numpunct<wchar_t>
+namespace QgsBasicNumericFormat_ns
 {
-  formatter( QChar thousands, bool showThousands, QChar decimal )
-    : mThousands( thousands.unicode() )
-    , mDecimal( decimal.unicode() )
-    , mShowThousands( showThousands )
-  {}
-  wchar_t do_decimal_point() const override { return mDecimal; }
-  wchar_t do_thousands_sep() const override { return mThousands; }
-  std::string do_grouping() const override { return mShowThousands ? "\3" : "\0"; }
+  struct formatter : std::numpunct<wchar_t>
+  {
+    formatter( QChar thousands, bool showThousands, QChar decimal )
+      : mThousands( thousands.unicode() )
+      , mDecimal( decimal.unicode() )
+      , mShowThousands( showThousands )
+    {}
+    wchar_t do_decimal_point() const override { return mDecimal; }
+    wchar_t do_thousands_sep() const override { return mThousands; }
+    std::string do_grouping() const override { return mShowThousands ? "\3" : "\0"; }
 
-  wchar_t mThousands;
-  wchar_t mDecimal;
-  bool mShowThousands = true;
-};
+    wchar_t mThousands;
+    wchar_t mDecimal;
+    bool mShowThousands = true;
+  };
+}
 
 QgsBasicNumericFormat::QgsBasicNumericFormat()
 {
@@ -58,9 +61,9 @@ int QgsBasicNumericFormat::sortKey()
 
 QString QgsBasicNumericFormat::formatDouble( double value, const QgsNumericFormatContext &context ) const
 {
-  QChar decimal = mDecimalSeparator.isNull() ? context.decimalSeparator() : mDecimalSeparator;
+  const QChar decimal = mDecimalSeparator.isNull() ? context.decimalSeparator() : mDecimalSeparator;
   std::basic_stringstream<wchar_t> os;
-  os.imbue( std::locale( os.getloc(), new formatter( mThousandsSeparator.isNull() ? context.thousandsSeparator() : mThousandsSeparator,
+  os.imbue( std::locale( os.getloc(), new QgsBasicNumericFormat_ns::formatter( mThousandsSeparator.isNull() ? context.thousandsSeparator() : mThousandsSeparator,
                          mShowThousandsSeparator,
                          decimal ) ) );
 
@@ -70,20 +73,24 @@ QString QgsBasicNumericFormat::formatDouble( double value, const QgsNumericForma
     {
       case DecimalPlaces:
         os << std::fixed << std::setprecision( mNumberDecimalPlaces );
-        os << value;
+        if ( qgsDoubleNear( value, 0 ) )
+          os << 0.0;
+        else
+          os << value;
+
         break;
 
       case SignificantFigures:
       {
         if ( qgsDoubleNear( value, 0 ) )
         {
-          os << std::fixed << std::setprecision( mNumberDecimalPlaces - 1 ) << value;
+          os << std::fixed << std::setprecision( mNumberDecimalPlaces - 1 ) << 0.0;
         }
         else
         {
           // digits before decimal point
           const int d = std::floor( std::log10( value < 0 ? -value : value ) ) + 1;
-          double order = std::pow( 10.0, mNumberDecimalPlaces - d );
+          const double order = std::pow( 10.0, mNumberDecimalPlaces - d );
           os << std::fixed << std::setprecision( std::max( mNumberDecimalPlaces - d, 0 ) ) << std::round( value * order ) / order;
         }
         break;
@@ -93,7 +100,10 @@ QString QgsBasicNumericFormat::formatDouble( double value, const QgsNumericForma
   else
   {
     os << std::scientific << std::setprecision( mNumberDecimalPlaces );
-    os << value;
+    if ( qgsDoubleNear( value, 0 ) )
+      os << 0.0;
+    else
+      os << value;
   }
 
   QString res = QString::fromStdWString( os.str() );
@@ -119,7 +129,7 @@ QString QgsBasicNumericFormat::formatDouble( double value, const QgsNumericForma
     if ( res.at( trimPoint ) == decimal )
       trimPoint--;
 
-    QString original = res;
+    const QString original = res;
     res.truncate( trimPoint + 1 );
     if ( mUseScientific )
       res += original.mid( ePoint );
@@ -135,7 +145,7 @@ QgsNumericFormat *QgsBasicNumericFormat::clone() const
 
 QgsNumericFormat *QgsBasicNumericFormat::create( const QVariantMap &configuration, const QgsReadWriteContext &context ) const
 {
-  std::unique_ptr< QgsBasicNumericFormat > res = std::make_unique< QgsBasicNumericFormat >();
+  auto res = std::make_unique< QgsBasicNumericFormat >();
   res->setConfiguration( configuration, context );
   return res.release();
 }
@@ -148,8 +158,8 @@ QVariantMap QgsBasicNumericFormat::configuration( const QgsReadWriteContext & ) 
   res.insert( QStringLiteral( "show_plus" ), mShowPlusSign );
   res.insert( QStringLiteral( "show_trailing_zeros" ), mShowTrailingZeros );
   res.insert( QStringLiteral( "rounding_type" ), static_cast< int >( mRoundingType ) );
-  res.insert( QStringLiteral( "thousand_separator" ), mThousandsSeparator );
-  res.insert( QStringLiteral( "decimal_separator" ), mDecimalSeparator );
+  res.insert( QStringLiteral( "thousand_separator" ), mThousandsSeparator.isNull() ? QVariant() : QVariant::fromValue( mThousandsSeparator ) );
+  res.insert( QStringLiteral( "decimal_separator" ), mDecimalSeparator.isNull() ? QVariant() : QVariant::fromValue( mDecimalSeparator ) );
   return res;
 }
 

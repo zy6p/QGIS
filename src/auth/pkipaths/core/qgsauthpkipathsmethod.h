@@ -22,6 +22,7 @@
 
 #include "qgsauthconfig.h"
 #include "qgsauthmethod.h"
+#include "qgsauthmethodmetadata.h"
 
 
 class QgsAuthPkiPathsMethod : public QgsAuthMethod
@@ -29,6 +30,10 @@ class QgsAuthPkiPathsMethod : public QgsAuthMethod
     Q_OBJECT
 
   public:
+    static const QString AUTH_METHOD_KEY;
+    static const QString AUTH_METHOD_DESCRIPTION;
+    static const QString AUTH_METHOD_DISPLAY_DESCRIPTION;
+
     explicit QgsAuthPkiPathsMethod();
     ~QgsAuthPkiPathsMethod() override;
 
@@ -39,18 +44,20 @@ class QgsAuthPkiPathsMethod : public QgsAuthMethod
 
     QString displayDescription() const override;
 
-    bool updateNetworkRequest( QNetworkRequest &request, const QString &authcfg,
-                               const QString &dataprovider = QString() ) override;
+    bool updateNetworkRequest( QNetworkRequest &request, const QString &authcfg, const QString &dataprovider = QString() ) override;
 
-    bool updateDataSourceUriItems( QStringList &connectionItems, const QString &authcfg,
-                                   const QString &dataprovider = QString() ) override;
+    bool updateDataSourceUriItems( QStringList &connectionItems, const QString &authcfg, const QString &dataprovider = QString() ) override;
 
     void clearCachedConfig( const QString &authcfg ) override;
 
     void updateMethodConfig( QgsAuthMethodConfig &mconfig ) override;
 
-  private:
+#ifdef HAVE_GUI
+    QWidget *editWidget( QWidget *parent ) const override;
+#endif
 
+  private:
+#ifndef QT_NO_SSL
     QgsPkiConfigBundle *getPkiConfigBundle( const QString &authcfg );
 
     void putPkiConfigBundle( const QString &authcfg, QgsPkiConfigBundle *pkibundle );
@@ -58,7 +65,19 @@ class QgsAuthPkiPathsMethod : public QgsAuthMethod
     void removePkiConfigBundle( const QString &authcfg );
 
     static QMap<QString, QgsPkiConfigBundle *> sPkiConfigBundleCache;
-
+#endif
 };
+
+
+class QgsAuthPkiPathsMethodMetadata : public QgsAuthMethodMetadata
+{
+  public:
+    QgsAuthPkiPathsMethodMetadata()
+      : QgsAuthMethodMetadata( QgsAuthPkiPathsMethod::AUTH_METHOD_KEY, QgsAuthPkiPathsMethod::AUTH_METHOD_DESCRIPTION )
+    {}
+    QgsAuthPkiPathsMethod *createAuthMethod() const override { return new QgsAuthPkiPathsMethod; }
+    //QStringList supportedDataProviders() const override;
+};
+
 
 #endif // QGSAUTHPKIPATHSMETHOD_H

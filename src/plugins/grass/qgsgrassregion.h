@@ -42,14 +42,13 @@ extern "C"
  *  \brief GRASS attributes.
  *
  */
-class QgsGrassRegion: public QWidget, private Ui::QgsGrassRegionBase
+class QgsGrassRegion : public QWidget, private Ui::QgsGrassRegionBase
 {
     Q_OBJECT
 
   public:
     //! Constructor
-    QgsGrassRegion( QgisInterface *iface,
-                    QWidget *parent = nullptr, Qt::WindowFlags f = nullptr );
+    QgsGrassRegion( QgisInterface *iface, QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
 
 
     ~QgsGrassRegion() override;
@@ -88,6 +87,7 @@ class QgsGrassRegion: public QWidget, private Ui::QgsGrassRegionBase
     void mDrawButton_clicked();
 
     void canvasMapToolSet( QgsMapTool *tool );
+
   private:
     //! Pointer to plugin
     //QgsGrassPlugin *mPlugin;
@@ -113,10 +113,6 @@ class QgsGrassRegion: public QWidget, private Ui::QgsGrassRegionBase
 
     // Set region values in GUI from mWindow
     void refreshGui();
-
-    //! First corner coordinates
-    double mX;
-    double mY;
 
     //! Currently updating GUI, don't run *Changed methods
     bool mUpdatingGui;
@@ -160,7 +156,7 @@ class QgsGrassRegionEdit : public QgsMapTool
 
     static void drawRegion( QgsMapCanvas *canvas, QgsRubberBand *rubberBand, const QgsRectangle &rect, const QgsCoordinateTransform &coordinateTransform = QgsCoordinateTransform(), bool isPolygon = false );
     void calcSrcRegion();
-    static void transform( QgsMapCanvas *canvas, QVector<QgsPointXY> &points, const QgsCoordinateTransform &coordinateTransform, QgsCoordinateTransform::TransformDirection direction = QgsCoordinateTransform::ForwardTransform );
+    static void transform( QgsMapCanvas *canvas, QVector<QgsPointXY> &points, const QgsCoordinateTransform &coordinateTransform, Qgis::TransformDirection direction = Qgis::TransformDirection::Forward );
 
   signals:
     void captureStarted();

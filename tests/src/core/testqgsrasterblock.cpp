@@ -17,6 +17,7 @@
 #include <QObject>
 #include <QString>
 #include <QTemporaryFile>
+#include <QLocale>
 
 #include "qgsrasterlayer.h"
 #include "qgsrasterdataprovider.h"
@@ -25,23 +26,29 @@
  * \ingroup UnitTests
  * This is a unit test for the QgsRasterBlock class.
  */
-class TestQgsRasterBlock : public QObject
+class TestQgsRasterBlock : public QgsTest
 {
     Q_OBJECT
   public:
-    TestQgsRasterBlock() = default;
+    TestQgsRasterBlock()
+      : QgsTest( QStringLiteral( "Raster block" ) )
+    {}
 
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init() {} // will be called before each testfunction is executed.
-    void cleanup() {} // will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init() {}          // will be called before each testfunction is executed.
+    void cleanup() {}       // will be called after every testfunction.
 
     void testBasic();
     void testWrite();
+    void testPrintValueFloat_data();
+    void testPrintValueFloat();
+    void testPrintValueDouble_data();
+    void testPrintValueDouble();
+    void testMinimumMaximum();
 
   private:
-
     QString mTestDataDir;
     QgsRasterLayer *mpRasterLayer = nullptr;
 };
@@ -55,7 +62,7 @@ void TestQgsRasterBlock::initTestCase()
   QgsApplication::initQgis();
 
   mTestDataDir = QStringLiteral( TEST_DATA_DIR ); //defined in CmakeLists.txt
-  QString band1byteRaster = mTestDataDir + "/raster/band1_byte_ct_epsg4326.tif";
+  const QString band1byteRaster = mTestDataDir + "/raster/band1_byte_ct_epsg4326.tif";
 
   mpRasterLayer = new QgsRasterLayer( band1byteRaster, QStringLiteral( "band1_byte" ) );
 
@@ -75,9 +82,9 @@ void TestQgsRasterBlock::testBasic()
   QgsRasterDataProvider *provider = mpRasterLayer->dataProvider();
   QVERIFY( provider );
 
-  QgsRectangle fullExtent = mpRasterLayer->extent();
-  int width = mpRasterLayer->width();
-  int height = mpRasterLayer->height();
+  const QgsRectangle fullExtent = mpRasterLayer->extent();
+  const int width = mpRasterLayer->width();
+  const int height = mpRasterLayer->height();
 
   QgsRasterBlock *block = provider->block( 1, fullExtent, width, height );
 
@@ -88,7 +95,7 @@ void TestQgsRasterBlock::testBasic()
 
   QVERIFY( block->isValid() );
   QVERIFY( !block->isEmpty() );
-  QCOMPARE( block->dataType(), Qgis::Byte );
+  QCOMPARE( block->dataType(), Qgis::DataType::Byte );
   QCOMPARE( block->dataTypeSize(), 1 );
   QVERIFY( block->hasNoDataValue() );
   QVERIFY( block->hasNoData() );
@@ -135,16 +142,16 @@ void TestQgsRasterBlock::testBasic()
   QVERIFY( isNoData );
 
   // data()
-  QByteArray data = block->data();
-  QCOMPARE( data.count(), 100 );  // 10x10 raster with 1 byte/pixel
+  const QByteArray data = block->data();
+  QCOMPARE( data.count(), 100 ); // 10x10 raster with 1 byte/pixel
   QCOMPARE( data.at( 0 ), ( char ) 2 );
   QCOMPARE( data.at( 1 ), ( char ) 5 );
   QCOMPARE( data.at( 10 ), ( char ) 27 );
 
   // setData()
-  QByteArray newData( "\xaa\xbb\xcc\xdd" );
+  const QByteArray newData( "\xaa\xbb\xcc\xdd" );
   block->setData( newData, 1 );
-  QByteArray data2 = block->data();
+  const QByteArray data2 = block->data();
   QCOMPARE( data2.at( 0 ), ( char ) 2 );
   QCOMPARE( data2.at( 1 ), '\xaa' );
   QCOMPARE( data2.at( 2 ), '\xbb' );
@@ -155,12 +162,11 @@ void TestQgsRasterBlock::testBasic()
 
 void TestQgsRasterBlock::testWrite()
 {
-  QgsRectangle extent = mpRasterLayer->extent();
+  const QgsRectangle extent = mpRasterLayer->extent();
   int nCols = mpRasterLayer->width(), nRows = mpRasterLayer->height();
   QVERIFY( nCols > 0 );
   QVERIFY( nRows > 0 );
-  double tform[] =
-  {
+  double tform[] = {
     extent.xMinimum(), extent.width() / nCols, 0.0,
     extent.yMaximum(), 0.0, -extent.height() / nRows
   };
@@ -171,13 +177,13 @@ void TestQgsRasterBlock::testWrite()
   tmpFile.close();
 
   // create a GeoTIFF - this will create data provider in editable mode
-  QString filename = tmpFile.fileName();
-  QgsRasterDataProvider *dp = QgsRasterDataProvider::create( QStringLiteral( "gdal" ), filename, QStringLiteral( "GTiff" ), 1, Qgis::Byte, 10, 10, tform, mpRasterLayer->crs() );
+  const QString filename = tmpFile.fileName();
+  QgsRasterDataProvider *dp = QgsRasterDataProvider::create( QStringLiteral( "gdal" ), filename, QStringLiteral( "GTiff" ), 1, Qgis::DataType::Byte, 10, 10, tform, mpRasterLayer->crs() );
 
   QgsRasterBlock *block = mpRasterLayer->dataProvider()->block( 1, mpRasterLayer->extent(), mpRasterLayer->width(), mpRasterLayer->height() );
 
   QByteArray origData = block->data();
-  origData.detach();  // make sure we have private copy independent from independent block content
+  origData.detach(); // make sure we have private copy independent from independent block content
   QCOMPARE( origData.at( 0 ), ( char ) 2 );
   QCOMPARE( origData.at( 1 ), ( char ) 5 );
 
@@ -187,7 +193,7 @@ void TestQgsRasterBlock::testWrite()
   QVERIFY( res );
 
   QgsRasterBlock *block2 = dp->block( 1, mpRasterLayer->extent(), mpRasterLayer->width(), mpRasterLayer->height() );
-  QByteArray newData2 = block2->data();
+  const QByteArray newData2 = block2->data();
   QCOMPARE( newData2.at( 0 ), '\xa0' );
   QCOMPARE( newData2.at( 1 ), '\xa1' );
 
@@ -198,11 +204,11 @@ void TestQgsRasterBlock::testWrite()
   QgsRasterLayer *rlayer = new QgsRasterLayer( filename, QStringLiteral( "tmp" ), QStringLiteral( "gdal" ) );
   QVERIFY( rlayer->isValid() );
   QgsRasterBlock *block3 = rlayer->dataProvider()->block( 1, rlayer->extent(), rlayer->width(), rlayer->height() );
-  QByteArray newData3 = block3->data();
+  const QByteArray newData3 = block3->data();
   QCOMPARE( newData3.at( 0 ), '\xa0' );
   QCOMPARE( newData3.at( 1 ), '\xa1' );
 
-  QgsRasterBlock *block4 = new QgsRasterBlock( Qgis::Byte, 1, 2 );
+  QgsRasterBlock *block4 = new QgsRasterBlock( Qgis::DataType::Byte, 1, 2 );
   block4->setData( QByteArray( "\xb0\xb1" ) );
 
   // cannot write when provider is not editable
@@ -229,7 +235,7 @@ void TestQgsRasterBlock::testWrite()
 
   // verify the change is there
   QgsRasterBlock *block5 = rlayer->dataProvider()->block( 1, rlayer->extent(), rlayer->width(), rlayer->height() );
-  QByteArray newData5 = block5->data();
+  const QByteArray newData5 = block5->data();
   QCOMPARE( newData5.at( 0 ), '\xb0' );
   QCOMPARE( newData5.at( 1 ), '\xa1' ); // original data
   QCOMPARE( newData5.at( 10 ), '\xb1' );
@@ -240,6 +246,159 @@ void TestQgsRasterBlock::testWrite()
   delete rlayer;
 
   delete block;
+}
+
+void TestQgsRasterBlock::testPrintValueDouble_data()
+{
+  QTest::addColumn<double>( "value" );
+  QTest::addColumn<bool>( "localized" );
+  QTest::addColumn<QLocale::Language>( "language" );
+  QTest::addColumn<QString>( "expected" );
+
+  QTest::newRow( "English double" ) << 123456.789 << true << QLocale::Language::English << QStringLiteral( "123,456.789" );
+  QTest::newRow( "English int" ) << 123456.0 << true << QLocale::Language::English << QStringLiteral( "123,456" );
+  QTest::newRow( "English int no locale" ) << 123456.0 << false << QLocale::Language::English << QStringLiteral( "123456" );
+  QTest::newRow( "English double no locale" ) << 123456.789 << false << QLocale::Language::English << QStringLiteral( "123456.789" );
+  QTest::newRow( "English negative double" ) << -123456.789 << true << QLocale::Language::English << QStringLiteral( "-123,456.789" );
+
+  QTest::newRow( "Italian double" ) << 123456.789 << true << QLocale::Language::Italian << QStringLiteral( "123.456,789" );
+  QTest::newRow( "Italian int" ) << 123456.0 << true << QLocale::Language::Italian << QStringLiteral( "123.456" );
+  QTest::newRow( "Italian int no locale" ) << 123456.0 << false << QLocale::Language::Italian << QStringLiteral( "123456" );
+  QTest::newRow( "Italian double no locale" ) << 123456.789 << false << QLocale::Language::Italian << QStringLiteral( "123456.789" );
+  QTest::newRow( "Italian negative double" ) << -123456.789 << true << QLocale::Language::Italian << QStringLiteral( "-123.456,789" );
+}
+
+
+void TestQgsRasterBlock::testPrintValueDouble()
+{
+  QFETCH( double, value );
+  QFETCH( bool, localized );
+  QFETCH( QLocale::Language, language );
+  QFETCH( QString, expected );
+
+  QLocale::setDefault( language );
+  QString actual = QgsRasterBlock::printValue( value, localized );
+  QCOMPARE( actual, expected );
+  QLocale::setDefault( QLocale::Language::English );
+}
+
+void TestQgsRasterBlock::testMinimumMaximum()
+{
+  QgsRasterLayer rl( copyTestData( QStringLiteral( "raster/dem.tif" ) ), QStringLiteral( "dem" ) );
+  QVERIFY( rl.isValid() );
+
+  QgsRasterDataProvider *provider = rl.dataProvider();
+  provider->setUseSourceNoDataValue( 1, false );
+  const QgsRectangle fullExtent = rl.extent();
+  const int width = rl.width();
+  const int height = rl.height();
+  std::unique_ptr<QgsRasterBlock> block( provider->block( 1, fullExtent, width, height ) );
+  QVERIFY( block );
+  QVERIFY( !block->hasNoData() );
+
+  double value = 0;
+  int row = 0;
+  int col = 0;
+  QVERIFY( block->minimum( value, row, col ) );
+  QCOMPARE( value, 85 );
+  QCOMPARE( row, 89 );
+  QCOMPARE( col, 123 );
+
+  QVERIFY( block->maximum( value, row, col ) );
+  QCOMPARE( value, 243 );
+  QCOMPARE( row, 152 );
+  QCOMPARE( col, 301 );
+
+  double value2 = 0;
+  int row2 = 0;
+  int col2 = 0;
+
+  QVERIFY( block->minimumMaximum( value, row, col, value2, row2, col2 ) );
+  QCOMPARE( value, 85 );
+  QCOMPARE( row, 89 );
+  QCOMPARE( col, 123 );
+  QCOMPARE( value2, 243 );
+  QCOMPARE( row2, 152 );
+  QCOMPARE( col2, 301 );
+
+  // with no data value corresponding to min
+  provider->setNoDataValue( 1, 85 );
+  block.reset( provider->block( 1, fullExtent, width, height ) );
+  QVERIFY( block );
+  QVERIFY( block->hasNoData() );
+  QCOMPARE( block->noDataValue(), 85 );
+
+  QVERIFY( block->minimum( value, row, col ) );
+  QCOMPARE( value, 85.5 );
+  QCOMPARE( row, 50 );
+  QCOMPARE( col, 183 );
+  QVERIFY( block->maximum( value, row, col ) );
+  QCOMPARE( value, 243 );
+  QCOMPARE( row, 152 );
+  QCOMPARE( col, 301 );
+  QVERIFY( block->minimumMaximum( value, row, col, value2, row2, col2 ) );
+  QCOMPARE( value, 85.5 );
+  QCOMPARE( row, 50 );
+  QCOMPARE( col, 183 );
+  QCOMPARE( value2, 243 );
+  QCOMPARE( row2, 152 );
+  QCOMPARE( col2, 301 );
+
+  // with no data value corresponding to max
+  provider->setNoDataValue( 1, 243 );
+  block.reset( provider->block( 1, fullExtent, width, height ) );
+  QVERIFY( block );
+  QVERIFY( block->hasNoData() );
+  QCOMPARE( block->noDataValue(), 243 );
+
+  QVERIFY( block->minimum( value, row, col ) );
+  QCOMPARE( value, 85 );
+  QCOMPARE( row, 89 );
+  QCOMPARE( col, 123 );
+  QVERIFY( block->maximum( value, row, col ) );
+  QGSCOMPARENEAR( value, 241.800003052, 0.0000001 );
+  QCOMPARE( row, 144 );
+  QCOMPARE( col, 293 );
+  QVERIFY( block->minimumMaximum( value, row, col, value2, row2, col2 ) );
+  QCOMPARE( value, 85 );
+  QCOMPARE( row, 89 );
+  QCOMPARE( col, 123 );
+  QGSCOMPARENEAR( value2, 241.800003052, 0.0000001 );
+  QCOMPARE( row2, 144 );
+  QCOMPARE( col2, 293 );
+}
+
+void TestQgsRasterBlock::testPrintValueFloat_data()
+{
+  QTest::addColumn<float>( "value" );
+  QTest::addColumn<bool>( "localized" );
+  QTest::addColumn<QLocale::Language>( "language" );
+  QTest::addColumn<QString>( "expected" );
+
+  QTest::newRow( "English float" ) << 123456.789f << true << QLocale::Language::English << QStringLiteral( "123,456.79" );
+  QTest::newRow( "English int" ) << 123456.f << true << QLocale::Language::English << QStringLiteral( "123,456" );
+  QTest::newRow( "English int no locale" ) << 123456.f << false << QLocale::Language::English << QStringLiteral( "123456" );
+  QTest::newRow( "English float no locale" ) << 123456.789f << false << QLocale::Language::English << QStringLiteral( "123456.79" );
+  QTest::newRow( "English negative float" ) << -123456.789f << true << QLocale::Language::English << QStringLiteral( "-123,456.79" );
+
+  QTest::newRow( "Italian float" ) << 123456.789f << true << QLocale::Language::Italian << QStringLiteral( "123.456,79" );
+  QTest::newRow( "Italian int" ) << 123456.f << true << QLocale::Language::Italian << QStringLiteral( "123.456" );
+  QTest::newRow( "Italian int no locale" ) << 123456.f << false << QLocale::Language::Italian << QStringLiteral( "123456" );
+  QTest::newRow( "Italian float no locale" ) << 123456.789f << false << QLocale::Language::Italian << QStringLiteral( "123456.79" );
+  QTest::newRow( "Italian negative float" ) << -123456.789f << true << QLocale::Language::Italian << QStringLiteral( "-123.456,79" );
+}
+
+void TestQgsRasterBlock::testPrintValueFloat()
+{
+  QFETCH( float, value );
+  QFETCH( bool, localized );
+  QFETCH( QLocale::Language, language );
+  QFETCH( QString, expected );
+
+  QLocale::setDefault( language );
+  QString actual = QgsRasterBlock::printValue( value, localized );
+  QCOMPARE( actual, expected );
+  QLocale::setDefault( QLocale::Language::English );
 }
 
 QGSTEST_MAIN( TestQgsRasterBlock )

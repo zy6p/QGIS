@@ -23,7 +23,9 @@
 #include <cmath>
 
 #include "qgsadvanceddigitizingdockwidget.h"
+#include "qgsavoidintersectionsoperation.h"
 #include "qgsmaptoolscalefeature.h"
+#include "moc_qgsmaptoolscalefeature.cpp"
 #include "qgsfeatureiterator.h"
 #include "qgsgeometry.h"
 #include "qgslogger.h"
@@ -63,7 +65,7 @@ QgsScaleMagnetWidget::QgsScaleMagnetWidget( const QString &label, QWidget *paren
 
   // connect signals
   mScaleSpinBox->installEventFilter( this );
-  connect( mScaleSpinBox, static_cast < void ( QgsDoubleSpinBox::* )( double ) > ( &QgsDoubleSpinBox::valueChanged ), this, &QgsScaleMagnetWidget::scaleSpinBoxValueChanged );
+  connect( mScaleSpinBox, static_cast<void ( QgsDoubleSpinBox::* )( double )>( &QgsDoubleSpinBox::valueChanged ), this, &QgsScaleMagnetWidget::scaleSpinBoxValueChanged );
 
   // config focus
   setFocusProxy( mScaleSpinBox );
@@ -110,7 +112,7 @@ void QgsScaleMagnetWidget::scaleSpinBoxValueChanged( double scale )
 
 QgsMapToolScaleFeature::QgsMapToolScaleFeature( QgsMapCanvas *canvas )
   : QgsMapToolAdvancedDigitizing( canvas, QgisApp::instance()->cadDockWidget() )
-  , mSnapIndicator( std::make_unique< QgsSnapIndicator>( canvas ) )
+  , mSnapIndicator( std::make_unique<QgsSnapIndicator>( canvas ) )
 {
   mToolName = tr( "Scale feature" );
 }
@@ -133,7 +135,7 @@ void QgsMapToolScaleFeature::cadCanvasMoveEvent( QgsMapMouseEvent *e )
   if ( mScalingActive )
   {
     const double distance = mFeatureCenterMapCoords.distance( e->mapPoint() );
-    double scale = distance / mBaseDistance; // min 0 or no limit?
+    const double scale = distance / mBaseDistance; // min 0 or no limit?
 
     if ( mScalingWidget )
     {
@@ -200,10 +202,9 @@ void QgsMapToolScaleFeature::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
       return;
     }
 
-    QgsPointXY layerCoords = toLayerCoordinates( vlayer, e->mapPoint() );
-    double searchRadius = QgsTolerance::vertexSearchRadius( mCanvas->currentLayer(), mCanvas->mapSettings() );
-    QgsRectangle selectRect( layerCoords.x() - searchRadius, layerCoords.y() - searchRadius,
-                             layerCoords.x() + searchRadius, layerCoords.y() + searchRadius );
+    const QgsPointXY layerCoords = toLayerCoordinates( vlayer, e->mapPoint() );
+    const double searchRadius = QgsTolerance::vertexSearchRadius( mCanvas->currentLayer(), mCanvas->mapSettings() );
+    const QgsRectangle selectRect( layerCoords.x() - searchRadius, layerCoords.y() - searchRadius, layerCoords.x() + searchRadius, layerCoords.y() + searchRadius );
 
     mAutoSetAnchorPoint = false;
     if ( !mAnchorPoint )
@@ -218,7 +219,7 @@ void QgsMapToolScaleFeature::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
       QgsFeatureIterator fit = vlayer->getFeatures( QgsFeatureRequest().setNoAttributes().setFilterRect( selectRect ) );
 
       //find the closest feature
-      QgsGeometry pointGeometry = QgsGeometry().fromPointXY( layerCoords );
+      const QgsGeometry pointGeometry = QgsGeometry::fromPointXY( layerCoords );
       if ( pointGeometry.isNull() )
       {
         return;
@@ -232,7 +233,7 @@ void QgsMapToolScaleFeature::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
       {
         if ( f.hasGeometry() )
         {
-          double currentDistance = pointGeometry.distance( f.geometry() );
+          const double currentDistance = pointGeometry.distance( f.geometry() );
           if ( currentDistance < minDistance )
           {
             minDistance = currentDistance;
@@ -257,7 +258,7 @@ void QgsMapToolScaleFeature::cadCanvasReleaseEvent( QgsMapMouseEvent *e )
       }
       else
       {
-        mFeatureCenterMapCoords =  mAnchorPoint->center();
+        mFeatureCenterMapCoords = mAnchorPoint->center();
       }
 
       mScaledFeatures.clear();
@@ -323,7 +324,7 @@ void QgsMapToolScaleFeature::updateRubberband( double scale )
     if ( !vlayer )
       return;
 
-    QgsPointXY layerCoords = toLayerCoordinates( vlayer, mFeatureCenterMapCoords );
+    const QgsPointXY layerCoords = toLayerCoordinates( vlayer, mFeatureCenterMapCoords );
     QTransform t;
     t.translate( layerCoords.x(), layerCoords.y() );
     t.scale( mScaling, mScaling );
@@ -358,7 +359,7 @@ void QgsMapToolScaleFeature::applyScaling( double scale )
 
   vlayer->beginEditCommand( tr( "Features Scaled" ) );
 
-  QgsPointXY layerCoords = toLayerCoordinates( vlayer, mFeatureCenterMapCoords );
+  const QgsPointXY layerCoords = toLayerCoordinates( vlayer, mFeatureCenterMapCoords );
   QTransform t;
   t.translate( layerCoords.x(), layerCoords.y() );
   t.scale( mScaling, mScaling );
@@ -368,16 +369,40 @@ void QgsMapToolScaleFeature::applyScaling( double scale )
   request.setFilterFids( mScaledFeatures ).setNoAttributes();
   QgsFeatureIterator fi = vlayer->getFeatures( request );
   QgsFeature feat;
+
+  QgsAvoidIntersectionsOperation avoidIntersections;
+  connect( &avoidIntersections, &QgsAvoidIntersectionsOperation::messageEmitted, this, &QgsMapTool::messageEmitted );
+
+  // when removing intersections don't check for intersections with selected features
+  const QHash<QgsVectorLayer *, QSet<QgsFeatureId>> ignoreFeatures { { vlayer, mScaledFeatures } };
+
   while ( fi.nextFeature( feat ) )
   {
     if ( !feat.hasGeometry() )
       continue;
 
     QgsGeometry geom = feat.geometry();
-    if ( !( geom.transform( t ) == QgsGeometry::Success ) )
+    if ( !( geom.transform( t ) == Qgis::GeometryOperationResult::Success ) )
       continue;
 
     const QgsFeatureId id = feat.id();
+
+    if ( vlayer->geometryType() == Qgis::GeometryType::Polygon )
+    {
+      const QgsAvoidIntersectionsOperation::Result res = avoidIntersections.apply( vlayer, id, geom, ignoreFeatures );
+
+      if ( res.operationResult == Qgis::GeometryOperationResult::InvalidInputGeometryType || geom.isEmpty() )
+      {
+        const QString errorMessage = ( geom.isEmpty() ) ? tr( "The feature cannot be scaled because the resulting geometry would be empty" ) : tr( "An error was reported during intersection removal" );
+
+        emit messageEmitted( errorMessage, Qgis::MessageLevel::Warning );
+        vlayer->destroyEditCommand();
+        deleteScalingWidget();
+        deleteRubberband();
+        return;
+      }
+    }
+
     vlayer->changeGeometry( id, geom );
   }
 
@@ -477,4 +502,3 @@ void QgsMapToolScaleFeature::deleteScalingWidget()
   }
   mScalingWidget = nullptr;
 }
-

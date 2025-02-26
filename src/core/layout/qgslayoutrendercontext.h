@@ -18,16 +18,20 @@
 
 #include "qgis_core.h"
 #include "qgslayoutmeasurementconverter.h"
-#include "qgsrendercontext.h"
+#include "qgsvectorsimplifymethod.h"
+#include "qgsmaskrendersettings.h"
+#include "qgis.h"
 #include <QtGlobal>
+#include <QColor>
+#include <QVector>
 
 class QgsLayout;
+class QgsFeatureFilterProvider;
 
 /**
  * \ingroup core
  * \class QgsLayoutRenderContext
  * \brief Stores information relating to the current rendering settings for a layout.
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsLayoutRenderContext : public QObject
 {
@@ -37,7 +41,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
   public:
 
     //! Flags for controlling how a layout is rendered
-    enum Flag
+    enum Flag SIP_ENUM_BASETYPE( IntFlag )
     {
       FlagDebug = 1 << 1,  //!< Debug/testing mode, items are drawn as solid rectangles.
       FlagOutlineOnly = 1 << 2, //!< Render items as outlines only.
@@ -48,7 +52,9 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
       FlagDrawSelection = 1 << 7, //!< Draw selection
       FlagDisableTiledRasterLayerRenders = 1 << 8, //!< If set, then raster layers will not be drawn as separate tiles. This may improve the appearance in exported files, at the cost of much higher memory usage during exports.
       FlagRenderLabelsByMapLayer = 1 << 9, //!< When rendering map items to multi-layered exports, render labels belonging to different layers into separate export layers
-      FlagLosslessImageRendering = 1 << 10, //!< Render images losslessly whenever possible, instead of the default lossy jpeg rendering used for some destination devices (e.g. PDF). This flag only works with builds based on Qt 5.13 or later.
+      FlagLosslessImageRendering = 1 << 10, //!< Render images losslessly whenever possible, instead of the default lossy jpeg rendering used for some destination devices (e.g. PDF).
+      FlagSynchronousLegendGraphics = 1 << 11, //!< Query legend graphics synchronously.
+      FlagAlwaysUseGlobalMasks = 1 << 12, //!< When applying clipping paths for selective masking, always use global ("entire map") paths, instead of calculating local clipping paths per rendered feature. This results in considerably more complex layout exports in all current Qt versions. This flag only applies to vector layout exports. \since QGIS 3.38
     };
     Q_DECLARE_FLAGS( Flags, Flag )
 
@@ -93,7 +99,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
     /**
      * Returns the combination of render context flags matched to the layout context's settings.
      */
-    QgsRenderContext::Flags renderContextFlags() const;
+    Qgis::RenderContextFlags renderContextFlags() const;
 
     /**
      * Sets the \a dpi for outputting the layout. This also sets the
@@ -189,7 +195,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
      * If \a layer is -1, all item layers will be rendered.
      *
      * \see currentExportLayer()
-     * \deprecated Items should now handle this themselves, via QgsLayoutItem::exportLayerBehavior() and returning QgsLayoutItem::nextExportPart().
+     * \deprecated QGIS 3.40. Items should now handle this themselves, via QgsLayoutItem::exportLayerBehavior() and returning QgsLayoutItem::nextExportPart().
      */
     Q_DECL_DEPRECATED void setCurrentExportLayer( int layer = -1 ) SIP_DEPRECATED { mCurrentExportLayer = layer; }
 
@@ -201,7 +207,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
      * If \a layer is -1, all item layers should be rendered.
      *
      * \see setCurrentExportLayer()
-     * \deprecated Items should now handle this themselves, via QgsLayoutItem::exportLayerBehavior() and returning QgsLayoutItem::nextExportPart().
+     * \deprecated QGIS 3.40. Items should now handle this themselves, via QgsLayoutItem::exportLayerBehavior() and returning QgsLayoutItem::nextExportPart().
      */
     Q_DECL_DEPRECATED int currentExportLayer() const SIP_DEPRECATED  { return mCurrentExportLayer; }
 
@@ -211,7 +217,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
      * \see setTextRenderFormat()
      * \since QGIS 3.4.3
      */
-    QgsRenderContext::TextRenderFormat textRenderFormat() const
+    Qgis::TextRenderFormat textRenderFormat() const
     {
       return mTextRenderFormat;
     }
@@ -222,7 +228,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
      * \see textRenderFormat()
      * \since QGIS 3.4.3
      */
-    void setTextRenderFormat( QgsRenderContext::TextRenderFormat format )
+    void setTextRenderFormat( Qgis::TextRenderFormat format )
     {
       mTextRenderFormat = format;
     }
@@ -259,6 +265,33 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
      * \since QGIS 3.10
      */
     const QgsVectorSimplifyMethod &simplifyMethod() const { return mSimplifyMethod; }
+
+    /**
+     * Returns a reference to the mask render settings, which control how masks
+     * are drawn and behave during map renders.
+     *
+     * \see setMaskSettings()
+     * \since QGIS 3.38
+     */
+    const QgsMaskRenderSettings &maskSettings() const SIP_SKIP { return mMaskRenderSettings; }
+
+    /**
+     * Returns a reference to the mask render settings, which control how masks
+     * are drawn and behave during map renders.
+     *
+     * \see setMaskSettings()
+     * \since QGIS 3.38
+     */
+    QgsMaskRenderSettings &maskSettings() { return mMaskRenderSettings; }
+
+    /**
+     * Sets the mask render \a settings, which control how masks
+     * are drawn and behave during map renders.
+     *
+     * \see maskSettings()
+     * \since QGIS 3.38
+     */
+    void setMaskSettings( const QgsMaskRenderSettings &settings );
 
     /**
      * Returns a list of map themes to use during the export.
@@ -298,7 +331,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
     QVector<qreal> predefinedScales() const { return mPredefinedScales; }
 
     /**
-     * Returns the possibly NULL feature filter provider.
+     * Returns the (possibly NULLPTR) feature filter provider.
      *
      * A feature filter provider for filtering visible features or attributes.
      * It is currently used by QGIS Server Access Control Plugins.
@@ -354,7 +387,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
     bool mBoundingBoxesVisible = true;
     bool mPagesVisible = true;
 
-    QgsRenderContext::TextRenderFormat mTextRenderFormat = QgsRenderContext::TextFormatAlwaysOutlines;
+    Qgis::TextRenderFormat mTextRenderFormat = Qgis::TextRenderFormat::AlwaysOutlines;
 
     QStringList mExportThemes;
 
@@ -363,6 +396,8 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
     QVector<qreal> mPredefinedScales;
 
     QgsFeatureFilterProvider *mFeatureFilterProvider = nullptr;
+
+    QgsMaskRenderSettings mMaskRenderSettings;
 
     friend class QgsLayoutExporter;
     friend class TestQgsLayout;

@@ -32,10 +32,10 @@ QString QgsClassificationQuantile::id() const
   return QStringLiteral( "Quantile" );
 }
 
-QgsClassificationMethod *QgsClassificationQuantile::clone() const
+std::unique_ptr<QgsClassificationMethod> QgsClassificationQuantile::clone() const
 {
-  QgsClassificationQuantile *c = new QgsClassificationQuantile();
-  copyBase( c );
+  auto c = std::make_unique< QgsClassificationQuantile >();
+  copyBase( c.get() );
   return c;
 }
 
@@ -46,10 +46,11 @@ QIcon QgsClassificationQuantile::icon() const
 
 
 QList<double> QgsClassificationQuantile::calculateBreaks( double &minimum, double &maximum,
-    const QList<double> &values, int nclasses )
+    const QList<double> &values, int nclasses, QString &error )
 {
   Q_UNUSED( minimum )
   Q_UNUSED( maximum )
+  Q_UNUSED( error )
 
   // q-th quantile of a data set:
   // value where q fraction of data is below and (1-q) fraction is above this value
@@ -69,7 +70,7 @@ QList<double> QgsClassificationQuantile::calculateBreaks( double &minimum, doubl
   if ( _values.isEmpty() )
     return QList<double>();
 
-  int n = _values.count();
+  const int n = _values.count();
   double Xq = n > 0 ? _values[0] : 0.0;
 
   breaks.reserve( nclasses );
@@ -77,11 +78,11 @@ QList<double> QgsClassificationQuantile::calculateBreaks( double &minimum, doubl
   {
     if ( n > 1 )
     {
-      double q = i  / static_cast< double >( nclasses );
-      double a = q * ( n - 1 );
-      int aa = static_cast<  int >( a );
+      const double q = i  / static_cast< double >( nclasses );
+      const double a = q * ( n - 1 );
+      const int aa = static_cast<  int >( a );
 
-      double r = a - aa;
+      const double r = a - aa;
       Xq = ( 1 - r ) * _values[aa] + r * _values[aa + 1];
     }
     breaks.append( Xq );

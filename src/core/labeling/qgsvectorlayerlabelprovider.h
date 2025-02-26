@@ -21,7 +21,7 @@
 #include "qgis_core.h"
 #include "qgslabelingengine.h"
 #include "qgsrenderer.h"
-#include "qgstextrenderer.h"
+#include "qgspallabeling.h"
 
 class QgsAbstractFeatureSource;
 class QgsFeatureRenderer;
@@ -35,7 +35,6 @@ class QgsSymbol;
  *
  * \note this class is not a part of public API yet. See notes in QgsLabelingEngine
  * \note not available in Python bindings
- * \since QGIS 2.12
  */
 class CORE_EXPORT QgsVectorLayerLabelProvider : public QgsAbstractLabelProvider
 {
@@ -49,7 +48,7 @@ class CORE_EXPORT QgsVectorLayerLabelProvider : public QgsAbstractLabelProvider
                                           const QString &layerName = QString() );
 
     //! Constructor to initialize the provider from any map layer (e.g. vector tile layer)
-    explicit QgsVectorLayerLabelProvider( QgsWkbTypes::GeometryType geometryType,
+    explicit QgsVectorLayerLabelProvider( Qgis::GeometryType geometryType,
                                           const QgsFields &fields,
                                           const QgsCoordinateReferenceSystem &crs,
                                           const QString &providerId,
@@ -88,8 +87,10 @@ class CORE_EXPORT QgsVectorLayerLabelProvider : public QgsAbstractLabelProvider
      * symbol, the obstacle geometry should represent the bounds of the offset symbol). If not set,
      * the feature's original geometry will be used as an obstacle for labels.
      * \param symbol feature symbol to label (ownership is not transferred - the symbol must exist until after labeling is complete)
+     * \returns a list of the newly generated label features. Ownership of these label features is not transferred
+     * (it has already been assigned to the label provider).
      */
-    virtual void registerFeature( const QgsFeature &feature, QgsRenderContext &context, const QgsGeometry &obstacleGeometry = QgsGeometry(), const QgsSymbol *symbol = nullptr );
+    virtual QList< QgsLabelFeature * > registerFeature( const QgsFeature &feature, QgsRenderContext &context, const QgsGeometry &obstacleGeometry = QgsGeometry(), const QgsSymbol *symbol = nullptr );
 
     /**
      * Returns the geometry for a point feature which should be used as an obstacle for labels. This
@@ -98,7 +99,6 @@ class CORE_EXPORT QgsVectorLayerLabelProvider : public QgsAbstractLabelProvider
      * \param fet point feature
      * \param context render context
      * \param symbols symbols rendered for point feature
-     * \since QGIS 2.14
      */
     static QgsGeometry getPointObstacleGeometry( QgsFeature &fet, QgsRenderContext &context, const QgsSymbolList &symbols );
 
@@ -114,19 +114,19 @@ class CORE_EXPORT QgsVectorLayerLabelProvider : public QgsAbstractLabelProvider
      * a call to prepare() which uses the list of fields.
      * \since QGIS 3.14
      */
-    void setFields( const QgsFields &fields ) { mFields = fields; }
+    void setFields( const QgsFields &fields );
 
   protected:
     //! initialization method - called from constructors
     void init();
     //! Internal label drawing method
-    void drawLabelPrivate( pal::LabelPosition *label, QgsRenderContext &context, QgsPalLayerSettings &tmpLyr, QgsTextRenderer::TextPart drawType, double dpiRatio = 1.0 ) const;
+    void drawLabelPrivate( pal::LabelPosition *label, QgsRenderContext &context, QgsPalLayerSettings &tmpLyr, Qgis::TextComponent drawType, double dpiRatio = 1.0 ) const;
 
   protected:
     //! Layer's labeling configuration
     QgsPalLayerSettings mSettings;
     //! Geometry type of layer
-    QgsWkbTypes::GeometryType mLayerGeometryType;
+    Qgis::GeometryType mLayerGeometryType;
 
     QgsFeatureRenderer *mRenderer = nullptr;
 
@@ -145,6 +145,8 @@ class CORE_EXPORT QgsVectorLayerLabelProvider : public QgsAbstractLabelProvider
   private:
 
     friend class TestQgsLabelingEngine;
+    friend class QgsVectorTileBasicLabelProvider;
+
     void drawCallout( QgsRenderContext &context, pal::LabelPosition *label ) const;
 };
 

@@ -13,6 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsundowidget.h"
+#include "moc_qgsundowidget.cpp"
 
 #include "qgsapplication.h"
 #include "qgslogger.h"
@@ -110,10 +111,10 @@ void QgsUndoWidget::indexChanged( int curIndx )
     canRedo = mUndoStack->canRedo();
     curCount = mUndoStack->count();
   }
-  int offset = std::abs( mPreviousIndex - curIndx );
+  const int offset = std::abs( mPreviousIndex - curIndx );
 
   // when individually redoing, differentiate between last redo and a new command added to stack
-  bool lastRedo = ( mPreviousIndex == ( mPreviousCount - 1 ) && mPreviousCount == curCount && !canRedo );
+  const bool lastRedo = ( mPreviousIndex == ( mPreviousCount - 1 ) && mPreviousCount == curCount && !canRedo );
 
   if ( offset != 0 )
   {
@@ -169,7 +170,7 @@ void QgsUndoWidget::setUndoStack( QUndoStack *undoStack )
   mUndoView->setStack( undoStack );
   mUndoView->setObjectName( QStringLiteral( "undoView" ) );
   mGridLayout->addWidget( mUndoView, 0, 0, 1, 2 );
-//  setWidget( dockWidgetContents );
+  //  setWidget( dockWidgetContents );
   connect( mUndoStack, &QUndoStack::canUndoChanged, this, &QgsUndoWidget::undoChanged );
   connect( mUndoStack, &QUndoStack::canRedoChanged, this, &QgsUndoWidget::redoChanged );
 
@@ -179,4 +180,3 @@ void QgsUndoWidget::setUndoStack( QUndoStack *undoStack )
   mUndoButton->setDisabled( !mUndoStack->canUndo() );
   mRedoButton->setDisabled( !mUndoStack->canRedo() );
 }
-

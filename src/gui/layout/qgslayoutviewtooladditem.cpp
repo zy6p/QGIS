@@ -14,12 +14,10 @@
  ***************************************************************************/
 
 #include "qgslayoutviewtooladditem.h"
-#include "qgsapplication.h"
+#include "moc_qgslayoutviewtooladditem.cpp"
 #include "qgslayoutview.h"
 #include "qgslayout.h"
-#include "qgslayoutitemregistry.h"
 #include "qgslayoutviewmouseevent.h"
-#include "qgslogger.h"
 #include "qgslayoutviewrubberband.h"
 #include "qgsgui.h"
 #include "qgslayoutitemguiregistry.h"
@@ -57,8 +55,7 @@ void QgsLayoutViewToolAddItem::layoutPressEvent( QgsLayoutViewMouseEvent *event 
   mRubberBand.reset( QgsGui::layoutItemGuiRegistry()->createItemRubberBand( mItemMetadataId, view() ) );
   if ( mRubberBand )
   {
-    connect( mRubberBand.get(), &QgsLayoutViewRubberBand::sizeChanged, this, [ = ]( const QString & size )
-    {
+    connect( mRubberBand.get(), &QgsLayoutViewRubberBand::sizeChanged, this, [=]( const QString &size ) {
       view()->pushStatusMessage( size );
     } );
     mRubberBand->start( event->snappedPoint(), event->modifiers() );
@@ -86,7 +83,7 @@ void QgsLayoutViewToolAddItem::layoutReleaseEvent( QgsLayoutViewMouseEvent *even
   }
   mDrawing = false;
 
-  QRectF rect = mRubberBand ? mRubberBand->finish( event->snappedPoint(), event->modifiers() ) : QRectF();
+  const QRectF rect = mRubberBand ? mRubberBand->finish( event->snappedPoint(), event->modifiers() ) : QRectF();
 
   QString undoText;
   if ( QgsLayoutItemAbstractGuiMetadata *metadata = QgsGui::layoutItemGuiRegistry()->itemMetadata( mItemMetadataId ) )
@@ -107,7 +104,7 @@ void QgsLayoutViewToolAddItem::layoutReleaseEvent( QgsLayoutViewMouseEvent *even
   }
 
   // click? or click-and-drag?
-  bool clickOnly = !isClickAndDrag( mMousePressStartPos, event->pos() );
+  const bool clickOnly = !isClickAndDrag( mMousePressStartPos, event->pos() );
   if ( clickOnly && mRubberBand )
   {
     QgsLayoutItemPropertiesDialog dlg( view() );
@@ -128,8 +125,8 @@ void QgsLayoutViewToolAddItem::layoutReleaseEvent( QgsLayoutViewMouseEvent *even
   }
   else if ( mRubberBand )
   {
-    item->attemptResize( QgsLayoutSize( rect.width(), rect.height(), QgsUnitTypes::LayoutMillimeters ) );
-    item->attemptMove( QgsLayoutPoint( rect.left(), rect.top(), QgsUnitTypes::LayoutMillimeters ) );
+    item->attemptResize( QgsLayoutSize( rect.width(), rect.height(), Qgis::LayoutUnit::Millimeters ) );
+    item->attemptMove( QgsLayoutPoint( rect.left(), rect.top(), Qgis::LayoutUnit::Millimeters ) );
   }
   else
   {
