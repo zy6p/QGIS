@@ -104,6 +104,7 @@ class APP_EXPORT QgsCustomizationDialog : public QMainWindow, private Ui::QgsCus
 
     QString mLastDirSettingsName;
     QSettings *mSettings = nullptr;
+    QList<QPointer< QWidget > > mSelectedWidgets;
 
   protected:
     QMap<QTreeWidgetItem *, bool> mTreeInitialExpand;
@@ -117,9 +118,9 @@ class APP_EXPORT QgsCustomization : public QObject
   public:
     enum Status
     {
-      NotSet    = 0,
-      User      = 1, // Set by user
-      Default   = 2  // Default customization loaded and set
+      NotSet = 0,
+      User = 1,   // Set by user
+      Default = 2 // Default customization loaded and set
     };
     Q_ENUM( Status )
 
@@ -132,13 +133,13 @@ class APP_EXPORT QgsCustomization : public QObject
     static void removeFromLayout( QLayout *layout, QWidget *widget );
 
     void updateBrowserWidget( QgsBrowserDockWidget *model );
-    void updateMainWindow( QMenu *toolBarMenu );
+    void updateMainWindow( QMenu *toolBarMenu, QMenu *panelMenu );
 
     // make sure to enable/disable before creating QgisApp in order to get it customized (or not)
     void setEnabled( bool enabled ) { mEnabled = enabled; }
     bool isEnabled() const { return mEnabled; }
 
-    void setSettings( QSettings *settings ) { mSettings = settings ;}
+    void setSettings( QSettings *settings ) { mSettings = settings; }
 
     // Returns the path to the splash screen
     QString splashPath() const;
@@ -174,7 +175,5 @@ class APP_EXPORT QgsCustomization : public QObject
 
   private:
     static QgsCustomization *sInstance;
-
 };
 #endif // QGSCUSTOMIZATION_H
-

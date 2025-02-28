@@ -17,15 +17,15 @@
 #define QGSPOINTROTATIONITEM_H
 
 #include "qgsmapcanvasitem.h"
+#include "qgsunittypes.h"
 #include <QFontMetricsF>
 #include <QPixmap>
 #include "qgis_app.h"
 
 //! An item that shows a rotated point symbol (e.g. arrow) centered to a map location together with a text displaying the rotation value
-class APP_EXPORT QgsPointRotationItem: public QgsMapCanvasItem
+class APP_EXPORT QgsPointRotationItem : public QgsMapCanvasItem
 {
   public:
-
     enum Orientation
     {
       Clockwise = 0,
@@ -40,10 +40,16 @@ class APP_EXPORT QgsPointRotationItem: public QgsMapCanvasItem
     void setPointLocation( const QgsPointXY &p );
 
     /**
-     * Sets the rotation of the symbol and displays the new rotation number.
+     * Sets the rotation of the symbol.
      * Units are degrees, starting from north direction, clockwise direction.
     */
-    void setSymbolRotation( int r ) {mRotation = r;}
+    void setSymbolRotation( int r ) { mRotation = r; }
+
+    /**
+     * Sets the rotation unit.
+     * \since QGIS 3.22
+     */
+    void setRotationUnit( Qgis::AngleUnit rotationUnit );
 
     //! Sets rotation symbol from image (takes ownership)
     void setSymbol( const QImage &symbolImage );
@@ -52,18 +58,17 @@ class APP_EXPORT QgsPointRotationItem: public QgsMapCanvasItem
     Orientation orientation() const { return mOrientation; }
 
   private:
-
     //! Converts rotation into QPainter rotation considering mOrientation
     int painterRotation( int rotation ) const;
     //! Clockwise (default) or counterclockwise
-    Orientation mOrientation;
+    Orientation mOrientation = Clockwise;
     //! Font to display the numerical rotation values
     QFont mFont;
     //! Symbol pixmap
     QPixmap mPixmap;
-    int mRotation;
+    int mRotation = 0.0;
+    Qgis::AngleUnit mRotationUnit = Qgis::AngleUnit::Degrees;
     QPainterPath mArrowPath;
-
 };
 
 #endif // QGSPOINTROTATIONITEM_H

@@ -13,6 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsfeaturelistviewdelegate.h"
+#include "moc_qgsfeaturelistviewdelegate.cpp"
 #include "qgsvectorlayer.h"
 #include "qgsattributetablemodel.h"
 #include "qgsfeaturelistmodel.h"
@@ -64,7 +65,7 @@ void QgsFeatureListViewDelegate::setEditSelectionModel( QItemSelectionModel *edi
 QSize QgsFeatureListViewDelegate::sizeHint( const QStyleOptionViewItem &option, const QModelIndex &index ) const
 {
   Q_UNUSED( index )
-  int height = ICON_SIZE;
+  const int height = ICON_SIZE;
   return QSize( option.rect.width(), std::max( height, option.fontMetrics.height() ) );
 }
 
@@ -88,11 +89,11 @@ void QgsFeatureListViewDelegate::paint( QPainter *painter, const QStyleOptionVie
   if ( sDeselectedIcon.isNull() )
     sDeselectedIcon = QgsApplication::getThemePixmap( QStringLiteral( "/mIconDeselected.svg" ) );
 
-  QString text = index.model()->data( index, Qt::EditRole ).toString();
+  const QString text = index.model()->data( index, Qt::EditRole ).toString();
   const QgsFeatureListModel::FeatureInfo featInfo = index.model()->data( index, QgsFeatureListModel::Role::FeatureInfoRole ).value<QgsFeatureListModel::FeatureInfo>();
 
   // Icon layout options
-  QStyleOptionViewItem iconOption;
+  const QStyleOptionViewItem iconOption;
 
   QRect iconLayoutBounds( option.rect.x(), option.rect.y(), option.rect.height(), option.rect.height() );
 
@@ -110,7 +111,7 @@ void QgsFeatureListViewDelegate::paint( QPainter *painter, const QStyleOptionVie
   const QVariant conditionalIcon = index.model()->data( index, Qt::DecorationRole );
   if ( conditionalIcon.isValid() )
   {
-    const QPixmap pixmap = conditionalIcon.value< QPixmap >();
+    const QPixmap pixmap = conditionalIcon.value<QPixmap>();
     iconLayoutBounds.moveLeft( iconLayoutBounds.x() + icon.width() + QFontMetrics( textOption.font ).horizontalAdvance( 'X' ) );
     iconLayoutBounds.setTop( option.rect.y() + ( option.rect.height() - pixmap.height() ) / 2.0 );
     iconLayoutBounds.setHeight( pixmap.height() );
@@ -118,22 +119,18 @@ void QgsFeatureListViewDelegate::paint( QPainter *painter, const QStyleOptionVie
   }
 
   // Text layout options
-  QRect textLayoutBounds( iconLayoutBounds.x() + iconLayoutBounds.width(), option.rect.y(), option.rect.width() - ( iconLayoutBounds.x() + iconLayoutBounds.width() ), option.rect.height() );
+  const QRect textLayoutBounds( iconLayoutBounds.x() + iconLayoutBounds.width(), option.rect.y(), option.rect.width() - ( iconLayoutBounds.x() + iconLayoutBounds.width() ), option.rect.height() );
 
   // start with font and foreground color from model's FontRole
   const QVariant font = index.model()->data( index, Qt::FontRole );
   if ( font.isValid() )
   {
-    textOption.font = font.value< QFont >();
+    textOption.font = font.value<QFont>();
   }
-#if QT_VERSION < QT_VERSION_CHECK(5, 13, 0)
-  const QVariant textColor = index.model()->data( index, Qt::TextColorRole );
-#else
   const QVariant textColor = index.model()->data( index, Qt::ForegroundRole );
-#endif
   if ( textColor.isValid() )
   {
-    textOption.palette.setColor( QPalette::Text, textColor.value< QColor >() );
+    textOption.palette.setColor( QPalette::Text, textColor.value<QColor>() );
   }
 
   if ( featInfo.isNew )

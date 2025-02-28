@@ -15,14 +15,13 @@
 
 #include "qgsgeometrycheckcontext.h"
 #include "qgsgeometrypointinpolygoncheck.h"
-#include "qgspolygon.h"
 #include "qgsgeometryengine.h"
 #include "qgsgeometrycheckerror.h"
 
 void QgsGeometryPointInPolygonCheck::collectErrors( const QMap<QString, QgsFeaturePool *> &featurePools, QList<QgsGeometryCheckError *> &errors, QStringList &messages, QgsFeedback *feedback, const LayerFeatureIds &ids ) const
 {
-  QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
-  QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext, true );
+  const QMap<QString, QgsFeatureIds> featureIds = ids.isEmpty() ? allLayerFeatureIds( featurePools ) : ids.toMap();
+  const QgsGeometryCheckerUtils::LayerFeatures layerFeatures( featurePools, featureIds, compatibleGeometryTypes(), feedback, mContext, true );
   for ( const QgsGeometryCheckerUtils::LayerFeature &layerFeature : layerFeatures )
   {
     const QgsAbstractGeometry *geom = layerFeature.geometry().constGet();
@@ -38,14 +37,13 @@ void QgsGeometryPointInPolygonCheck::collectErrors( const QMap<QString, QgsFeatu
       int nInside = 0;
 
       // Check whether point is contained by a fully contained by a polygon
-      QgsRectangle rect( point->x() - mContext->tolerance, point->y() - mContext->tolerance,
-                         point->x() + mContext->tolerance, point->y() + mContext->tolerance );
-      QgsGeometryCheckerUtils::LayerFeatures checkFeatures( featurePools, featureIds.keys(), rect, {QgsWkbTypes::PolygonGeometry}, mContext );
+      const QgsRectangle rect( point->x() - mContext->tolerance, point->y() - mContext->tolerance, point->x() + mContext->tolerance, point->y() + mContext->tolerance );
+      const QgsGeometryCheckerUtils::LayerFeatures checkFeatures( featurePools, featureIds.keys(), rect, { Qgis::GeometryType::Polygon }, mContext );
       for ( const QgsGeometryCheckerUtils::LayerFeature &checkFeature : checkFeatures )
       {
         ++nTested;
         const QgsAbstractGeometry *testGeom = checkFeature.geometry().constGet();
-        std::unique_ptr< QgsGeometryEngine > testGeomEngine = QgsGeometryCheckerUtils::createGeomEngine( testGeom, mContext->reducedTolerance );
+        std::unique_ptr<QgsGeometryEngine> testGeomEngine( QgsGeometry::createGeometryEngine( testGeom, mContext->reducedTolerance ) );
         if ( !testGeomEngine->isValid() )
         {
           messages.append( tr( "Point in polygon check failed for (%1): the geometry is invalid" ).arg( checkFeature.id() ) );
@@ -80,7 +78,7 @@ void QgsGeometryPointInPolygonCheck::fixError( const QMap<QString, QgsFeaturePoo
 
 QStringList QgsGeometryPointInPolygonCheck::resolutionMethods() const
 {
-  static QStringList methods = QStringList() << tr( "No action" );
+  static const QStringList methods = QStringList() << tr( "No action" );
   return methods;
 }
 

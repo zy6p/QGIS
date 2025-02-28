@@ -25,19 +25,20 @@
 #include "qgsgeometrycollection.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsvectorlayerexporter.h"
+#include "moc_qgsvectorlayerexporter.cpp"
 #include "qgsproviderregistry.h"
-#include "qgsdatasourceuri.h"
 #include "qgsexception.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
 #include "qgsabstractgeometry.h"
+#include "qgscoordinatetransform.h"
 
 #include <QProgressDialog>
 
 typedef Qgis::VectorExportResult createEmptyLayer_t(
   const QString &uri,
   const QgsFields &fields,
-  QgsWkbTypes::Type geometryType,
+  Qgis::WkbType geometryType,
   const QgsCoordinateReferenceSystem &destCRS,
   bool overwrite,
   QMap<int, int> *oldToNewAttrIdx,
@@ -49,7 +50,7 @@ typedef Qgis::VectorExportResult createEmptyLayer_t(
 QgsVectorLayerExporter::QgsVectorLayerExporter( const QString &uri,
     const QString &providerKey,
     const QgsFields &fields,
-    QgsWkbTypes::Type geometryType,
+    Qgis::WkbType geometryType,
     const QgsCoordinateReferenceSystem &crs,
     bool overwrite,
     const QMap<QString, QVariant> &options,
@@ -67,7 +68,7 @@ QgsVectorLayerExporter::QgsVectorLayerExporter( const QString &uri,
        ( options[ QStringLiteral( "driverName" ) ].toString().compare( QLatin1String( "GPKG" ), Qt::CaseInsensitive ) == 0 ||
          options[ QStringLiteral( "driverName" ) ].toString().compare( QLatin1String( "SQLite" ), Qt::CaseInsensitive ) == 0 ) )
   {
-    if ( geometryType != QgsWkbTypes::NoGeometry )
+    if ( geometryType != Qgis::WkbType::NoGeometry )
     {
       // For GPKG/Spatialite, we explicitly ask not to create a spatial index at
       // layer creation since this would slow down inserts. Defer its creation
@@ -75,7 +76,7 @@ QgsVectorLayerExporter::QgsVectorLayerExporter( const QString &uri,
       QStringList modifiedLayerOptions;
       if ( options.contains( QStringLiteral( "layerOptions" ) ) )
       {
-        QStringList layerOptions = options.value( QStringLiteral( "layerOptions" ) ).toStringList();
+        const QStringList layerOptions = options.value( QStringLiteral( "layerOptions" ) ).toStringList();
         for ( const QString &layerOption : layerOptions )
         {
           if ( layerOption.compare( QLatin1String( "SPATIAL_INDEX=YES" ), Qt::CaseInsensitive ) == 0 ||
@@ -116,7 +117,7 @@ QgsVectorLayerExporter::QgsVectorLayerExporter( const QString &uri,
   }
 
   const auto constMOldToNewAttrIdx = mOldToNewAttrIdx;
-  for ( int idx : constMOldToNewAttrIdx )
+  for ( const int idx : constMOldToNewAttrIdx )
   {
     if ( idx > mAttributeCount )
       mAttributeCount = idx;
@@ -147,9 +148,9 @@ QgsVectorLayerExporter::QgsVectorLayerExporter( const QString &uri,
     uriUpdated += QStringLiteral( " type=%1" ).arg( QgsWkbTypes::displayString( geometryType ) );
   }
 
-  QgsDataProvider::ProviderOptions providerOptions;
+  const QgsDataProvider::ProviderOptions providerOptions;
   QgsVectorDataProvider *vectorProvider = qobject_cast< QgsVectorDataProvider * >( pReg->createProvider( providerKey, uriUpdated, providerOptions ) );
-  if ( !vectorProvider || !vectorProvider->isValid() || ( vectorProvider->capabilities() & QgsVectorDataProvider::AddFeatures ) == 0 )
+  if ( !vectorProvider || !vectorProvider->isValid() || ( vectorProvider->capabilities() & Qgis::VectorProviderCapability::AddFeatures ) == 0 )
   {
     mError = Qgis::VectorExportResult::ErrorInvalidLayer;
     mErrorMessage = QObject::tr( "Loading of layer failed" );
@@ -166,8 +167,8 @@ QgsVectorLayerExporter::QgsVectorLayerExporter( const QString &uri,
   const QString path = QgsProviderRegistry::instance()->decodeUri( QStringLiteral( "ogr" ), uri ).value( QStringLiteral( "path" ) ).toString();
   if ( sinkFlags.testFlag( QgsFeatureSink::SinkFlag::RegeneratePrimaryKey ) && path.endsWith( QLatin1String( ".gpkg" ), Qt::CaseInsensitive ) )
   {
-    QString fidName = options.value( QStringLiteral( "FID" ), QStringLiteral( "FID" ) ).toString();
-    int fidIdx = fields.lookupField( fidName );
+    const QString fidName = options.value( QStringLiteral( "FID" ), QStringLiteral( "FID" ) ).toString();
+    const int fidIdx = fields.lookupField( fidName );
     if ( fidIdx != -1 )
     {
       mOldToNewAttrIdx.remove( fidIdx );
@@ -200,6 +201,11 @@ QString QgsVectorLayerExporter::errorMessage() const
   return mErrorMessage;
 }
 
+Qgis::VectorDataProviderAttributeEditCapabilities QgsVectorLayerExporter::attributeEditCapabilities() const
+{
+  return mProvider ? mProvider->attributeEditCapabilities() : Qgis::VectorDataProviderAttributeEditCapabilities();
+}
+
 bool QgsVectorLayerExporter::addFeatures( QgsFeatureList &features, Flags flags )
 {
   QgsFeatureList::iterator fIt = features.begin();
@@ -213,7 +219,7 @@ bool QgsVectorLayerExporter::addFeatures( QgsFeatureList &features, Flags flags 
 
 bool QgsVectorLayerExporter::addFeature( QgsFeature &feat, Flags )
 {
-  QgsAttributes attrs = feat.attributes();
+  const QgsAttributes attrs = feat.attributes();
 
   QgsFeature newFeat;
   if ( feat.hasGeometry() )
@@ -225,7 +231,7 @@ bool QgsVectorLayerExporter::addFeature( QgsFeature &feat, Flags )
   {
     // add only mapped attributes (un-mapped ones will not be present in the
     // destination layer)
-    int dstIdx = mOldToNewAttrIdx.value( i, -1 );
+    const int dstIdx = mOldToNewAttrIdx.value( i, -1 );
     if ( dstIdx < 0 )
       continue;
 
@@ -257,10 +263,10 @@ bool QgsVectorLayerExporter::flushBuffer()
 
   if ( !mProvider->addFeatures( mFeatureBuffer, QgsFeatureSink::FastInsert ) )
   {
-    QStringList errors = mProvider->errors();
+    const QStringList errors = mProvider->errors();
     mProvider->clearErrors();
 
-    mErrorMessage = QObject::tr( "Creation error for features from #%1 to #%2. Provider errors was: \n%3" )
+    mErrorMessage = QObject::tr( "Creation error for features from #%1 to #%2. Provider errors were: \n%3" )
                     .arg( mFeatureBuffer.first().id() )
                     .arg( mFeatureBuffer.last().id() )
                     .arg( errors.join( QLatin1Char( '\n' ) ) );
@@ -269,7 +275,7 @@ bool QgsVectorLayerExporter::flushBuffer()
     mErrorCount += mFeatureBuffer.count();
 
     mFeatureBuffer.clear();
-    QgsDebugMsg( mErrorMessage );
+    QgsDebugError( mErrorMessage );
     return false;
   }
 
@@ -280,7 +286,7 @@ bool QgsVectorLayerExporter::flushBuffer()
 bool QgsVectorLayerExporter::createSpatialIndex()
 {
   mCreateSpatialIndex = false;
-  if ( mProvider && ( mProvider->capabilities() & QgsVectorDataProvider::CreateSpatialIndex ) != 0 )
+  if ( mProvider && ( mProvider->capabilities() & Qgis::VectorProviderCapability::CreateSpatialIndex ) != 0 )
   {
     return mProvider->createSpatialIndex();
   }
@@ -330,17 +336,7 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
 
   QgsFields fields = layer->fields();
 
-  QgsWkbTypes::Type wkbType = layer->wkbType();
-
-  // Special handling for Shapefiles
-  if ( layer->providerType() == QLatin1String( "ogr" ) && layer->storageType() == QLatin1String( "ESRI Shapefile" ) )
-  {
-    // convert field names to lowercase
-    for ( int fldIdx = 0; fldIdx < fields.count(); ++fldIdx )
-    {
-      fields.rename( fldIdx, fields.at( fldIdx ).name().toLower() );
-    }
-  }
+  Qgis::WkbType wkbType = layer->wkbType();
 
   bool convertGeometryToSinglePart = false;
   if ( forceSinglePartGeom && QgsWkbTypes::isMultiType( wkbType ) )
@@ -353,7 +349,7 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
     new QgsVectorLayerExporter( uri, providerKey, fields, wkbType, outputCRS, overwrite, providerOptions );
 
   // check whether file creation was successful
-  Qgis::VectorExportResult err = writer->errorCode();
+  const Qgis::VectorExportResult err = writer->errorCode();
   if ( err != Qgis::VectorExportResult::Success )
   {
     if ( errorMessage )
@@ -370,8 +366,8 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
   QgsFeature fet;
 
   QgsFeatureRequest req;
-  if ( wkbType == QgsWkbTypes::NoGeometry )
-    req.setFlags( QgsFeatureRequest::NoGeometry );
+  if ( wkbType == Qgis::WkbType::NoGeometry )
+    req.setFlags( Qgis::FeatureRequestFlag::NoGeometry );
   if ( onlySelected )
     req.setFilterFids( layer->selectedFeatureIds() );
 
@@ -387,8 +383,8 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
   if ( !ct.isValid() )
     shallTransform = false;
 
-  long n = 0;
-  long approxTotal = onlySelected ? layer->selectedFeatureCount() : layer->featureCount();
+  long long n = 0;
+  const long long approxTotal = onlySelected ? layer->selectedFeatureCount() : layer->featureCount();
 
   if ( errorMessage )
   {
@@ -414,7 +410,7 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
     {
       if ( errorMessage )
       {
-        *errorMessage += '\n' + QObject::tr( "Stopping after %1 errors" ).arg( writer->errorCount() );
+        *errorMessage += '\n' + QObject::tr( "Stopping after %n error(s)", nullptr, writer->errorCount() );
       }
       break;
     }
@@ -434,8 +430,8 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
       {
         delete writer;
 
-        QString msg = QObject::tr( "Failed to transform a point while drawing a feature with ID '%1'. Writing stopped. (Exception: %2)" )
-                      .arg( fet.id() ).arg( e.what() );
+        const QString msg = QObject::tr( "Failed to transform feature with ID '%1'. Writing stopped. (Exception: %2)" )
+                            .arg( fet.id() ).arg( e.what() );
         QgsMessageLog::logMessage( msg, QObject::tr( "Vector import" ) );
         if ( errorMessage )
           *errorMessage += '\n' + msg;
@@ -454,8 +450,8 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
       if ( ( c && c->partCount() > 1 ) || ! singlePartGeometry.convertToSingleType() )
       {
         delete writer;
-        QString msg = QObject::tr( "Failed to transform a feature with ID '%1' to single part. Writing stopped." )
-                      .arg( fet.id() );
+        const QString msg = QObject::tr( "Failed to transform a feature with ID '%1' to single part. Writing stopped." )
+                            .arg( fet.id() );
         QgsMessageLog::logMessage( msg, QObject::tr( "Vector import" ) );
         if ( errorMessage )
           *errorMessage += '\n' + msg;
@@ -488,7 +484,7 @@ Qgis::VectorExportResult QgsVectorLayerExporter::exportLayer( QgsVectorLayer *la
       *errorMessage += '\n' + writer->errorMessage();
     }
   }
-  int errors = writer->errorCount();
+  const int errors = writer->errorCount();
 
   if ( writer->mCreateSpatialIndex && !writer->createSpatialIndex() )
   {
@@ -541,7 +537,7 @@ QgsVectorLayerExporterTask::QgsVectorLayerExporterTask( QgsVectorLayer *layer, c
 
 QgsVectorLayerExporterTask *QgsVectorLayerExporterTask::withLayerOwnership( QgsVectorLayer *layer, const QString &uri, const QString &providerKey, const QgsCoordinateReferenceSystem &destinationCrs, const QMap<QString, QVariant> &options )
 {
-  std::unique_ptr< QgsVectorLayerExporterTask > newTask( new QgsVectorLayerExporterTask( layer, uri, providerKey, destinationCrs, options ) );
+  auto newTask = std::make_unique<QgsVectorLayerExporterTask>( layer, uri, providerKey, destinationCrs, options );
   newTask->mOwnsLayer = true;
   return newTask.release();
 }

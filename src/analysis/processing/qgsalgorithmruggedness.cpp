@@ -64,8 +64,7 @@ QgsRuggednessAlgorithm *QgsRuggednessAlgorithm::createInstance() const
 void QgsRuggednessAlgorithm::initAlgorithm( const QVariantMap & )
 {
   addParameter( new QgsProcessingParameterRasterLayer( QStringLiteral( "INPUT" ), QObject::tr( "Elevation layer" ) ) );
-  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "Z_FACTOR" ), QObject::tr( "Z factor" ),
-                QgsProcessingParameterNumber::Double, 1, false, 0 ) );
+  addParameter( new QgsProcessingParameterNumber( QStringLiteral( "Z_FACTOR" ), QObject::tr( "Z factor" ), Qgis::ProcessingNumberParameterType::Double, 1, false, 0 ) );
 
   addParameter( new QgsProcessingParameterRasterDestination( QStringLiteral( "OUTPUT" ), QObject::tr( "Ruggedness" ) ) );
 }
@@ -77,10 +76,10 @@ QVariantMap QgsRuggednessAlgorithm::processAlgorithm( const QVariantMap &paramet
   if ( !inputLayer )
     throw QgsProcessingException( invalidRasterError( parameters, QStringLiteral( "INPUT" ) ) );
 
-  double zFactor = parameterAsDouble( parameters, QStringLiteral( "Z_FACTOR" ), context );
+  const double zFactor = parameterAsDouble( parameters, QStringLiteral( "Z_FACTOR" ), context );
 
   const QString outputFile = parameterAsOutputLayer( parameters, QStringLiteral( "OUTPUT" ), context );
-  QFileInfo fi( outputFile );
+  const QFileInfo fi( outputFile );
   const QString outputFormat = QgsRasterFileWriter::driverForExtension( fi.suffix() );
 
   QgsRuggednessFilter ruggedness( inputLayer->source(), outputFile, outputFormat );

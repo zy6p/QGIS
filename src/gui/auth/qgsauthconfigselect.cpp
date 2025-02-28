@@ -15,11 +15,8 @@
  ***************************************************************************/
 
 #include "qgsauthconfigselect.h"
+#include "moc_qgsauthconfigselect.cpp"
 #include "ui_qgsauthconfigselect.h"
-
-#include <QHash>
-#include <QMessageBox>
-#include <QTimer>
 
 #include "qgsauthconfig.h"
 #include "qgsauthguiutils.h"
@@ -27,6 +24,12 @@
 #include "qgsauthconfigedit.h"
 #include "qgslogger.h"
 #include "qgsapplication.h"
+#include "qgsauthmethodmetadata.h"
+
+#include <QHash>
+#include <QMessageBox>
+#include <QTimer>
+#include <QRegularExpression>
 
 
 QgsAuthConfigSelect::QgsAuthConfigSelect( QWidget *parent, const QString &dataprovider )
@@ -62,7 +65,7 @@ QgsAuthConfigSelect::QgsAuthConfigSelect( QWidget *parent, const QString &datapr
     btnConfigMsgClear->setText( QString() );
 
     leConfigMsg->setStyleSheet( QStringLiteral( "QLineEdit{background-color: %1}" )
-                                .arg( QgsAuthGuiUtils::yellowColor().name() ) );
+                                  .arg( QgsAuthGuiUtils::yellowColor().name() ) );
 
     clearConfig();
     clearMessage();
@@ -74,8 +77,7 @@ void QgsAuthConfigSelect::setConfigId( const QString &authcfg )
 {
   if ( mDisabled && mAuthNotify )
   {
-    mAuthNotify->setText( QgsApplication::authManager()->disabledMessage() + "\n\n" +
-                          tr( "Authentication config id not loaded: %1" ).arg( authcfg ) );
+    mAuthNotify->setText( QgsApplication::authManager()->disabledMessage() + "\n\n" + tr( "Authentication config id not loaded: %1" ).arg( authcfg ) );
   }
   else
   {
@@ -108,15 +110,17 @@ void QgsAuthConfigSelect::loadConfig()
   clearConfig();
   if ( !mAuthCfg.isEmpty() && mConfigs.contains( mAuthCfg ) )
   {
-    QgsAuthMethodConfig config = mConfigs.value( mAuthCfg );
-    QgsAuthMethod *authmethod = QgsApplication::authManager()->configAuthMethod( mAuthCfg );
+    const QgsAuthMethodConfig config = mConfigs.value( mAuthCfg );
+    const QString authMethodKey = QgsApplication::authManager()->configAuthMethodKey( mAuthCfg );
     QString methoddesc = tr( "Missing authentication method description" );
-    if ( authmethod )
+    const QgsAuthMethodMetadata *meta = QgsApplication::authManager()->authMethodMetadata( authMethodKey );
+    if ( meta )
     {
-      methoddesc = authmethod->description();
+      methoddesc = meta->description();
     }
     cmbConfigSelect->setToolTip( tr( "<ul><li><b>Method type:</b> %1</li>"
-                                     "<li><b>Configuration ID:</b> %2</li></ul>" ).arg( methoddesc, config.id( ) ) );
+                                     "<li><b>Configuration ID:</b> %2</li></ul>" )
+                                   .arg( methoddesc, config.id() ) );
     btnConfigEdit->setEnabled( true );
     btnConfigRemove->setEnabled( true );
   }
@@ -152,7 +156,7 @@ void QgsAuthConfigSelect::populateConfigSelector()
   QgsAuthMethodConfigsMap::const_iterator cit = mConfigs.constBegin();
   for ( cit = mConfigs.constBegin(); cit != mConfigs.constEnd(); ++cit )
   {
-    QgsAuthMethodConfig config = cit.value();
+    const QgsAuthMethodConfig config = cit.value();
     sortmap.insert( QStringLiteral( "%1 (%2)" ).arg( config.name(), config.method() ), cit.key() );
   }
 
@@ -199,7 +203,7 @@ void QgsAuthConfigSelect::loadAvailableConfigs()
 
 void QgsAuthConfigSelect::cmbConfigSelect_currentIndexChanged( int index )
 {
-  QString authcfg = cmbConfigSelect->itemData( index ).toString();
+  const QString authcfg = cmbConfigSelect->itemData( index ).toString();
   mAuthCfg = ( !authcfg.isEmpty() && authcfg != QLatin1String( "0" ) ) ? authcfg : QString();
   if ( !mTemporarilyBlockLoad )
     loadConfig();
@@ -236,11 +240,10 @@ void QgsAuthConfigSelect::btnConfigEdit_clicked()
 
 void QgsAuthConfigSelect::btnConfigRemove_clicked()
 {
-  if ( QMessageBox::warning( this, tr( "Remove Authentication" ),
-                             tr( "Are you sure that you want to permanently remove this configuration right now?\n\n"
-                                 "Operation can NOT be undone!" ),
-                             QMessageBox::Ok | QMessageBox::Cancel,
-                             QMessageBox::Cancel ) == QMessageBox::Cancel )
+  if ( QMessageBox::warning( this, tr( "Remove Authentication" ), tr( "Are you sure that you want to permanently remove this configuration right now?\n\n"
+                                                                      "Operation can NOT be undone!" ),
+                             QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel )
+       == QMessageBox::Cancel )
   {
     return;
   }
@@ -316,7 +319,7 @@ void QgsAuthConfigUriEdit::setDataSourceUri( const QString &datauri )
 
   mAuthCfg = authCfgFromUri();
 
-  QgsDebugMsg( QStringLiteral( "Parsed authcfg ID: %1" ).arg( mAuthCfg ) );
+  QgsDebugMsgLevel( QStringLiteral( "Parsed authcfg ID: %1" ).arg( mAuthCfg ), 2 );
 
   wdgtAuthSelect->blockSignals( true );
   wdgtAuthSelect->setConfigId( mAuthCfg );
@@ -380,13 +383,12 @@ void QgsAuthConfigUriEdit::authCfgRemoved( const QString &authcfg )
 
 int QgsAuthConfigUriEdit::authCfgIndex()
 {
-  QRegExp rx( QgsApplication::authManager()->configIdRegex() );
-  return rx.indexIn( mDataUri );
+  return mDataUri.indexOf( QRegularExpression( QgsApplication::authManager()->configIdRegex() ) );
 }
 
 QString QgsAuthConfigUriEdit::authCfgFromUri()
 {
-  int startindex = authCfgIndex();
+  const int startindex = authCfgIndex();
   if ( startindex == -1 )
     return QString();
 
@@ -395,7 +397,7 @@ QString QgsAuthConfigUriEdit::authCfgFromUri()
 
 void QgsAuthConfigUriEdit::selectAuthCfgInUri()
 {
-  int startindex = authCfgIndex();
+  const int startindex = authCfgIndex();
   if ( startindex == -1 )
     return;
 
@@ -409,7 +411,7 @@ void QgsAuthConfigUriEdit::selectAuthCfgInUri()
 
 void QgsAuthConfigUriEdit::updateUriWithAuthCfg()
 {
-  int startindex = authCfgIndex();
+  const int startindex = authCfgIndex();
   if ( startindex == -1 )
   {
     if ( mAuthCfg.size() == 7 )
@@ -431,8 +433,7 @@ void QgsAuthConfigUriEdit::removeAuthCfgFromUri()
   // add any preceding space so two spaces will not result after removal
   int rmvlen = 15;
   if ( startindex - 1 >= 0
-       && ( mDataUri.at( startindex - 1 ).isSpace()
-            || mDataUri.at( startindex - 1 ) == QChar( '&' ) ) )
+       && ( mDataUri.at( startindex - 1 ).isSpace() || mDataUri.at( startindex - 1 ) == QChar( '&' ) ) )
   {
     startindex -= 1;
     rmvlen += 1;
@@ -447,4 +448,3 @@ void QgsAuthConfigUriEdit::removeAuthCfgFromUri()
 
   mAuthCfg.clear();
 }
-

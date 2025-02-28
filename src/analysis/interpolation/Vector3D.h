@@ -45,9 +45,10 @@ class ANALYSIS_EXPORT Vector3D
   public:
     //! Constructor taking the three components as arguments
     Vector3D( double x, double y, double z );
-    //! Default constructor
+
     Vector3D() = default;
 
+    // TODO c++20 - replace with = default
     bool operator==( const Vector3D &v ) const;
     bool operator!=( const Vector3D &v ) const;
     //! Returns the x-component of the vector
@@ -82,7 +83,6 @@ inline Vector3D::Vector3D( double x, double y, double z )
   , mY( y )
   , mZ( z )
 {
-
 }
 
 //-------------------------------------------setter and getters-------------------------------

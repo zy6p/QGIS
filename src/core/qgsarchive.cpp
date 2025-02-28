@@ -64,33 +64,48 @@ void QgsArchive::clear()
 
 bool QgsArchive::zip( const QString &filename )
 {
-  QString tempPath = QStandardPaths::standardLocations( QStandardPaths::TempLocation ).at( 0 );
-  QString uuid = QUuid::createUuid().toString();
+  const QString tempPath = QStandardPaths::standardLocations( QStandardPaths::TempLocation ).at( 0 );
+  const QString uuid = QUuid::createUuid().toString();
   QFile tmpFile( tempPath + QDir::separator() + uuid );
 
   // zip content
   if ( ! QgsZipUtils::zip( tmpFile.fileName(), mFiles ) )
   {
-    QString err = QObject::tr( "Unable to zip content" );
+    const QString err = QObject::tr( "Unable to zip content" );
     QgsMessageLog::logMessage( err, QStringLiteral( "QgsArchive" ) );
     return false;
   }
 
+  QString target {filename};
+
   // remove existing zip file
-  if ( QFile::exists( filename ) )
-    QFile::remove( filename );
+  if ( QFile::exists( target ) )
+  {
+    // If symlink -> we want to write to its target instead
+    const QFileInfo targetFileInfo( target );
+    target = targetFileInfo.canonicalFilePath();
+    // If target still exists, remove (might not exist if was a dangling symlink)
+    if ( QFile::exists( target ) )
+      QFile::remove( target );
+  }
 
 #ifdef Q_OS_WIN
   // Clear temporary flag (see GH #32118)
   DWORD dwAttrs;
+#ifdef UNICODE
+  dwAttrs = GetFileAttributes( qUtf16Printable( tmpFile.fileName() ) );
+  SetFileAttributes( qUtf16Printable( tmpFile.fileName() ), dwAttrs & ~ FILE_ATTRIBUTE_TEMPORARY );
+#else
   dwAttrs = GetFileAttributes( tmpFile.fileName().toLocal8Bit( ).data( ) );
   SetFileAttributes( tmpFile.fileName().toLocal8Bit( ).data( ), dwAttrs & ~ FILE_ATTRIBUTE_TEMPORARY );
+#endif
+
 #endif // Q_OS_WIN
 
   // save zip archive
-  if ( ! tmpFile.rename( filename ) )
+  if ( ! tmpFile.rename( target ) )
   {
-    QString err = QObject::tr( "Unable to save zip file '%1'" ).arg( filename );
+    const QString err = QObject::tr( "Unable to save zip file '%1'" ).arg( target );
     QgsMessageLog::logMessage( err, QStringLiteral( "QgsArchive" ) );
     return false;
   }
@@ -126,12 +141,17 @@ QStringList QgsArchive::files() const
   return mFiles;
 }
 
+bool QgsArchive::exists() const
+{
+  return QFileInfo::exists( mDir->path() );
+}
+
 QString QgsProjectArchive::projectFile() const
 {
   const auto constFiles = files();
   for ( const QString &file : constFiles )
   {
-    QFileInfo fileInfo( file );
+    const QFileInfo fileInfo( file );
     if ( fileInfo.suffix().compare( QLatin1String( "qgs" ), Qt::CaseInsensitive ) == 0 )
       return file;
   }

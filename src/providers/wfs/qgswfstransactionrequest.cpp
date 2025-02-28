@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgswfstransactionrequest.h"
+#include "moc_qgswfstransactionrequest.cpp"
 #include "qgslogger.h"
 
 QgsWFSTransactionRequest::QgsWFSTransactionRequest( const QgsWFSDataSourceURI &uri )
@@ -23,7 +24,7 @@ QgsWFSTransactionRequest::QgsWFSTransactionRequest( const QgsWFSDataSourceURI &u
 
 bool QgsWFSTransactionRequest::send( const QDomDocument &doc, QDomDocument &serverResponse )
 {
-  QUrl url( mUri.requestUrl( QStringLiteral( "Transaction" ), QgsWFSDataSourceURI::Method::Post ) );
+  const QUrl url( mUri.requestUrl( QStringLiteral( "Transaction" ), QgsWFSDataSourceURI::Method::Post ) );
 
   QgsDebugMsgLevel( doc.toString(), 4 );
 

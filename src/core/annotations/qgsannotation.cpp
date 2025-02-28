@@ -16,20 +16,19 @@
  ***************************************************************************/
 
 #include "qgsannotation.h"
+#include "moc_qgsannotation.cpp"
 #include "qgssymbollayerutils.h"
 #include "qgsmaplayer.h"
 #include "qgsproject.h"
-#include "qgsgeometryutils.h"
 #include "qgsstyleentityvisitor.h"
 #include "qgsshapegenerator.h"
 #include "qgssymbol.h"
 #include "qgsmarkersymbol.h"
 #include "qgsfillsymbol.h"
+#include "qgspainting.h"
 
 #include <QPen>
 #include <QPainter>
-
-Q_GUI_EXPORT extern int qt_defaultDpiX();
 
 QgsAnnotation::QgsAnnotation( QObject *parent )
   : QObject( parent )
@@ -115,7 +114,7 @@ QSizeF QgsAnnotation::frameSize() const
 
 void QgsAnnotation::setFrameSizeMm( QSizeF size )
 {
-  QSizeF frameSize = minimumFrameSize().expandedTo( size ); //don't allow frame sizes below minimum
+  const QSizeF frameSize = minimumFrameSize().expandedTo( size ); //don't allow frame sizes below minimum
   mFrameSize = frameSize;
   emit moved();
   emit appearanceChanged();
@@ -141,12 +140,12 @@ QgsFillSymbol *QgsAnnotation::fillSymbol() const
 void QgsAnnotation::render( QgsRenderContext &context ) const
 {
   QPainter *painter = context.painter();
-  if ( !painter )
+  if ( !painter || ( context.feedback() && context.feedback()->isCanceled() ) )
   {
     return;
   }
 
-  QgsScopedQPainterState painterState( context.painter() );
+  const QgsScopedQPainterState painterState( context.painter() );
   context.setPainterFlagsUsingContext();
 
   drawFrame( context );
@@ -156,16 +155,16 @@ void QgsAnnotation::render( QgsRenderContext &context ) const
   }
   if ( mHasFixedMapPosition )
   {
-    painter->translate( context.convertToPainterUnits( mOffsetFromReferencePoint.x(), QgsUnitTypes::RenderMillimeters ) + context.convertToPainterUnits( mContentsMargins.left(), QgsUnitTypes::RenderMillimeters ),
-                        context.convertToPainterUnits( mOffsetFromReferencePoint.y(), QgsUnitTypes::RenderMillimeters ) + context.convertToPainterUnits( mContentsMargins.top(), QgsUnitTypes::RenderMillimeters ) );
+    painter->translate( context.convertToPainterUnits( mOffsetFromReferencePoint.x(), Qgis::RenderUnit::Millimeters ) + context.convertToPainterUnits( mContentsMargins.left(), Qgis::RenderUnit::Millimeters ),
+                        context.convertToPainterUnits( mOffsetFromReferencePoint.y(), Qgis::RenderUnit::Millimeters ) + context.convertToPainterUnits( mContentsMargins.top(), Qgis::RenderUnit::Millimeters ) );
   }
   else
   {
-    painter->translate( context.convertToPainterUnits( mContentsMargins.left(), QgsUnitTypes::RenderMillimeters ),
-                        context.convertToPainterUnits( mContentsMargins.top(), QgsUnitTypes::RenderMillimeters ) );
+    painter->translate( context.convertToPainterUnits( mContentsMargins.left(), Qgis::RenderUnit::Millimeters ),
+                        context.convertToPainterUnits( mContentsMargins.top(), Qgis::RenderUnit::Millimeters ) );
   }
-  QSizeF size( context.convertToPainterUnits( mFrameSize.width(), QgsUnitTypes::RenderMillimeters ) - context.convertToPainterUnits( mContentsMargins.left() + mContentsMargins.right(), QgsUnitTypes::RenderMillimeters ),
-               context.convertToPainterUnits( mFrameSize.height(), QgsUnitTypes::RenderMillimeters ) - context.convertToPainterUnits( mContentsMargins.top() + mContentsMargins.bottom(), QgsUnitTypes::RenderMillimeters ) );
+  const QSizeF size( context.convertToPainterUnits( mFrameSize.width(), Qgis::RenderUnit::Millimeters ) - context.convertToPainterUnits( mContentsMargins.left() + mContentsMargins.right(), Qgis::RenderUnit::Millimeters ),
+                     context.convertToPainterUnits( mFrameSize.height(), Qgis::RenderUnit::Millimeters ) - context.convertToPainterUnits( mContentsMargins.top() + mContentsMargins.bottom(), Qgis::RenderUnit::Millimeters ) );
 
   // scale back from painter dpi to 96 dpi --
 // double dotsPerMM = context.painter()->device()->logicalDpiX() / ( 25.4 * 3.78 );
@@ -229,7 +228,7 @@ void QgsAnnotation::drawFrame( QgsRenderContext &context ) const
 
   auto scaleSize = [&context]( double size )->double
   {
-    return context.convertToPainterUnits( size, QgsUnitTypes::RenderMillimeters );
+    return context.convertToPainterUnits( size, Qgis::RenderUnit::Millimeters );
   };
 
   const QRectF frameRect( mHasFixedMapPosition ? scaleSize( mOffsetFromReferencePoint.x() ) : 0,
@@ -238,10 +237,10 @@ void QgsAnnotation::drawFrame( QgsRenderContext &context ) const
                           scaleSize( mFrameSize.height() ) );
   const QgsPointXY origin = mHasFixedMapPosition ? QgsPointXY( 0, 0 ) : QgsPointXY( frameRect.center().x(), frameRect.center().y() );
 
-  const QPolygonF poly = QgsShapeGenerator::createBalloon( origin, frameRect, context.convertToPainterUnits( mSegmentPointWidthMm, QgsUnitTypes::RenderMillimeters ) );
+  const QPolygonF poly = QgsShapeGenerator::createBalloon( origin, frameRect, context.convertToPainterUnits( mSegmentPointWidthMm, Qgis::RenderUnit::Millimeters ) );
 
   mFillSymbol->startRender( context );
-  QVector<QPolygonF> rings; //empty list
+  const QVector<QPolygonF> rings; //empty list
   mFillSymbol->renderPolygon( poly, &rings, nullptr, context );
   mFillSymbol->stopRender( context );
 }
@@ -287,7 +286,7 @@ void QgsAnnotation::_writeXml( QDomElement &itemElem, QDomDocument &doc, const Q
   }
   if ( mMarkerSymbol )
   {
-    QDomElement symbolElem = QgsSymbolLayerUtils::saveSymbol( QStringLiteral( "marker symbol" ), mMarkerSymbol.get(), doc, context );
+    const QDomElement symbolElem = QgsSymbolLayerUtils::saveSymbol( QStringLiteral( "marker symbol" ), mMarkerSymbol.get(), doc, context );
     if ( !symbolElem.isNull() )
     {
       annotationElem.appendChild( symbolElem );
@@ -296,7 +295,7 @@ void QgsAnnotation::_writeXml( QDomElement &itemElem, QDomDocument &doc, const Q
   if ( mFillSymbol )
   {
     QDomElement fillElem = doc.createElement( QStringLiteral( "fillSymbol" ) );
-    QDomElement symbolElem = QgsSymbolLayerUtils::saveSymbol( QStringLiteral( "fill symbol" ), mFillSymbol.get(), doc, context );
+    const QDomElement symbolElem = QgsSymbolLayerUtils::saveSymbol( QStringLiteral( "fill symbol" ), mFillSymbol.get(), doc, context );
     if ( !symbolElem.isNull() )
     {
       fillElem.appendChild( symbolElem );
@@ -330,7 +329,7 @@ void QgsAnnotation::_readXml( const QDomElement &annotationElem, const QgsReadWr
   }
 
   mContentsMargins = QgsMargins::fromString( annotationElem.attribute( QStringLiteral( "contentsMargin" ) ) );
-  const double dpiScale = 25.4 / qt_defaultDpiX();
+  const double dpiScale = 25.4 / QgsPainting::qtDefaultDpiX();
   if ( annotationElem.hasAttribute( QStringLiteral( "frameWidthMM" ) ) )
     mFrameSize.setWidth( annotationElem.attribute( QStringLiteral( "frameWidthMM" ), QStringLiteral( "5" ) ).toDouble() );
   else
@@ -353,12 +352,12 @@ void QgsAnnotation::_readXml( const QDomElement &annotationElem, const QgsReadWr
   mVisible = annotationElem.attribute( QStringLiteral( "visible" ), QStringLiteral( "1" ) ).toInt();
   if ( annotationElem.hasAttribute( QStringLiteral( "mapLayer" ) ) )
   {
-    mMapLayer = QgsProject::instance()->mapLayer( annotationElem.attribute( QStringLiteral( "mapLayer" ) ) );
+    mMapLayer = QgsProject::instance()->mapLayer( annotationElem.attribute( QStringLiteral( "mapLayer" ) ) ); // skip-keyword-check
   }
 
   //marker symbol
   {
-    QDomElement symbolElem = annotationElem.firstChildElement( QStringLiteral( "symbol" ) );
+    const QDomElement symbolElem = annotationElem.firstChildElement( QStringLiteral( "symbol" ) );
     if ( !symbolElem.isNull() )
     {
       QgsMarkerSymbol *symbol = QgsSymbolLayerUtils::loadSymbol<QgsMarkerSymbol>( symbolElem, context );
@@ -370,10 +369,10 @@ void QgsAnnotation::_readXml( const QDomElement &annotationElem, const QgsReadWr
   }
 
   mFillSymbol.reset( nullptr );
-  QDomElement fillElem = annotationElem.firstChildElement( QStringLiteral( "fillSymbol" ) );
+  const QDomElement fillElem = annotationElem.firstChildElement( QStringLiteral( "fillSymbol" ) );
   if ( !fillElem.isNull() )
   {
-    QDomElement symbolElem = fillElem.firstChildElement( QStringLiteral( "symbol" ) );
+    const QDomElement symbolElem = fillElem.firstChildElement( QStringLiteral( "symbol" ) );
     if ( !symbolElem.isNull() )
     {
       QgsFillSymbol *symbol = QgsSymbolLayerUtils::loadSymbol<QgsFillSymbol>( symbolElem, context );

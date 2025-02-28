@@ -19,43 +19,34 @@
 
 #include <QSqlQuery>
 
-struct QgsOracleProviderResultIterator: public QgsAbstractDatabaseProviderConnection::QueryResult::QueryResultIterator
-{
+class QgsOracleQuery;
 
-    QgsOracleProviderResultIterator( int columnCount, const QSqlQuery &query )
-      : mColumnCount( columnCount )
-      , mQuery( query )
-    {}
+struct QgsOracleProviderResultIterator : public QgsAbstractDatabaseProviderConnection::QueryResult::QueryResultIterator
+{
+    QgsOracleProviderResultIterator( int columnCount, std::unique_ptr<QgsOracleQuery> query );
 
     QVariantList nextRowPrivate() override;
     bool hasNextRowPrivate() const override;
 
   private:
-
     int mColumnCount = 0;
-    QSqlQuery mQuery;
+    std::unique_ptr<QgsOracleQuery> mQuery;
     QVariantList mNextRow;
 
     QVariantList nextRowInternal();
-
+    long long rowCountPrivate() const override;
 };
 
 class QgsOracleProviderConnection : public QgsAbstractDatabaseProviderConnection
 
 {
   public:
-
     explicit QgsOracleProviderConnection( const QString &name );
     QgsOracleProviderConnection( const QString &uri, const QVariantMap &configuration );
 
     // QgsAbstractProviderConnection interface
 
-    void createVectorTable( const QString &schema,
-                            const QString &name,
-                            const QgsFields &fields,
-                            QgsWkbTypes::Type wkbType,
-                            const QgsCoordinateReferenceSystem &srs, bool overwrite,
-                            const QMap<QString, QVariant> *options ) const override;
+    void createVectorTable( const QString &schema, const QString &name, const QgsFields &fields, Qgis::WkbType wkbType, const QgsCoordinateReferenceSystem &srs, bool overwrite, const QMap<QString, QVariant> *options ) const override;
 
     QString tableUri( const QString &schema, const QString &name ) const override;
     void dropVectorTable( const QString &schema, const QString &name ) const override;
@@ -66,17 +57,22 @@ class QgsOracleProviderConnection : public QgsAbstractDatabaseProviderConnection
     bool spatialIndexExists( const QString &schema, const QString &name, const QString &geometryColumn ) const override;
     void deleteSpatialIndex( const QString &schema, const QString &name, const QString &geometryColumn ) const override;
     QStringList schemas() const override;
-    QList<QgsAbstractDatabaseProviderConnection::TableProperty> tables( const QString &schema,
-        const TableFlags &flags = TableFlags() ) const override;
+    QList<QgsAbstractDatabaseProviderConnection::TableProperty> tables( const QString &schema, const TableFlags &flags = TableFlags(), QgsFeedback *feedback = nullptr ) const override;
     void store( const QString &name ) const override;
     void remove( const QString &name ) const override;
     QIcon icon() const override;
     QList<QgsVectorDataProvider::NativeType> nativeTypes() const override;
+    QMultiMap<Qgis::SqlKeywordCategory, QStringList> sqlDictionary() override;
+    QgsVectorLayer *createSqlVectorLayer( const SqlVectorLayerOptions &options ) const override;
 
   private:
-
     QgsAbstractDatabaseProviderConnection::QueryResult executeSqlPrivate( const QString &sql, QgsFeedback *feedback = nullptr ) const;
     void setDefaultCapabilities();
+
+
+    // QgsAbstractDatabaseProviderConnection interface
+  public:
+    SqlVectorLayerOptions sqlOptions( const QString &layerSource ) override;
 };
 
 

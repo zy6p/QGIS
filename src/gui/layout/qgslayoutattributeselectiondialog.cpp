@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgslayoutattributeselectiondialog.h"
+#include "moc_qgslayoutattributeselectiondialog.cpp"
 #include "qgslayoutitemattributetable.h"
 #include "qgsvectorlayer.h"
 #include "qgsfieldexpressionwidget.h"
@@ -33,7 +34,6 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSortFilterProxyModel>
-
 
 
 // QgsLayoutAttributeTableColumnModelBase
@@ -79,8 +79,7 @@ int QgsLayoutAttributeTableColumnModelBase::columnCount( const QModelIndex &pare
 
 QVariant QgsLayoutAttributeTableColumnModelBase::data( const QModelIndex &index, int role ) const
 {
-  if ( !index.isValid() ||
-       ( role != Qt::DisplayRole && role != Qt::EditRole && role != Qt::UserRole ) )
+  if ( !index.isValid() || ( role != Qt::DisplayRole && role != Qt::EditRole && role != Qt::UserRole ) )
   {
     return QVariant();
   }
@@ -91,9 +90,9 @@ QVariant QgsLayoutAttributeTableColumnModelBase::data( const QModelIndex &index,
   }
 
   // get layout column for index
-  QgsLayoutTableColumn column = columns().value( index.row() );
+  const QgsLayoutTableColumn column = columns().value( index.row() );
 
-  Column col = displayedColumns()[index.column()];
+  const Column col = displayedColumns()[index.column()];
   switch ( col )
   {
     case Attribute:
@@ -149,7 +148,7 @@ QVariant QgsLayoutAttributeTableColumnModelBase::data( const QModelIndex &index,
     {
       if ( role == Qt::DisplayRole )
       {
-        return column.width() <= 0 ? tr( "Automatic" ) : tr( "%1 mm" ).arg( column.width(), 0, 'f', 2 );
+        return column.width() <= 0 ? tr( "Automatic" ) : tr( "%L1 mm" ).arg( column.width(), 0, 'f', 2 );
       }
       else
       {
@@ -194,7 +193,7 @@ QVariant QgsLayoutAttributeTableColumnModelBase::headerData( int section, Qt::Or
     }
     else
     {
-      Column col = displayedColumns()[section];
+      const Column col = displayedColumns()[section];
       switch ( col )
       {
         case Attribute:
@@ -231,7 +230,7 @@ bool QgsLayoutAttributeTableColumnModelBase::setData( const QModelIndex &index, 
 
   QgsLayoutTableColumn &colToUpdate = columns()[index.row()];
 
-  Column col = displayedColumns()[index.column()];
+  const Column col = displayedColumns()[index.column()];
   switch ( col )
   {
     case Attribute:
@@ -262,7 +261,7 @@ bool QgsLayoutAttributeTableColumnModelBase::setData( const QModelIndex &index, 
       return true;
 
     case SortOrder:
-      colToUpdate.setSortOrder( static_cast< Qt::SortOrder >( value.toInt() ) );
+      colToUpdate.setSortOrder( static_cast<Qt::SortOrder>( value.toInt() ) );
       emit dataChanged( index, index );
       return true;
   }
@@ -288,7 +287,7 @@ bool QgsLayoutAttributeTableColumnModelBase::removeRows( int row, int count, con
 {
   Q_UNUSED( parent )
 
-  int maxRow = std::min( row + count - 1, columns().length() - 1 );
+  const int maxRow = std::min<int>( row + count - 1, columns().length() - 1 );
   beginRemoveRows( QModelIndex(), row, maxRow );
   //move backwards through rows, removing each corresponding QgsComposerTableColumn
   for ( int i = maxRow; i >= row; --i )
@@ -314,19 +313,18 @@ bool QgsLayoutAttributeTableColumnModelBase::insertRows( int row, int count, con
 
 bool QgsLayoutAttributeTableColumnModelBase::moveRow( int row, ShiftDirection direction )
 {
-  if ( ( direction == ShiftUp && row <= 0 ) ||
-       ( direction == ShiftDown &&  row >= rowCount() - 1 ) )
+  if ( ( direction == ShiftUp && row <= 0 ) || ( direction == ShiftDown && row >= rowCount() - 1 ) )
   {
     //row is already at top/bottom
     return false;
   }
 
   //we shift a row by removing the next row up/down, then reinserting it before/after the target row
-  int swapWithRow = direction == ShiftUp ? row - 1 : row + 1;
+  const int swapWithRow = direction == ShiftUp ? row - 1 : row + 1;
 
   //remove row
   beginRemoveRows( QModelIndex(), swapWithRow, swapWithRow );
-  QgsLayoutTableColumn temp = columns().takeAt( swapWithRow );
+  const QgsLayoutTableColumn temp = columns().takeAt( swapWithRow );
   endRemoveRows();
 
   //insert row
@@ -361,9 +359,9 @@ QVector<QgsLayoutTableColumn> &QgsLayoutTableSortModel::columns() const
 
 // QgsLayoutColumnAlignmentDelegate
 
-QgsLayoutColumnAlignmentDelegate::QgsLayoutColumnAlignmentDelegate( QObject *parent ) : QItemDelegate( parent )
+QgsLayoutColumnAlignmentDelegate::QgsLayoutColumnAlignmentDelegate( QObject *parent )
+  : QItemDelegate( parent )
 {
-
 }
 
 QWidget *QgsLayoutColumnAlignmentDelegate::createEditor( QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index ) const
@@ -384,7 +382,7 @@ QWidget *QgsLayoutColumnAlignmentDelegate::createEditor( QWidget *parent, const 
   comboBox->addItem( tr( "Bottom Center" ), int( Qt::AlignBottom | Qt::AlignHCenter ) );
   comboBox->addItem( tr( "Bottom Right" ), int( Qt::AlignBottom | Qt::AlignRight ) );
 
-  Qt::AlignmentFlag alignment = ( Qt::AlignmentFlag )index.model()->data( index, Qt::EditRole ).toInt();
+  const Qt::AlignmentFlag alignment = ( Qt::AlignmentFlag ) index.model()->data( index, Qt::EditRole ).toInt();
   comboBox->setCurrentIndex( comboBox->findData( alignment ) );
 
   return comboBox;
@@ -392,7 +390,7 @@ QWidget *QgsLayoutColumnAlignmentDelegate::createEditor( QWidget *parent, const 
 
 void QgsLayoutColumnAlignmentDelegate::setEditorData( QWidget *editor, const QModelIndex &index ) const
 {
-  Qt::AlignmentFlag alignment = ( Qt::AlignmentFlag )index.model()->data( index, Qt::EditRole ).toInt();
+  const Qt::AlignmentFlag alignment = ( Qt::AlignmentFlag ) index.model()->data( index, Qt::EditRole ).toInt();
 
   //set the value for the combobox
   QComboBox *comboBox = static_cast<QComboBox *>( editor );
@@ -402,7 +400,7 @@ void QgsLayoutColumnAlignmentDelegate::setEditorData( QWidget *editor, const QMo
 void QgsLayoutColumnAlignmentDelegate::setModelData( QWidget *editor, QAbstractItemModel *model, const QModelIndex &index ) const
 {
   QComboBox *comboBox = static_cast<QComboBox *>( editor );
-  Qt::AlignmentFlag alignment = ( Qt::AlignmentFlag ) comboBox->currentData().toInt();
+  const Qt::AlignmentFlag alignment = ( Qt::AlignmentFlag ) comboBox->currentData().toInt();
   model->setData( index, alignment, Qt::EditRole );
 }
 
@@ -415,12 +413,12 @@ void QgsLayoutColumnAlignmentDelegate::updateEditorGeometry( QWidget *editor, co
 
 // QgsLayoutColumnSourceDelegate
 
-QgsLayoutColumnSourceDelegate::QgsLayoutColumnSourceDelegate( QgsVectorLayer *vlayer, QObject *parent, const QgsLayoutObject *layoutObject )
+QgsLayoutColumnSourceDelegate::QgsLayoutColumnSourceDelegate( QgsVectorLayer *vlayer, QObject *parent, const QgsLayoutObject *layoutObject, bool forceExpressions )
   : QItemDelegate( parent )
   , mVectorLayer( vlayer )
   , mLayoutObject( layoutObject )
+  , mForceExpressions( forceExpressions )
 {
-
 }
 
 QgsExpressionContext QgsLayoutColumnSourceDelegate::createExpressionContext() const
@@ -446,13 +444,13 @@ QWidget *QgsLayoutColumnSourceDelegate::createEditor( QWidget *parent, const QSt
   fieldExpression->registerExpressionContextGenerator( this );
 
   //listen out for field changes
-  connect( fieldExpression, static_cast < void ( QgsFieldExpressionWidget::* )( const QString & ) >( &QgsFieldExpressionWidget::fieldChanged ), this, [ = ] { const_cast< QgsLayoutColumnSourceDelegate * >( this )->commitAndCloseEditor(); } );
+  connect( fieldExpression, static_cast<void ( QgsFieldExpressionWidget::* )( const QString & )>( &QgsFieldExpressionWidget::fieldChanged ), this, [=] { const_cast<QgsLayoutColumnSourceDelegate *>( this )->commitAndCloseEditor(); } );
   return fieldExpression;
 }
 
 void QgsLayoutColumnSourceDelegate::setEditorData( QWidget *editor, const QModelIndex &index ) const
 {
-  QString field = index.model()->data( index, Qt::EditRole ).toString();
+  const QString field = index.model()->data( index, Qt::EditRole ).toString();
 
   //set the value for the field combobox
   QgsFieldExpressionWidget *fieldExpression = static_cast<QgsFieldExpressionWidget *>( editor );
@@ -462,7 +460,7 @@ void QgsLayoutColumnSourceDelegate::setEditorData( QWidget *editor, const QModel
 void QgsLayoutColumnSourceDelegate::setModelData( QWidget *editor, QAbstractItemModel *model, const QModelIndex &index ) const
 {
   QgsFieldExpressionWidget *fieldExpression = static_cast<QgsFieldExpressionWidget *>( editor );
-  QString field = fieldExpression->currentField();
+  const QString field = mForceExpressions ? fieldExpression->asExpression() : fieldExpression->currentField();
 
   model->setData( index, field, Qt::EditRole );
 }
@@ -482,9 +480,9 @@ void QgsLayoutColumnSourceDelegate::commitAndCloseEditor()
 
 // QgsLayoutColumnSortOrderDelegate
 
-QgsLayoutColumnSortOrderDelegate::QgsLayoutColumnSortOrderDelegate( QObject *parent ) : QItemDelegate( parent )
+QgsLayoutColumnSortOrderDelegate::QgsLayoutColumnSortOrderDelegate( QObject *parent )
+  : QItemDelegate( parent )
 {
-
 }
 
 QWidget *QgsLayoutColumnSortOrderDelegate::createEditor( QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index ) const
@@ -501,7 +499,7 @@ QWidget *QgsLayoutColumnSortOrderDelegate::createEditor( QWidget *parent, const 
 
 void QgsLayoutColumnSortOrderDelegate::setEditorData( QWidget *editor, const QModelIndex &index ) const
 {
-  Qt::SortOrder order = ( Qt::SortOrder )index.model()->data( index, Qt::EditRole ).toInt();
+  const Qt::SortOrder order = ( Qt::SortOrder ) index.model()->data( index, Qt::EditRole ).toInt();
 
   //set the value for the combobox
   QComboBox *comboBox = static_cast<QComboBox *>( editor );
@@ -520,7 +518,7 @@ void QgsLayoutColumnSortOrderDelegate::setEditorData( QWidget *editor, const QMo
 void QgsLayoutColumnSortOrderDelegate::setModelData( QWidget *editor, QAbstractItemModel *model, const QModelIndex &index ) const
 {
   QComboBox *comboBox = static_cast<QComboBox *>( editor );
-  int value = comboBox->currentIndex();
+  const int value = comboBox->currentIndex();
   Qt::SortOrder order;
   switch ( value )
   {
@@ -550,7 +548,6 @@ void QgsLayoutColumnSortOrderDelegate::updateEditorGeometry( QWidget *editor, co
 QgsLayoutColumnWidthDelegate::QgsLayoutColumnWidthDelegate( QObject *parent )
   : QItemDelegate( parent )
 {
-
 }
 
 QWidget *QgsLayoutColumnWidthDelegate::createEditor( QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index ) const
@@ -569,7 +566,7 @@ QWidget *QgsLayoutColumnWidthDelegate::createEditor( QWidget *parent, const QSty
 
 void QgsLayoutColumnWidthDelegate::setEditorData( QWidget *editor, const QModelIndex &index ) const
 {
-  int value = index.model()->data( index, Qt::EditRole ).toInt();
+  const int value = index.model()->data( index, Qt::EditRole ).toInt();
 
   QgsDoubleSpinBox *spinBox = static_cast<QgsDoubleSpinBox *>( editor );
   spinBox->setValue( value );
@@ -579,7 +576,7 @@ void QgsLayoutColumnWidthDelegate::setModelData( QWidget *editor, QAbstractItemM
 {
   QgsDoubleSpinBox *spinBox = static_cast<QgsDoubleSpinBox *>( editor );
   spinBox->interpretText();
-  int value = spinBox->value();
+  const int value = spinBox->value();
 
   model->setData( index, value, Qt::EditRole );
 }
@@ -593,11 +590,9 @@ void QgsLayoutColumnWidthDelegate::updateEditorGeometry( QWidget *editor, const 
 
 // QgsLayoutAttributeSelectionDialog
 
-QgsLayoutAttributeSelectionDialog::QgsLayoutAttributeSelectionDialog( QgsLayoutItemAttributeTable *table, QgsVectorLayer *vLayer,
-    QWidget *parent, Qt::WindowFlags f )
+QgsLayoutAttributeSelectionDialog::QgsLayoutAttributeSelectionDialog( QgsLayoutItemAttributeTable *table, QgsVectorLayer *vLayer, QWidget *parent, Qt::WindowFlags f )
   : QDialog( parent, f )
   , mTable( table )
-  , mVectorLayer( vLayer )
 
 {
   setupUi( this );
@@ -631,7 +626,7 @@ QgsLayoutAttributeSelectionDialog::QgsLayoutAttributeSelectionDialog( QgsLayoutI
     mSortColumnModel = new QgsLayoutTableSortModel( mTable, mSortColumnTableView );
     mSortColumnTableView->setModel( mSortColumnModel );
     mSortColumnTableView->horizontalHeader()->setSectionResizeMode( QHeaderView::Stretch );
-    mSortColumnSourceDelegate = new QgsLayoutColumnSourceDelegate( vLayer, mSortColumnTableView, mTable );
+    mSortColumnSourceDelegate = new QgsLayoutColumnSourceDelegate( vLayer, mSortColumnTableView, mTable, true );
     mSortColumnTableView->setItemDelegateForColumn( 0, mSortColumnSourceDelegate );
     mSortColumnOrderDelegate = new QgsLayoutColumnSortOrderDelegate( mSortColumnTableView );
     mSortColumnTableView->setItemDelegateForColumn( 1, mSortColumnOrderDelegate );
@@ -641,8 +636,8 @@ QgsLayoutAttributeSelectionDialog::QgsLayoutAttributeSelectionDialog( QgsLayoutI
 void QgsLayoutAttributeSelectionDialog::mRemoveColumnPushButton_clicked()
 {
   //remove selected rows from model
-  QModelIndexList indexes =  mColumnsTableView->selectionModel()->selectedRows();
-  int count = indexes.count();
+  const QModelIndexList indexes = mColumnsTableView->selectionModel()->selectedRows();
+  const int count = indexes.count();
 
   for ( int i = count; i > 0; --i )
     mColumnModel->removeRow( indexes.at( i - 1 ).row(), QModelIndex() );
@@ -658,8 +653,8 @@ void QgsLayoutAttributeSelectionDialog::mColumnUpPushButton_clicked()
 {
   //move selected row up
 
-  QModelIndexList indexes =  mColumnsTableView->selectionModel()->selectedRows();
-  int count = indexes.count();
+  QModelIndexList indexes = mColumnsTableView->selectionModel()->selectedRows();
+  const int count = indexes.count();
 
   std::reverse( indexes.begin(), indexes.end() );
   for ( int i = count; i > 0; --i )
@@ -669,8 +664,8 @@ void QgsLayoutAttributeSelectionDialog::mColumnUpPushButton_clicked()
 void QgsLayoutAttributeSelectionDialog::mColumnDownPushButton_clicked()
 {
   //move selected row down
-  QModelIndexList indexes =  mColumnsTableView->selectionModel()->selectedRows();
-  int count = indexes.count();
+  const QModelIndexList indexes = mColumnsTableView->selectionModel()->selectedRows();
+  const int count = indexes.count();
 
   for ( int i = count; i > 0; --i )
     mColumnModel->moveRow( indexes.at( i - 1 ).row(), QgsLayoutAttributeTableColumnModelBase::ShiftDown );
@@ -697,8 +692,8 @@ void QgsLayoutAttributeSelectionDialog::mAddSortColumnPushButton_clicked()
 void QgsLayoutAttributeSelectionDialog::mRemoveSortColumnPushButton_clicked()
 {
   //remove selected rows from model
-  QModelIndexList indexes =  mSortColumnTableView->selectionModel()->selectedRows();
-  int count = indexes.count();
+  const QModelIndexList indexes = mSortColumnTableView->selectionModel()->selectedRows();
+  const int count = indexes.count();
 
   for ( int i = count; i > 0; --i )
     mSortColumnModel->removeRow( indexes.at( i - 1 ).row(), QModelIndex() );
@@ -709,24 +704,22 @@ void QgsLayoutAttributeSelectionDialog::showHelp()
   QgsHelp::openHelp( QStringLiteral( "print_composer/composer_items/composer_attribute_table.html" ) );
 }
 
-void QgsLayoutAttributeSelectionDialog::mSortColumnUpPushButton_clicked()
+void QgsLayoutAttributeSelectionDialog::mSortColumnDownPushButton_clicked()
 {
   //move selected row down
-  QModelIndexList indexes =  mSortColumnTableView->selectionModel()->selectedRows();
-  int count = indexes.count();
+  const QModelIndexList indexes = mSortColumnTableView->selectionModel()->selectedRows();
+  const int count = indexes.count();
 
   for ( int i = count; i > 0; --i )
     mSortColumnModel->moveRow( indexes.at( i - 1 ).row(), QgsLayoutTableSortModel::ShiftDown );
 }
 
-void QgsLayoutAttributeSelectionDialog::mSortColumnDownPushButton_clicked()
+void QgsLayoutAttributeSelectionDialog::mSortColumnUpPushButton_clicked()
 {
   //move selected row up
-  QModelIndexList indexes =  mSortColumnTableView->selectionModel()->selectedRows();
-  int count = indexes.count();
+  const QModelIndexList indexes = mSortColumnTableView->selectionModel()->selectedRows();
+  const int count = indexes.count();
 
   for ( int i = count; i > 0; --i )
     mSortColumnModel->moveRow( indexes.at( i - 1 ).row(), QgsLayoutTableSortModel::ShiftUp );
 }
-
-

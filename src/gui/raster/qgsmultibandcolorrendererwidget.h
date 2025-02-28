@@ -33,7 +33,7 @@ class QgsRasterMinMaxWidget;
  * \ingroup gui
  * \class QgsMultiBandColorRendererWidget
  */
-class GUI_EXPORT QgsMultiBandColorRendererWidget: public QgsRasterRendererWidget, private Ui::QgsMultiBandColorRendererWidgetBase
+class GUI_EXPORT QgsMultiBandColorRendererWidget : public QgsRasterRendererWidget, private Ui::QgsMultiBandColorRendererWidgetBase
 {
     Q_OBJECT
 
@@ -41,9 +41,12 @@ class GUI_EXPORT QgsMultiBandColorRendererWidget: public QgsRasterRendererWidget
     QgsMultiBandColorRendererWidget( QgsRasterLayer *layer, const QgsRectangle &extent = QgsRectangle() );
     static QgsRasterRendererWidget *create( QgsRasterLayer *layer, const QgsRectangle &extent ) { return new QgsMultiBandColorRendererWidget( layer, extent ); }
 
-    QgsRasterRenderer *renderer() override;
+    QgsRasterRenderer *renderer() override SIP_FACTORY;
     void setMapCanvas( QgsMapCanvas *canvas ) override;
 
+    /**
+     * Sets the widget state from the specified renderer.
+     */
     void setFromRenderer( const QgsRasterRenderer *r );
 
     QString min( int index = 0 ) override;
@@ -51,6 +54,10 @@ class GUI_EXPORT QgsMultiBandColorRendererWidget: public QgsRasterRendererWidget
     void setMin( const QString &value, int index = 0 ) override;
     void setMax( const QString &value, int index = 0 ) override;
     int selectedBand( int index = 0 ) override;
+
+    QgsContrastEnhancement::ContrastEnhancementAlgorithm contrastEnhancementAlgorithm() const override;
+    void setContrastEnhancementAlgorithm( QgsContrastEnhancement::ContrastEnhancementAlgorithm algorithm ) override;
+
     void doComputations() override;
     QgsRasterMinMaxWidget *minMaxWidget() override { return mMinMaxWidget; }
 
@@ -69,8 +76,7 @@ class GUI_EXPORT QgsMultiBandColorRendererWidget: public QgsRasterRendererWidget
 
   private:
     void createValidators();
-    void setCustomMinMaxValues( QgsMultiBandColorRenderer *r, const QgsRasterDataProvider *provider, int redBand, int GreenBand,
-                                int blueBand );
+    void setCustomMinMaxValues( QgsMultiBandColorRenderer *r, const QgsRasterDataProvider *provider, int redBand, int GreenBand, int blueBand );
     //! Reads min/max values from contrast enhancement and fills values into the min/max line edits
     void setMinMaxValue( const QgsContrastEnhancement *ce, QLineEdit *minEdit, QLineEdit *maxEdit );
     QgsRasterMinMaxWidget *mMinMaxWidget = nullptr;

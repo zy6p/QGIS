@@ -19,37 +19,97 @@
  */
 
 #include "qgsgraph.h"
+#include <QSet>
 
 int QgsGraph::addVertex( const QgsPointXY &pt )
 {
-  mGraphVertices.append( QgsGraphVertex( pt ) );
-  return mGraphVertices.size() - 1;
+  mGraphVertices[mNextVertexId] = QgsGraphVertex( pt );
+  return mNextVertexId++;
 }
 
-int QgsGraph::addEdge( int fromVertexIdx, int toVertexIdx, const QVector< QVariant > &strategies )
+int QgsGraph::addEdge( int fromVertexIdx, int toVertexIdx, const QVector<QVariant> &strategies )
 {
   QgsGraphEdge e;
 
   e.mStrategies = strategies;
   e.mToIdx = toVertexIdx;
-  e.mFromIdx  = fromVertexIdx;
-  mGraphEdges.push_back( e );
-  int edgeIdx = mGraphEdges.size() - 1;
+  e.mFromIdx = fromVertexIdx;
 
-  mGraphVertices[ toVertexIdx ].mIncomingEdges.push_back( edgeIdx );
-  mGraphVertices[ fromVertexIdx ].mOutgoingEdges.push_back( edgeIdx );
+  mGraphEdges[mNextEdgeId] = e;
+  const int edgeIdx = mGraphEdges.size() - 1;
 
-  return mGraphEdges.size() - 1;
+  mGraphVertices[toVertexIdx].mIncomingEdges.push_back( edgeIdx );
+  mGraphVertices[fromVertexIdx].mOutgoingEdges.push_back( edgeIdx );
+
+  return mNextEdgeId++;
 }
 
 const QgsGraphVertex &QgsGraph::vertex( int idx ) const
 {
-  return mGraphVertices[ idx ];
+  auto it = mGraphVertices.constFind( idx );
+  if ( it != mGraphVertices.constEnd() )
+    return ( it ).value();
+  Q_ASSERT_X( false, "QgsGraph::vertex()", "Invalid vertex ID" );
+
+  // unreachable...
+  return ( *const_cast<QHash<int, QgsGraphVertex> *>( &mGraphVertices ) )[idx];
+}
+
+void QgsGraph::removeVertex( int index )
+{
+  auto it = mGraphVertices.constFind( index );
+  if ( it != mGraphVertices.constEnd() )
+  {
+    QSet<int> affectedEdges = qgis::listToSet( it->incomingEdges() );
+    affectedEdges.unite( qgis::listToSet( it->outgoingEdges() ) );
+
+    mGraphVertices.erase( it );
+
+    // remove affected edges
+    for ( int edgeId : std::as_const( affectedEdges ) )
+    {
+      mGraphEdges.remove( edgeId );
+    }
+  }
 }
 
 const QgsGraphEdge &QgsGraph::edge( int idx ) const
 {
-  return mGraphEdges[ idx ];
+  auto it = mGraphEdges.constFind( idx );
+  if ( it != mGraphEdges.constEnd() )
+    return ( it ).value();
+  Q_ASSERT_X( false, "QgsGraph::edge()", "Invalid edge ID" );
+
+  // unreachable...
+  return ( *const_cast<QHash<int, QgsGraphEdge> *>( &mGraphEdges ) )[idx];
+}
+
+void QgsGraph::removeEdge( int index )
+{
+  auto it = mGraphEdges.constFind( index );
+  if ( it != mGraphEdges.constEnd() )
+  {
+    const int fromVertex = it->fromVertex();
+    const int toVertex = it->toVertex();
+    mGraphEdges.erase( it );
+
+    // clean up affected vertices
+    auto vertexIt = mGraphVertices.find( fromVertex );
+    if ( vertexIt != mGraphVertices.end() )
+    {
+      vertexIt->mOutgoingEdges.removeAll( index );
+      if ( vertexIt->mOutgoingEdges.empty() && vertexIt->mIncomingEdges.empty() )
+        mGraphVertices.erase( vertexIt );
+    }
+
+    vertexIt = mGraphVertices.find( toVertex );
+    if ( vertexIt != mGraphVertices.end() )
+    {
+      vertexIt->mIncomingEdges.removeAll( index );
+      if ( vertexIt->mOutgoingEdges.empty() && vertexIt->mIncomingEdges.empty() )
+        mGraphVertices.erase( vertexIt );
+    }
+  }
 }
 
 int QgsGraph::vertexCount() const
@@ -67,7 +127,7 @@ int QgsGraph::findVertex( const QgsPointXY &pt ) const
   int i = 0;
   for ( i = 0; i < mGraphVertices.size(); ++i )
   {
-    if ( mGraphVertices[ i ].point() == pt )
+    if ( mGraphVertices[i].point() == pt )
     {
       return i;
     }
@@ -75,12 +135,43 @@ int QgsGraph::findVertex( const QgsPointXY &pt ) const
   return -1;
 }
 
-QVariant QgsGraphEdge::cost( int i ) const
+bool QgsGraph::hasVertex( int index ) const
 {
-  return mStrategies[ i ];
+  auto it = mGraphVertices.constFind( index );
+  return it != mGraphVertices.constEnd();
 }
 
-QVector< QVariant > QgsGraphEdge::strategies() const
+bool QgsGraph::hasEdge( int index ) const
+{
+  auto it = mGraphEdges.constFind( index );
+  return it != mGraphEdges.constEnd();
+}
+
+int QgsGraph::findOppositeEdge( int index ) const
+{
+  auto it = mGraphEdges.constFind( index );
+  if ( it != mGraphEdges.constEnd() )
+  {
+    const int fromVertex = it->fromVertex();
+    const int toVertex = it->toVertex();
+
+    // look for edges which start at toVertex
+    const QgsGraphEdgeIds candidates = mGraphVertices.value( toVertex ).outgoingEdges();
+    for ( int candidate : candidates )
+    {
+      if ( mGraphEdges.value( candidate ).toVertex() == fromVertex )
+        return candidate;
+    }
+  }
+  return -1;
+}
+
+QVariant QgsGraphEdge::cost( int i ) const
+{
+  return mStrategies[i];
+}
+
+QVector<QVariant> QgsGraphEdge::strategies() const
 {
   return mStrategies;
 }
@@ -98,7 +189,6 @@ int QgsGraphEdge::toVertex() const
 QgsGraphVertex::QgsGraphVertex( const QgsPointXY &point )
   : mCoordinate( point )
 {
-
 }
 
 QgsGraphEdgeIds QgsGraphVertex::incomingEdges() const

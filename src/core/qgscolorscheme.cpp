@@ -22,8 +22,10 @@
 #include "qgssymbollayerutils.h"
 #include "qgsapplication.h"
 #include "qgssettings.h"
+#include "qgscolorutils.h"
 
 #include <QDir>
+#include <QRegularExpression>
 #include <QTextStream>
 
 bool QgsColorScheme::setColors( const QgsNamedColorList &colors, const QString &context, const QColor &baseColor )
@@ -46,8 +48,8 @@ QgsNamedColorList QgsRecentColorScheme::fetchColors( const QString &context, con
   Q_UNUSED( baseColor )
 
   //fetch recent colors
-  QgsSettings settings;
-  QList< QVariant > recentColorVariants = settings.value( QStringLiteral( "colors/recent" ) ).toList();
+  const QgsSettings settings;
+  const QList< QVariant > recentColorVariants = settings.value( QStringLiteral( "colors/recent" ) ).toList();
 
   //generate list from recent colors
   QgsNamedColorList colorList;
@@ -88,7 +90,7 @@ void QgsRecentColorScheme::addRecentColor( const QColor &color )
   }
 
   //add color
-  QVariant colorVariant = QVariant( opaqueColor );
+  const QVariant colorVariant = QVariant( opaqueColor );
   recentColorVariants.prepend( colorVariant );
 
   //trim to 20 colors
@@ -103,8 +105,8 @@ void QgsRecentColorScheme::addRecentColor( const QColor &color )
 QColor QgsRecentColorScheme::lastUsedColor()
 {
   //fetch recent colors
-  QgsSettings settings;
-  QList< QVariant > recentColorVariants = settings.value( QStringLiteral( "colors/recent" ) ).toList();
+  const QgsSettings settings;
+  const QList< QVariant > recentColorVariants = settings.value( QStringLiteral( "colors/recent" ) ).toList();
 
   if ( recentColorVariants.isEmpty() )
     return QColor();
@@ -119,7 +121,7 @@ QgsNamedColorList QgsCustomColorScheme::fetchColors( const QString &context, con
 
   //fetch predefined custom colors
   QgsNamedColorList colorList;
-  QgsSettings settings;
+  const QgsSettings settings;
 
   //check if settings contains custom palette
   if ( !settings.contains( QStringLiteral( "/colors/palettecolors" ) ) )
@@ -140,14 +142,14 @@ QgsNamedColorList QgsCustomColorScheme::fetchColors( const QString &context, con
   }
 
   QList< QVariant > customColorVariants = settings.value( QStringLiteral( "colors/palettecolors" ) ).toList();
-  QList< QVariant > customColorLabels = settings.value( QStringLiteral( "colors/palettelabels" ) ).toList();
+  const QList< QVariant > customColorLabels = settings.value( QStringLiteral( "colors/palettelabels" ) ).toList();
 
   //generate list from custom colors
   int colorIndex = 0;
   for ( QList< QVariant >::iterator it = customColorVariants.begin();
         it != customColorVariants.end(); ++it )
   {
-    QColor color = ( *it ).value<QColor>();
+    const QColor color = ( *it ).value<QColor>();
     QString label;
     if ( customColorLabels.length() > colorIndex )
     {
@@ -174,8 +176,8 @@ bool QgsCustomColorScheme::setColors( const QgsNamedColorList &colors, const QSt
   QgsNamedColorList::const_iterator colorIt = colors.constBegin();
   for ( ; colorIt != colors.constEnd(); ++colorIt )
   {
-    QVariant color = ( *colorIt ).first;
-    QVariant label = ( *colorIt ).second;
+    const QVariant color = ( *colorIt ).first;
+    const QVariant label = ( *colorIt ).second;
     customColors.append( color );
     customColorLabels.append( label );
   }
@@ -197,15 +199,15 @@ QgsNamedColorList QgsProjectColorScheme::fetchColors( const QString &context, co
 
   QgsNamedColorList colorList;
 
-  QStringList colorStrings = QgsProject::instance()->readListEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Colors" ) );
-  QStringList colorLabels = QgsProject::instance()->readListEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Labels" ) );
+  QStringList colorStrings = QgsProject::instance()->readListEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Colors" ) ); // skip-keyword-check
+  const QStringList colorLabels = QgsProject::instance()->readListEntry( QStringLiteral( "Palette" ), QStringLiteral( "/Labels" ) ); // skip-keyword-check
 
   //generate list from custom colors
   int colorIndex = 0;
   for ( QStringList::iterator it = colorStrings.begin();
         it != colorStrings.end(); ++it )
   {
-    QColor color = QgsSymbolLayerUtils::decodeColor( *it );
+    const QColor color = QgsColorUtils::colorFromString( *it );
     QString label;
     if ( colorLabels.length() > colorIndex )
     {
@@ -223,7 +225,7 @@ bool QgsProjectColorScheme::setColors( const QgsNamedColorList &colors, const QS
 {
   Q_UNUSED( context )
   Q_UNUSED( baseColor )
-  QgsProject::instance()->setProjectColors( colors );
+  QgsProject::instance()->setProjectColors( colors ); // skip-keyword-check
   return true;
 }
 
@@ -242,7 +244,7 @@ QgsNamedColorList QgsGplColorScheme::fetchColors( const QString &context, const 
   Q_UNUSED( context )
   Q_UNUSED( baseColor )
 
-  QString sourceFilePath = gplFilePath();
+  const QString sourceFilePath = gplFilePath();
   if ( sourceFilePath.isEmpty() )
   {
     QgsNamedColorList noColors;
@@ -260,7 +262,7 @@ bool QgsGplColorScheme::setColors( const QgsNamedColorList &colors, const QStrin
   Q_UNUSED( context )
   Q_UNUSED( baseColor )
 
-  QString destFilePath = gplFilePath();
+  const QString destFilePath = gplFilePath();
   if ( destFilePath.isEmpty() )
   {
     return false;
@@ -305,10 +307,11 @@ QgsUserColorScheme::QgsUserColorScheme( const QString &filename )
     }
     if ( !in.atEnd() )
     {
-      QRegExp rx( "Name:\\s*(\\S.*)$" );
-      if ( rx.indexIn( line ) != -1 )
+      const thread_local QRegularExpression rx( "Name:\\s*(\\S.*)$" );
+      const QRegularExpressionMatch match = rx.match( line );
+      if ( match.hasMatch() )
       {
-        mName = rx.cap( 1 );
+        mName = match.captured( 1 );
       }
     }
   }
@@ -320,7 +323,7 @@ QgsUserColorScheme::QgsUserColorScheme( const QString &filename )
   // we consider this scheme writable if the user has permission, OR
   // if it DOESN'T already exist (since new schemes are only created when
   // first written to)
-  QFileInfo sourceFileInfo( gplFilePath() );
+  const QFileInfo sourceFileInfo( gplFilePath() );
   mEditable = !sourceFileInfo.exists() || sourceFileInfo.isWritable();
 }
 
@@ -338,8 +341,8 @@ QgsColorScheme::SchemeFlags QgsUserColorScheme::flags() const
 {
   QgsColorScheme::SchemeFlags f = QgsGplColorScheme::flags();
 
-  QgsSettings s;
-  QStringList showInMenuSchemes = s.value( QStringLiteral( "/colors/showInMenuList" ) ).toStringList();
+  const QgsSettings s;
+  const QStringList showInMenuSchemes = s.value( QStringLiteral( "/colors/showInMenuList" ) ).toStringList();
 
   if ( showInMenuSchemes.contains( mName ) )
   {
@@ -351,7 +354,7 @@ QgsColorScheme::SchemeFlags QgsUserColorScheme::flags() const
 
 bool QgsUserColorScheme::erase()
 {
-  QString filePath = gplFilePath();
+  const QString filePath = gplFilePath();
   if ( filePath.isEmpty() )
   {
     return false;
@@ -386,9 +389,9 @@ void QgsUserColorScheme::setShowSchemeInMenu( bool show )
 
 QString QgsUserColorScheme::gplFilePath()
 {
-  QString palettesDir = QgsApplication::qgisSettingsDirPath() + "palettes";
+  const QString palettesDir = QgsApplication::qgisSettingsDirPath() + "palettes";
 
-  QDir localDir;
+  const QDir localDir;
   if ( !localDir.mkpath( palettesDir ) )
   {
     return QString();

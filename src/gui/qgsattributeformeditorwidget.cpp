@@ -14,16 +14,15 @@
  ***************************************************************************/
 
 #include "qgsattributeformeditorwidget.h"
+#include "moc_qgsattributeformeditorwidget.cpp"
 #include "qgsattributeform.h"
 #include "qgsmultiedittoolbutton.h"
-#include "qgssearchwidgettoolbutton.h"
 #include "qgseditorwidgetwrapper.h"
 #include "qgssearchwidgetwrapper.h"
 #include "qgsattributeeditorcontext.h"
 #include "qgseditorwidgetregistry.h"
 #include "qgsaggregatetoolbutton.h"
 #include "qgsgui.h"
-#include "qgsvectorlayerjoinbuffer.h"
 #include "qgsvectorlayerutils.h"
 
 #include <QLayout>
@@ -46,7 +45,7 @@ QgsAttributeFormEditorWidget::QgsAttributeFormEditorWidget( QgsEditorWidgetWrapp
 
   mMultiEditButton->setField( mEditorWidget->field() );
   mAggregateButton = new QgsAggregateToolButton();
-  mAggregateButton->setType( editorWidget->field().type() );
+  mAggregateButton->setType( mEditorWidget->field().type() );
   connect( mAggregateButton, &QgsAggregateToolButton::aggregateChanged, this, &QgsAttributeFormEditorWidget::onAggregateChanged );
 
   if ( mEditorWidget->widget() )
@@ -76,16 +75,13 @@ void QgsAttributeFormEditorWidget::createSearchWidgetWrappers( const QgsAttribut
   const QVariantMap config = mEditorWidget->config();
   const int fieldIdx = mEditorWidget->fieldIdx();
 
-  QgsSearchWidgetWrapper *sww = QgsGui::editorWidgetRegistry()->createSearchWidget( mWidgetType, layer(), fieldIdx, config,
-                                searchWidgetFrame(), context );
+  QgsSearchWidgetWrapper *sww = QgsGui::editorWidgetRegistry()->createSearchWidget( mWidgetType, layer(), fieldIdx, config, searchWidgetFrame(), context );
   setSearchWidgetWrapper( sww );
   searchWidgetFrame()->layout()->addWidget( mAggregateButton );
-  if ( sww->supportedFlags() & QgsSearchWidgetWrapper::Between ||
-       sww->supportedFlags() & QgsSearchWidgetWrapper::IsNotBetween )
+  if ( sww->supportedFlags() & QgsSearchWidgetWrapper::Between || sww->supportedFlags() & QgsSearchWidgetWrapper::IsNotBetween )
   {
     // create secondary widget for between type searches
-    QgsSearchWidgetWrapper *sww2 = QgsGui::editorWidgetRegistry()->createSearchWidget( mWidgetType, layer(), fieldIdx, config,
-                                   searchWidgetFrame(), context );
+    QgsSearchWidgetWrapper *sww2 = QgsGui::editorWidgetRegistry()->createSearchWidget( mWidgetType, layer(), fieldIdx, config, searchWidgetFrame(), context );
     addAdditionalSearchWidgetWrapper( sww2 );
   }
 }
@@ -143,7 +139,6 @@ void QgsAttributeFormEditorWidget::changesCommitted()
 }
 
 
-
 void QgsAttributeFormEditorWidget::initialize( const QVariant &initialValue, bool mixedValues, const QVariantList &additionalFieldValues )
 {
   if ( mEditorWidget )
@@ -164,7 +159,6 @@ QVariant QgsAttributeFormEditorWidget::currentValue() const
 {
   return mEditorWidget->value();
 }
-
 
 
 void QgsAttributeFormEditorWidget::editorWidgetValuesChanged( const QVariant &value, const QVariantList &additionalFieldValues )
@@ -229,7 +223,7 @@ void QgsAttributeFormEditorWidget::onAggregateChanged()
 void QgsAttributeFormEditorWidget::updateWidgets()
 {
   //first update the tool buttons
-  bool hasMultiEditButton = ( editPage()->layout()->indexOf( mMultiEditButton ) >= 0 );
+  const bool hasMultiEditButton = ( editPage()->layout()->indexOf( mMultiEditButton ) >= 0 );
 
   bool shouldShowMultiEditButton = false;
   switch ( mode() )
@@ -286,12 +280,13 @@ void QgsAttributeFormEditorWidget::updateWidgets()
     editPage()->layout()->addWidget( mMultiEditButton );
   }
 
+  setVisiblePageForMode( mode() );
+
   switch ( mode() )
   {
     case DefaultMode:
     case MultiEditMode:
     {
-      stack()->setCurrentWidget( editPage() );
       editPage()->layout()->addWidget( mConstraintResultLabel );
       break;
     }
@@ -299,14 +294,12 @@ void QgsAttributeFormEditorWidget::updateWidgets()
     case AggregateSearchMode:
     {
       mAggregateButton->setVisible( true );
-      stack()->setCurrentWidget( searchPage() );
       break;
     }
 
     case SearchMode:
     {
       mAggregateButton->setVisible( false );
-      stack()->setCurrentWidget( searchPage() );
       break;
     }
   }

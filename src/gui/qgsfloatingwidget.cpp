@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsfloatingwidget.h"
+#include "moc_qgsfloatingwidget.cpp"
 #include <QEvent>
 #include <QStyleOption>
 #include <QPainter>
@@ -93,7 +94,11 @@ void QgsFloatingWidget::paintEvent( QPaintEvent *e )
 {
   Q_UNUSED( e )
   QStyleOption opt;
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
   opt.init( this );
+#else
+  opt.initFrom( this );
+#endif
   QPainter p( this );
   style()->drawPrimitive( QStyle::PE_Widget, &opt, &p, this );
 }
@@ -197,7 +202,6 @@ void QgsFloatingWidget::onAnchorPointChanged()
 QgsFloatingWidgetEventFilter::QgsFloatingWidgetEventFilter( QWidget *parent )
   : QObject( parent )
 {
-
 }
 
 bool QgsFloatingWidgetEventFilter::eventFilter( QObject *object, QEvent *event )

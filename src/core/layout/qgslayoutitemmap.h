@@ -18,6 +18,7 @@
 #define QGSLAYOUTITEMMAP_H
 
 #include "qgis_core.h"
+#include "qgsgrouplayer.h"
 #include "qgslayoutitem.h"
 #include "qgslayoutitemregistry.h"
 #include "qgsmaplayerref.h"
@@ -312,7 +313,6 @@ class CORE_EXPORT QgsLayoutItemMapItemClipPathSettings : public QObject
  * \ingroup core
  * \class QgsLayoutItemMap
  * \brief Layout graphical items for displaying a map.
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRangeObject
 {
@@ -348,7 +348,7 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
      * Various flags that affect drawing of map items.
      * \since QGIS 3.6
      */
-    enum MapItemFlag
+    enum MapItemFlag SIP_ENUM_BASETYPE( IntFlag )
     {
       ShowPartialLabels  = 1 << 0, //!< Whether to draw labels which are partially outside of the map view
       ShowUnplacedLabels = 1 << 1, //!< Whether to render unplaced labels in the map view
@@ -396,7 +396,12 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
 
     // for now, map items behave a bit differently and don't implement draw. TODO - see if we can avoid this
     void paint( QPainter *painter, const QStyleOptionGraphicsItem *itemStyle, QWidget *pWidget ) override;
+
+    /**
+     * \deprecated QGIS 3.10
+     */
     Q_DECL_DEPRECATED int numberExportLayers() const override SIP_DEPRECATED;
+
     void startLayeredExport() override;
     void stopLayeredExport() override;
     bool nextExportPart() override;
@@ -513,10 +518,13 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
     QList<QgsMapLayer *> layers() const;
 
     /**
-     * Sets the stored \a layers set. If empty, the current project layers will
-     * be used instead.
+     * Sets the stored \a layers set. If empty, the current project layers will be used.
+     * If the map item is set to follow a map theme (via followVisibilityPreset() and followVisibilityPresetName() ),
+     * then this method will have no effect and the layers rendered in the map will always follow the map theme.
      * \see layers()
      * \see keepLayerSet()
+     * \see followVisibilityPreset()
+     * \see followVisibilityPresetName()
      */
     void setLayers( const QList<QgsMapLayer *> &layers );
 
@@ -808,6 +816,15 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
      */
     QgsMapRendererJob::Errors renderingErrors() const { return mRenderingErrors; }
 
+    /**
+     * Returns the labeling results of the most recent preview map render. May be NULLPTR if no map preview has been rendered in the item.
+     *
+     * The map item retains ownership of the returned results.
+     *
+     * \since QGIS 3.20
+     */
+    QgsLabelingResults *previewLabelingResults() const;
+
     bool accept( QgsStyleEntityVisitorInterface *visitor ) const override;
 
     /**
@@ -850,6 +867,52 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
      * \since QGIS 3.16
      */
     QgsLayoutItemMapItemClipPathSettings *itemClippingSettings() { return mItemClippingSettings; }
+
+    /**
+     * Sets whether the z range is \a enabled (i.e. whether the map will be filtered
+     * to content within the zRange().)
+     *
+     * \see zRangeEnabled()
+     * \since QGIS 3.38
+     */
+    void setZRangeEnabled( bool enabled );
+
+    /**
+     * Returns whether the z range is enabled (i.e. whether the map will be filtered
+     * to content within the zRange().)
+     *
+     * \see setZRangeEnabled()
+     * \see zRange()
+     * \since QGIS 3.38
+     */
+    bool zRangeEnabled() const;
+
+    /**
+     * Returns the map's z range, which is used to filter the map's content to only
+     * display features within the specified z range.
+     *
+     * \note This is only considered when zRangeEnabled() is TRUE.
+     *
+     * \see setZRange()
+     * \see zRangeEnabled()
+     * \since QGIS 3.38
+     */
+    QgsDoubleRange zRange() const;
+
+    /**
+     * Sets the map's z \a range, which is used to filter the map's content to only
+     * display features within the specified z range.
+     *
+     * \note This is only considered when zRangeEnabled() is TRUE.
+     *
+     * \see zRange()
+     * \see setZRangeEnabled()
+     * \since QGIS 3.38
+     */
+    void setZRange( const QgsDoubleRange &range );
+
+    // Reimplement estimatedFrameBleed to take the grid frame into account
+    double estimatedFrameBleed() const override;
 
   protected:
 
@@ -917,6 +980,13 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
      */
     void crsChanged();
 
+    /**
+     * Emitted whenever the item's map preview has been refreshed.
+     *
+     * \since QGIS 3.20
+     */
+    void previewRefreshed();
+
   public slots:
 
     void refresh() override;
@@ -926,7 +996,7 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
     //! Updates the bounding rect of this item. Call this function before doing any changes related to annotation out of the map rectangle
     void updateBoundingRect();
 
-    void refreshDataDefinedProperty( QgsLayoutObject::DataDefinedProperty property = QgsLayoutObject::AllProperties ) override;
+    void refreshDataDefinedProperty( QgsLayoutObject::DataDefinedProperty property = QgsLayoutObject::DataDefinedProperty::AllProperties ) override;
 
   private slots:
     void layersAboutToBeRemoved( const QList<QgsMapLayer *> &layers );
@@ -989,6 +1059,7 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
 
     QTimer *mBackgroundUpdateTimer = nullptr;
     double mPreviewScaleFactor = 0;
+    double mPreviewDevicePixelRatio = 1.0;
 
     bool mDrawingPreview = false;
 
@@ -1008,6 +1079,9 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
      * differs from mMapRotation
     */
     double mEvaluatedMapRotation = 0;
+
+    bool mZRangeEnabled = false;
+    QgsDoubleRange mZRange;
 
     //! Flag if layers to be displayed should be read from qgis canvas (TRUE) or from stored list in mLayerSet (FALSE)
     bool mKeepLayerSet = false;
@@ -1096,6 +1170,9 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
 
     std::unique_ptr< QgsMapRendererStagedRenderJob > mStagedRendererJob;
 
+    std::unique_ptr< QgsLabelingResults > mPreviewLabelingResults;
+    std::unique_ptr< QgsLabelingResults > mExportLabelingResults;
+
     void init();
 
     //! Resets the item tooltip to reflect current map id
@@ -1163,12 +1240,18 @@ class CORE_EXPORT QgsLayoutItemMap : public QgsLayoutItem, public QgsTemporalRan
 
     QPolygonF calculateVisibleExtentPolygon( bool includeClipping ) const;
 
+    /**
+     * Key is the original layer id, value is the cloned group
+     */
+    std::map<QString, std::unique_ptr<QgsGroupLayer>> mGroupLayers;
+
     friend class QgsLayoutItemMapGrid;
     friend class QgsLayoutItemMapOverview;
     friend class QgsLayoutItemLegend;
     friend class TestQgsLayoutMap;
     friend class QgsCompositionConverter;
-    friend class QgsGeoPdfRenderedFeatureHandler;
+    friend class QgsGeospatialPdfRenderedFeatureHandler;
+    friend class QgsLayoutExporter;
 
 };
 

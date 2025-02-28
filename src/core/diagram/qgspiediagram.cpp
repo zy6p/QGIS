@@ -19,6 +19,7 @@
 
 #include <QPainter>
 
+const QString QgsPieDiagram::DIAGRAM_NAME_PIE = QStringLiteral( "Pie" );
 
 QgsPieDiagram::QgsPieDiagram()
 {
@@ -52,7 +53,7 @@ QSizeF QgsPieDiagram::diagramSize( const QgsFeature &feature, const QgsRenderCon
   }
 
   bool ok = false;
-  double value = attrVal.toDouble( &ok );
+  const double value = attrVal.toDouble( &ok );
   if ( !ok )
   {
     return QSizeF(); //zero size if attribute is missing
@@ -63,13 +64,13 @@ QSizeF QgsPieDiagram::diagramSize( const QgsFeature &feature, const QgsRenderCon
 
 double QgsPieDiagram::legendSize( double value, const QgsDiagramSettings &s, const QgsDiagramInterpolationSettings &is ) const
 {
-  QSizeF size = sizeForValue( value, s, is );
+  const QSizeF size = sizeForValue( value, s, is );
   return std::max( size.width(), size.height() );
 }
 
 QString QgsPieDiagram::diagramName() const
 {
-  return DIAGRAM_NAME_PIE;
+  return QgsPieDiagram::DIAGRAM_NAME_PIE;
 }
 
 QSizeF QgsPieDiagram::diagramSize( const QgsAttributes &attributes, const QgsRenderContext &c, const QgsDiagramSettings &s )
@@ -113,12 +114,12 @@ void QgsPieDiagram::renderDiagram( const QgsFeature &feature, QgsRenderContext &
   double currentAngle;
 
   //convert from mm / map units to painter units
-  QSizeF spu = sizePainterUnits( s.size, s, c );
-  double w = spu.width();
-  double h = spu.height();
+  const QSizeF spu = sizePainterUnits( s.size, s, c );
+  const double w = spu.width();
+  const double h = spu.height();
 
-  double baseX = position.x();
-  double baseY = position.y() - h;
+  const double baseX = position.x();
+  const double baseY = position.y() - h;
 
   mPen.setColor( s.penColor );
   setPenWidth( mPen, s, c );
@@ -134,7 +135,9 @@ void QgsPieDiagram::renderDiagram( const QgsFeature &feature, QgsRenderContext &
       if ( *valIt )
       {
         currentAngle = ( *valIt / valSum * 360 * 16 ) * ( s.direction() == QgsDiagramSettings::Clockwise ? -1 : 1 );
-        mCategoryBrush.setColor( *colIt );
+        QColor brushColor( *colIt );
+        brushColor.setAlphaF( brushColor.alphaF() * s.opacity );
+        mCategoryBrush.setColor( brushColor );
         p->setBrush( mCategoryBrush );
         // if only 1 value is > 0, draw a circle
         if ( valCount == 1 )

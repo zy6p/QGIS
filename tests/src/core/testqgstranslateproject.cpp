@@ -36,19 +36,17 @@ class TestQgsTranslateProject : public QObject
     Q_OBJECT
 
   public:
-
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init(); // will be called before each testfunction is executed.
-    void cleanup(); // will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void createTsFile();
     void translateProject();
 
   private:
     QString original_locale;
-
 };
 
 void TestQgsTranslateProject::initTestCase()
@@ -57,12 +55,12 @@ void TestQgsTranslateProject::initTestCase()
   QgsApplication::init();
   QgsApplication::initQgis();
 
-  original_locale = QgsApplication::settingsLocaleUserLocale.value();
+  original_locale = QgsApplication::settingsLocaleUserLocale->value();
 }
 
 void TestQgsTranslateProject::cleanupTestCase()
 {
-  QgsApplication::settingsLocaleUserLocale.setValue( original_locale );
+  QgsApplication::settingsLocaleUserLocale->setValue( original_locale );
   QgsApplication::exitQgis();
 
   //delete translated project file
@@ -91,7 +89,7 @@ void TestQgsTranslateProject::cleanup()
 void TestQgsTranslateProject::createTsFile()
 {
   //open project in english
-  QgsApplication::settingsLocaleUserLocale.setValue( "en" );
+  QgsApplication::settingsLocaleUserLocale->setValue( "en" );
   QString projectFileName( TEST_DATA_DIR );
   projectFileName = projectFileName + "/project_translation/points_translation.qgs";
   QgsProject::instance()->read( projectFileName );
@@ -107,7 +105,7 @@ void TestQgsTranslateProject::createTsFile()
 
   tsFile.open( QIODevice::ReadWrite );
 
-  QString tsFileContent( tsFile.readAll() );
+  const QString tsFileContent( tsFile.readAll() );
 
   //LAYER NAMES
   //lines
@@ -157,13 +155,24 @@ void TestQgsTranslateProject::createTsFile()
   //Sheepwalk
   QVERIFY( tsFileContent.contains( "<source>Sheepwalk</source>" ) );
 
+  //WIDGETS
+  //ValueRelation value
+  QVERIFY( tsFileContent.contains( ":fields:Cabin Crew:valuerelationvalue</name>" ) );
+  QVERIFY( tsFileContent.contains( "<source>Name</source>" ) );
+
+  //ValueMap with descriptions
+  QVERIFY( tsFileContent.contains( ":fields:Name:valuemapdescriptions</name>" ) );
+  QVERIFY( tsFileContent.contains( "<source>Arterial road</source>" ) );
+  QVERIFY( tsFileContent.contains( "<source>Highway road</source>" ) );
+  QVERIFY( tsFileContent.contains( "<source>nothing</source>" ) );
+
   tsFile.close();
 }
 
 void TestQgsTranslateProject::translateProject()
 {
   //open project in german
-  QgsApplication::settingsLocaleUserLocale.setValue( "de" );
+  QgsApplication::settingsLocaleUserLocale->setValue( "de" );
   QString projectFileName( TEST_DATA_DIR );
   projectFileName = projectFileName + "/project_translation/points_translation.qgs";
   QgsProject::instance()->read( projectFileName );
@@ -198,7 +207,7 @@ void TestQgsTranslateProject::translateProject()
   //Class (Alias: Level) -> Klasse
   QCOMPARE( points_fields.field( QStringLiteral( "Class" ) ).alias(), QStringLiteral( "Klasse" ) );
   //Heading -> Titel  //#spellok
-  QCOMPARE( points_fields.field( QStringLiteral( "Heading" ) ).alias(), QStringLiteral( "Titel" ) );  //#spellok
+  QCOMPARE( points_fields.field( QStringLiteral( "Heading" ) ).alias(), QStringLiteral( "Titel" ) ); //#spellok
   //Importance -> Wichtigkeit
   QCOMPARE( points_fields.field( QStringLiteral( "Importance" ) ).alias(), QStringLiteral( "Wichtigkeit" ) );
   //Pilots -> Piloten
@@ -209,11 +218,11 @@ void TestQgsTranslateProject::translateProject()
   QCOMPARE( points_fields.field( QStringLiteral( "Staff" ) ).alias(), QStringLiteral( "Mitarbeiter" ) );
 
   //FORMCONTAINERS
-  QList<QgsAttributeEditorElement *> elements = points_layer->editFormConfig().invisibleRootContainer()->children();
+  const QList<QgsAttributeEditorElement *> elements = points_layer->editFormConfig().invisibleRootContainer()->children();
   QList<QgsAttributeEditorContainer *> containers;
   for ( QgsAttributeEditorElement *element : elements )
   {
-    if ( element->type() == QgsAttributeEditorElement::AeTypeContainer )
+    if ( element->type() == Qgis::AttributeEditorType::Container )
       containers.append( dynamic_cast<QgsAttributeEditorContainer *>( element ) );
   }
 
@@ -224,7 +233,7 @@ void TestQgsTranslateProject::translateProject()
   //Flightattends -> Flugbegleitung
   for ( QgsAttributeEditorElement *element : containers.at( 1 )->children() )
   {
-    if ( element->type() == QgsAttributeEditorElement::AeTypeContainer )
+    if ( element->type() == Qgis::AttributeEditorType::Container )
       QCOMPARE( element->name(), QStringLiteral( "Flugbegleitung" ) );
   }
 
@@ -234,9 +243,24 @@ void TestQgsTranslateProject::translateProject()
   //Sheepwalk -> Schafweide
   QCOMPARE( QgsProject::instance()->relationManager()->relation( QStringLiteral( "points_240_Importance_lines_a677_Value_1" ) ).name(), QStringLiteral( "Schafweide" ) );
 
+  //WIDGETS
+  //ValueRelation value is not anymore Name but Runwayid
+  QCOMPARE( points_fields.field( QStringLiteral( "Cabin Crew" ) ).editorWidgetSetup().config().value( QStringLiteral( "Value" ) ).toString(), QStringLiteral( "Runwayid" ) );
+
+  //ValueMap with descriptions
+  const QList<QString> expectedStringValueList = { "Hauptstrasse", "Autobahn", "nix" };
+  const QList<QVariant> valueList = lines_fields.field( QStringLiteral( "Name" ) ).editorWidgetSetup().config().value( QStringLiteral( "map" ) ).toList();
+  QList<QString> stringValueList;
+  for ( int i = 0, row = 0; i < valueList.count(); i++, row++ )
+  {
+    stringValueList.append( valueList[i].toMap().constBegin().key() );
+  }
+
+  QCOMPARE( stringValueList, expectedStringValueList );
+
   QString deProjectFileName( TEST_DATA_DIR );
   deProjectFileName = deProjectFileName + "/project_translation/points_translation_de.qgs";
-  QFile deProjectFile( deProjectFileName );
+  const QFile deProjectFile( deProjectFileName );
   QVERIFY( deProjectFile.exists() );
 }
 

@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayoutviewtoolmoveitemcontent.h"
+#include "moc_qgslayoutviewtoolmoveitemcontent.cpp"
 #include "qgslayoutviewmouseevent.h"
 #include "qgslayoutview.h"
 #include "qgslayout.h"
@@ -64,8 +65,7 @@ void QgsLayoutViewToolMoveItemContent::layoutMoveEvent( QgsLayoutViewMouseEvent 
   }
 
   //update item preview
-  mMoveContentItem->setMoveContentPreviewOffset( event->layoutPoint().x() - mMoveContentStartPos.x(),
-      event->layoutPoint().y() - mMoveContentStartPos.y() );
+  mMoveContentItem->setMoveContentPreviewOffset( event->layoutPoint().x() - mMoveContentStartPos.x(), event->layoutPoint().y() - mMoveContentStartPos.y() );
   mMoveContentItem->update();
 }
 
@@ -80,8 +80,8 @@ void QgsLayoutViewToolMoveItemContent::layoutReleaseEvent( QgsLayoutViewMouseEve
   //update item preview
   mMoveContentItem->setMoveContentPreviewOffset( 0, 0 );
 
-  double moveX = event->layoutPoint().x() - mMoveContentStartPos.x();
-  double moveY = event->layoutPoint().y() - mMoveContentStartPos.y();
+  const double moveX = event->layoutPoint().x() - mMoveContentStartPos.x();
+  const double moveY = event->layoutPoint().y() - mMoveContentStartPos.y();
 
   mMoveContentItem->layout()->undoStack()->beginCommand( mMoveContentItem, tr( "Move Item Content" ) );
   mMoveContentItem->moveContent( -moveX, -moveY );
@@ -94,14 +94,17 @@ void QgsLayoutViewToolMoveItemContent::wheelEvent( QWheelEvent *event )
 {
   event->accept();
 
-  QPointF scenePoint = view()->mapToScene( event->pos() );
+  const QPointF scenePoint = view()->mapToScene( event->position().x(), event->position().y() );
+
   //select topmost item at position of event
   QgsLayoutItem *item = layout()->layoutItemAt( scenePoint, true );
   if ( !item || !item->isSelected() )
     return;
 
-  QgsSettings settings;
+  const QgsSettings settings;
   double zoomFactor = settings.value( QStringLiteral( "qgis/zoom_factor" ), 2.0 ).toDouble();
+  bool reverseZoom = settings.value( QStringLiteral( "qgis/reverse_wheel_zoom" ), false ).toBool();
+  bool zoomIn = reverseZoom ? event->angleDelta().y() < 0 : event->angleDelta().y() > 0;
 
   // "Normal" mouse have an angle delta of 120, precision mouses provide data faster, in smaller steps
   zoomFactor = 1.0 + ( zoomFactor - 1.0 ) / 120.0 * std::fabs( event->angleDelta().y() );
@@ -113,10 +116,9 @@ void QgsLayoutViewToolMoveItemContent::wheelEvent( QWheelEvent *event )
   }
 
   //calculate zoom scale factor
-  bool zoomIn = event->angleDelta().y() > 0;
-  double scaleFactor = ( zoomIn ? zoomFactor : 1 / zoomFactor );
+  const double scaleFactor = ( zoomIn ? zoomFactor : 1 / zoomFactor );
 
-  QPointF itemPoint = item->mapFromScene( scenePoint );
+  const QPointF itemPoint = item->mapFromScene( scenePoint );
   item->layout()->undoStack()->beginCommand( item, tr( "Zoom Item Content" ), QgsLayoutItem::UndoZoomContent );
   item->zoomContent( scaleFactor, itemPoint );
   item->layout()->undoStack()->endCommand();

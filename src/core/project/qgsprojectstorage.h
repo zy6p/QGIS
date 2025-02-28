@@ -59,6 +59,17 @@ class CORE_EXPORT QgsProjectStorage
      */
     virtual QString type() = 0;
 
+    /**
+     * Returns TRUE if the specified \a uri is supported by the storage provider.
+     *
+     * \note This method does not actually test whether the \a uri contains projects, but
+     * rather it is a quick test to determine if it is possible that the uri may
+     * contain projects.
+     *
+     * \since QGIS 3.22
+     */
+    virtual bool isSupportedUri( const QString &uri ) const;
+
     //! Returns list of all projects for given URI (specific to each storage backend)
     virtual QStringList listProjects( const QString &uri ) = 0;
 
@@ -108,21 +119,21 @@ class CORE_EXPORT QgsProjectStorage
      * Returns human-readable name of the storage. Used as the menu item text in QGIS. Empty name
      * indicates that the storage does not implement GUI support (showLoadGui() and showSaveGui()).
      * The name may be translatable and ideally unique as well.
-     * \deprecated since QGIS 3.10 - use QgsProjectStorageGuiProvider for GUI-related project storage functionality
+     * \deprecated QGIS 3.10. Use QgsProjectStorageGuiProvider for GUI-related project storage functionality.
      */
     Q_DECL_DEPRECATED virtual QString visibleName() SIP_DEPRECATED { return QString(); }
 
     /**
      * Opens GUI to allow user to select a project to be loaded (GUI specific to this storage type).
      * Returns project URI if user has picked a project or empty string if the GUI was canceled.
-     * \deprecated since QGIS 3.10 - use QgsProjectStorageGuiProvider for GUI-related project storage functionality
+     * \deprecated QGIS 3.10. Use QgsProjectStorageGuiProvider for GUI-related project storage functionality.
      */
     Q_DECL_DEPRECATED virtual QString showLoadGui() SIP_DEPRECATED { return QString(); }
 
     /**
      * Opens GUI to allow user to select where a project should be saved (GUI specific to this storage type).
      * Returns project URI if user has picked a destination or empty string if the GUI was canceled.
-     * \deprecated since QGIS 3.10 - use QgsProjectStorageGuiProvider for GUI-related project storage functionality
+     * \deprecated QGIS 3.10. Use QgsProjectStorageGuiProvider for GUI-related project storage functionality.
      */
     Q_DECL_DEPRECATED virtual QString showSaveGui() SIP_DEPRECATED { return QString(); }
 

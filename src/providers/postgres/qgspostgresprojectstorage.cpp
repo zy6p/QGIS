@@ -50,9 +50,15 @@ static bool _projectsTableExists( QgsPostgresConn &conn, const QString &schemaNa
 {
   QString tableName( "qgis_projects" );
   QString sql( QStringLiteral( "SELECT COUNT(*) FROM information_schema.tables WHERE table_name=%1 and table_schema=%2" )
-               .arg( QgsPostgresConn::quotedValue( tableName ), QgsPostgresConn::quotedValue( schemaName ) )
-             );
+                 .arg( QgsPostgresConn::quotedValue( tableName ), QgsPostgresConn::quotedValue( schemaName ) )
+  );
   QgsPostgresResult res( conn.PQexec( sql ) );
+
+  if ( !res.result() )
+  {
+    return false;
+  }
+
   return res.PQgetvalue( 0, 0 ).toInt() > 0;
 }
 
@@ -95,20 +101,20 @@ bool QgsPostgresProjectStorage::readProject( const QString &uri, QIODevice *devi
   QgsPostgresProjectUri projectUri = decodeUri( uri );
   if ( !projectUri.valid )
   {
-    context.pushMessage( QObject::tr( "Invalid URI for PostgreSQL provider: " ) + uri, Qgis::Critical );
+    context.pushMessage( QObject::tr( "Invalid URI for PostgreSQL provider: " ) + uri, Qgis::MessageLevel::Critical );
     return false;
   }
 
   QgsPostgresConn *conn = QgsPostgresConnPool::instance()->acquireConnection( projectUri.connInfo.connectionInfo( false ) );
   if ( !conn )
   {
-    context.pushMessage( QObject::tr( "Could not connect to the database: " ) + projectUri.connInfo.connectionInfo( false ), Qgis::Critical );
+    context.pushMessage( QObject::tr( "Could not connect to the database: " ) + projectUri.connInfo.connectionInfo( false ), Qgis::MessageLevel::Critical );
     return false;
   }
 
   if ( !_projectsTableExists( *conn, projectUri.schemaName ) )
   {
-    context.pushMessage( QObject::tr( "Table qgis_projects does not exist or it is not accessible." ), Qgis::Critical );
+    context.pushMessage( QObject::tr( "Table qgis_projects does not exist or it is not accessible." ), Qgis::MessageLevel::Critical );
     QgsPostgresConnPool::instance()->releaseConnection( conn );
     return false;
   }
@@ -129,7 +135,7 @@ bool QgsPostgresProjectStorage::readProject( const QString &uri, QIODevice *devi
     }
     else
     {
-      context.pushMessage( QObject::tr( "The project '%1' does not exist in schema '%2'." ).arg( projectUri.projectName, projectUri.schemaName ), Qgis::Critical );
+      context.pushMessage( QObject::tr( "The project '%1' does not exist in schema '%2'." ).arg( projectUri.projectName, projectUri.schemaName ), Qgis::MessageLevel::Critical );
     }
   }
 
@@ -144,14 +150,14 @@ bool QgsPostgresProjectStorage::writeProject( const QString &uri, QIODevice *dev
   QgsPostgresProjectUri projectUri = decodeUri( uri );
   if ( !projectUri.valid )
   {
-    context.pushMessage( QObject::tr( "Invalid URI for PostgreSQL provider: " ) + uri, Qgis::Critical );
+    context.pushMessage( QObject::tr( "Invalid URI for PostgreSQL provider: " ) + uri, Qgis::MessageLevel::Critical );
     return false;
   }
 
   QgsPostgresConn *conn = QgsPostgresConnPool::instance()->acquireConnection( projectUri.connInfo.connectionInfo( false ) );
   if ( !conn )
   {
-    context.pushMessage( QObject::tr( "Could not connect to the database: " ) + projectUri.connInfo.connectionInfo( false ), Qgis::Critical );
+    context.pushMessage( QObject::tr( "Could not connect to the database: " ) + projectUri.connInfo.connectionInfo( false ), Qgis::MessageLevel::Critical );
     return false;
   }
 
@@ -163,7 +169,7 @@ bool QgsPostgresProjectStorage::writeProject( const QString &uri, QIODevice *dev
     if ( res.PQresultStatus() != PGRES_COMMAND_OK )
     {
       QString errCause = QObject::tr( "Unable to save project. It's not possible to create the destination table on the database. Maybe this is due to database permissions (user=%1). Please contact your database admin." ).arg( projectUri.connInfo.username() );
-      context.pushMessage( errCause, Qgis::Critical );
+      context.pushMessage( errCause, Qgis::MessageLevel::Critical );
       QgsPostgresConnPool::instance()->releaseConnection( conn );
       return false;
     }
@@ -172,18 +178,13 @@ bool QgsPostgresProjectStorage::writeProject( const QString &uri, QIODevice *dev
   // read from device and write to the table
   QByteArray content = device->readAll();
 
-  QString metadataExpr = QStringLiteral( "(%1 || (now() at time zone 'utc')::text || %2 || current_user || %3)::jsonb" ).arg(
-                           QgsPostgresConn::quotedValue( "{ \"last_modified_time\": \"" ),
-                           QgsPostgresConn::quotedValue( "\", \"last_modified_user\": \"" ),
-                           QgsPostgresConn::quotedValue( "\" }" )
-                         );
+  QString metadataExpr = QStringLiteral( "(%1 || (now() at time zone 'utc')::text || %2 || current_user || %3)::jsonb" ).arg( QgsPostgresConn::quotedValue( "{ \"last_modified_time\": \"" ), QgsPostgresConn::quotedValue( "\", \"last_modified_user\": \"" ), QgsPostgresConn::quotedValue( "\" }" ) );
 
   // TODO: would be useful to have QByteArray version of PQexec() to avoid bytearray -> string -> bytearray conversion
   QString sql( "INSERT INTO %1.qgis_projects VALUES (%2, %3, E'\\\\x" );
-  sql = sql.arg( QgsPostgresConn::quotedIdentifier( projectUri.schemaName ),
-                 QgsPostgresConn::quotedValue( projectUri.projectName ),
-                 metadataExpr  // no need to quote: already quoted
-               );
+  sql = sql.arg( QgsPostgresConn::quotedIdentifier( projectUri.schemaName ), QgsPostgresConn::quotedValue( projectUri.projectName ),
+                 metadataExpr // no need to quote: already quoted
+  );
   sql += QString::fromLatin1( content.toHex() );
   sql += "') ON CONFLICT (name) DO UPDATE SET content = EXCLUDED.content, metadata = EXCLUDED.metadata;";
 
@@ -191,7 +192,7 @@ bool QgsPostgresProjectStorage::writeProject( const QString &uri, QIODevice *dev
   if ( res.PQresultStatus() != PGRES_COMMAND_OK )
   {
     QString errCause = QObject::tr( "Unable to insert or update project (project=%1) in the destination table on the database. Maybe this is due to table permissions (user=%2). Please contact your database admin." ).arg( projectUri.projectName, projectUri.connInfo.username() );
-    context.pushMessage( errCause, Qgis::Critical );
+    context.pushMessage( errCause, Qgis::MessageLevel::Critical );
     QgsPostgresConnPool::instance()->releaseConnection( conn );
     return false;
   }

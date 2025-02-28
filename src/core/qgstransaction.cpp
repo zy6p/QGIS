@@ -15,6 +15,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgstransaction.h"
+#include "moc_qgstransaction.cpp"
 #include "qgslogger.h"
 #include "qgsdatasourceuri.h"
 #include "qgsproviderregistry.h"
@@ -36,14 +37,14 @@ QgsTransaction *QgsTransaction::create( const QSet<QgsVectorLayer *> &layers )
 
   QgsVectorLayer *firstLayer = *layers.constBegin();
 
-  QString connStr = connectionString( firstLayer->source() );
-  QString providerKey = firstLayer->providerType();
+  const QString connStr = connectionString( firstLayer->source() );
+  const QString providerKey = firstLayer->providerType();
   std::unique_ptr<QgsTransaction> transaction( QgsTransaction::create( connStr, providerKey ) );
   if ( transaction )
   {
     for ( QgsVectorLayer *layer : layers )
     {
-      if ( !transaction->addLayer( layer ) )
+      if ( !transaction->addLayer( layer, false ) )
       {
         transaction.reset();
         break;
@@ -66,18 +67,30 @@ QgsTransaction::~QgsTransaction()
   setLayerTransactionIds( nullptr );
 }
 
+QString QgsTransaction::connectionString() const
+{
+  return mConnString;
+}
+
 // For the needs of the OGR provider with GeoPackage datasources, remove
-// any reference to layers in the connection string
-QString QgsTransaction::removeLayerIdOrName( const QString &str )
+// any reference to layers and filters in the connection string
+QString QgsTransaction::cleanupConnectionString( const QString &str )
 {
   QString res( str );
 
-  for ( int i = 0; i < 2; i++ )
+  static const QStringList toRemove
   {
-    int pos = res.indexOf( i == 0 ? QLatin1String( "|layername=" ) :  QLatin1String( "|layerid=" ) );
+    { QStringLiteral( "|layername=" )},
+    { QStringLiteral( "|layerid=" )},
+    { QStringLiteral( "|subset=" )},
+  };
+
+  for ( const auto &strToRm : std::as_const( toRemove ) )
+  {
+    const int pos = res.indexOf( strToRm );
     if ( pos >= 0 )
     {
-      int end = res.indexOf( '|', pos + 1 );
+      const int end = res.indexOf( '|', pos + 1 );
       if ( end >= 0 )
       {
         res = res.mid( 0, pos ) + res.mid( end );
@@ -100,18 +113,19 @@ QString QgsTransaction::connectionString( const QString &layerUri )
   // reference to layers from it.
   if ( connString.isEmpty() )
   {
-    connString = removeLayerIdOrName( layerUri );
+    connString = cleanupConnectionString( layerUri );
   }
   return connString;
 }
 ///@endcond
 
-bool QgsTransaction::addLayer( QgsVectorLayer *layer )
+bool QgsTransaction::addLayer( QgsVectorLayer *layer, bool addLayersInEditMode )
 {
   if ( !layer )
     return false;
 
-  if ( layer->isEditable() )
+  if ( ! addLayersInEditMode
+       && layer->isEditable() )
     return false;
 
   //test if provider supports transactions
@@ -125,8 +139,8 @@ bool QgsTransaction::addLayer( QgsVectorLayer *layer )
 
   if ( connectionString( layer->source() ) != mConnString )
   {
-    QgsDebugMsg( QStringLiteral( "Couldn't start transaction because connection string for layer %1 : '%2' does not match '%3'" ).arg(
-                   layer->id(), connectionString( layer->source() ), mConnString ) );
+    QgsDebugError( QStringLiteral( "Couldn't start transaction because connection string for layer %1 : '%2' does not match '%3'" ).arg(
+                     layer->id(), connectionString( layer->source() ), mConnString ) );
     return false;
   }
 
@@ -189,7 +203,7 @@ bool QgsTransaction::rollback( QString &errorMsg )
 bool QgsTransaction::supportsTransaction( const QgsVectorLayer *layer )
 {
   //test if provider supports transactions
-  if ( !layer->dataProvider() || ( layer->dataProvider()->capabilities() & QgsVectorDataProvider::TransactionSupport ) == 0 )
+  if ( !layer->dataProvider() || ( layer->dataProvider()->capabilities() & Qgis::VectorProviderCapability::TransactionSupport ) == 0 )
     return false;
 
   return true;
@@ -223,16 +237,7 @@ QString QgsTransaction::createSavepoint( QString &error SIP_OUT )
   }
 
   const QString name( QStringLiteral( "qgis" ) + ( QUuid::createUuid().toString().mid( 1, 24 ).replace( '-', QString() ) ) );
-
-  if ( !executeSql( QStringLiteral( "SAVEPOINT %1" ).arg( QgsExpression::quotedColumnRef( name ) ), error ) )
-  {
-    QgsMessageLog::logMessage( tr( "Could not create savepoint (%1)" ).arg( error ) );
-    return QString();
-  }
-
-  mSavepoints.push( name );
-  mLastSavePointIsDirty = false;
-  return name;
+  return createSavepoint( name, error );
 }
 
 QString QgsTransaction::createSavepoint( const QString &savePointId, QString &error SIP_OUT )
@@ -266,7 +271,12 @@ bool QgsTransaction::rollbackToSavepoint( const QString &name, QString &error SI
   // the status of the DB has changed between the previous savepoint and the
   // one we are rolling back to.
   mLastSavePointIsDirty = true;
-  return executeSql( QStringLiteral( "ROLLBACK TO SAVEPOINT %1" ).arg( QgsExpression::quotedColumnRef( name ) ), error );
+  if ( ! executeSql( QStringLiteral( "ROLLBACK TO SAVEPOINT %1" ).arg( QgsExpression::quotedColumnRef( name ) ), error ) )
+  {
+    return false;
+  }
+  emit afterRollbackToSavepoint( name );
+  return true;
 }
 
 void QgsTransaction::dirtyLastSavePoint()

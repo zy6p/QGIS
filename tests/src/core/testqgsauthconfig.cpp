@@ -13,20 +13,21 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
+#include "qgsauthmanager.h"
 #include "qgstest.h"
-#include <QObject>
-#include <QString>
-#include <QStringList>
-
 #include "qgsapplication.h"
 #include "qgsauthcrypto.h"
 #include "qgsauthconfig.h"
+
+#include <QObject>
+#include <QString>
+#include <QStringList>
 
 /**
  * \ingroup UnitTests
  * Unit tests for QgsAuthConfig
  */
-class TestQgsAuthConfig: public QObject
+class TestQgsAuthConfig : public QObject
 {
     Q_OBJECT
 
@@ -52,6 +53,7 @@ void TestQgsAuthConfig::initTestCase()
 {
   QgsApplication::init();
   QgsApplication::initQgis();
+  QgsApplication::authManager()->ensureInitialized();
   if ( QgsAuthCrypto::isDisabled() )
     QSKIP( "QCA's qca-ossl plugin is missing, skipping test case", SkipAll );
 }
@@ -82,7 +84,7 @@ void TestQgsAuthConfig::testMethodConfig()
   QCOMPARE( mconfig.version(), 1 );
   QCOMPARE( mconfig.uri(), QString( "http://example.com" ) );
 
-  QString confstr( QStringLiteral( "key1:::value1|||key2:::value2|||key3:::value3a```value3b```value3c" ) );
+  const QString confstr( QStringLiteral( "key1:::value1|||key2:::value2|||key3:::value3a```value3b```value3c" ) );
   QgsStringMap confmap;
   confmap.insert( QStringLiteral( "key1" ), QStringLiteral( "value1" ) );
   confmap.insert( QStringLiteral( "key2" ), QStringLiteral( "value2" ) );
@@ -114,7 +116,7 @@ void TestQgsAuthConfig::testMethodConfig()
   QCOMPARE( mconfig.configMap(), confmap );
   QCOMPARE( mconfig.configString(), confstr );
 
-  QgsAuthMethodConfig mconfig2( mconfig );
+  const QgsAuthMethodConfig mconfig2( mconfig );
   QVERIFY( mconfig2 == mconfig );
 
   mconfig.setMethod( QStringLiteral( "MethodKey2" ) );
@@ -127,26 +129,23 @@ void TestQgsAuthConfig::testPkiBundle()
   QVERIFY( bundle.isNull() );
   QVERIFY( !bundle.isValid() );
 
-  QList<QSslCertificate> cacerts( QSslCertificate::fromPath( sPkiData + "/chain_subissuer-issuer-root.pem" ) );
+  const QList<QSslCertificate> cacerts( QSslCertificate::fromPath( sPkiData + "/chain_subissuer-issuer-root.pem" ) );
   QVERIFY( !cacerts.isEmpty() );
   QCOMPARE( cacerts.size(), 3 );
-  QgsPkiBundle bundle2( QgsPkiBundle::fromPemPaths( sPkiData + "/fra_cert.pem",
-                        sPkiData + "/fra_key_w-pass.pem",
-                        QStringLiteral( "password" ),
-                        cacerts ) );
+  const QgsPkiBundle bundle2( QgsPkiBundle::fromPemPaths( sPkiData + "/fra_cert.pem", sPkiData + "/fra_key_w-pass.pem", QStringLiteral( "password" ), cacerts ) );
   QVERIFY( !bundle2.isNull() );
   QVERIFY( bundle2.isValid() );
   QCOMPARE( bundle2.certId(), QString( "c3633c428d441853973e5081ba9be39f667f5af6" ) );
 
-  QSslCertificate clientcert( bundle2.clientCert() );
+  const QSslCertificate clientcert( bundle2.clientCert() );
   QVERIFY( !clientcert.isNull() );
-  QSslKey clientkey( bundle2.clientKey() );
+  const QSslKey clientkey( bundle2.clientKey() );
   QVERIFY( !clientkey.isNull() );
-  QList<QSslCertificate> cachain( bundle2.caChain() );
+  const QList<QSslCertificate> cachain( bundle2.caChain() );
   QVERIFY( !cachain.isEmpty() );
   QCOMPARE( cachain.size(), 3 );
 
-  QgsPkiBundle bundle3( clientcert, clientkey, cachain );
+  const QgsPkiBundle bundle3( clientcert, clientkey, cachain );
   QVERIFY( !bundle3.isNull() );
   QVERIFY( bundle3.isValid() );
 
@@ -156,11 +155,10 @@ void TestQgsAuthConfig::testPkiBundle()
   QVERIFY( !bundle.isNull() );
   QVERIFY( bundle.isValid() );
 
-  QgsPkiBundle bundle4( QgsPkiBundle::fromPkcs12Paths( sPkiData + "/fra_w-chain.p12",
-                        QStringLiteral( "password" ) ) );
+  const QgsPkiBundle bundle4( QgsPkiBundle::fromPkcs12Paths( sPkiData + "/fra_w-chain.p12", QStringLiteral( "password" ) ) );
   QVERIFY( !bundle4.isNull() );
   QVERIFY( bundle4.isValid() );
-  QList<QSslCertificate> cachain4( bundle2.caChain() );
+  const QList<QSslCertificate> cachain4( bundle2.caChain() );
   QVERIFY( !cachain4.isEmpty() );
   QCOMPARE( cachain4.size(), 3 );
 }
@@ -175,13 +173,13 @@ void TestQgsAuthConfig::testPkiConfigBundle()
   mconfig.setUri( QStringLiteral( "http://example.com" ) );
   QVERIFY( mconfig.isValid( true ) );
 
-  QSslCertificate clientcert( QSslCertificate::fromPath( sPkiData + "/gerardus_cert.pem" ).at( 0 ) );
+  const QSslCertificate clientcert( QSslCertificate::fromPath( sPkiData + "/gerardus_cert.pem" ).at( 0 ) );
   QByteArray keydata;
   QFile file( sPkiData + "/gerardus_key.pem" );
   if ( file.open( QIODevice::ReadOnly | QIODevice::Text ) )
     keydata = file.readAll();
   file.close();
-  QSslKey clientkey( keydata, QSsl::Rsa );
+  const QSslKey clientkey( keydata, QSsl::Rsa );
 
   QgsPkiConfigBundle bundle( mconfig, clientcert, clientkey );
   QVERIFY( bundle.isValid() );
@@ -200,9 +198,8 @@ void TestQgsAuthConfig::testPkiConfigBundle()
 
 void TestQgsAuthConfig::testConfigSslServer()
 {
-  QString hostport( QStringLiteral( "localhost:443" ) );
-  QString confstr( QStringLiteral( "2|||470|||2|||10~~19|||0~~2" ) );
-  QSslCertificate sslcert( QSslCertificate::fromPath( sPkiData + "/localhost_ssl_cert.pem" ).at( 0 ) );
+  const QString hostport( QStringLiteral( "localhost:443" ) );
+  const QSslCertificate sslcert( QSslCertificate::fromPath( sPkiData + "/localhost_ssl_cert.pem" ).at( 0 ) );
 
   QgsAuthConfigSslServer sslconfig;
   QVERIFY( sslconfig.isNull() );
@@ -222,7 +219,7 @@ void TestQgsAuthConfig::testConfigSslServer()
   sslconfig.setSslIgnoredErrorEnums( sslerrenums );
   QVERIFY( !sslconfig.isNull() );
 
-  QCOMPARE( sslconfig.configString(), confstr );
+  QCOMPARE( sslconfig.configString(), QStringLiteral( "2|||470|||TlsV1_0|||10~~19|||0~~2" ) );
   QCOMPARE( sslconfig.sslHostPort(), hostport );
   QCOMPARE( sslconfig.sslCertificate(), sslcert );
   QCOMPARE( sslconfig.sslProtocol(), QSsl::TlsV1_0 );
@@ -233,14 +230,35 @@ void TestQgsAuthConfig::testConfigSslServer()
   QCOMPARE( sslconfig.sslIgnoredErrorEnums(), sslerrenums );
 
   QgsAuthConfigSslServer sslconfig2;
-  sslconfig2.loadConfigString( confstr );
+  // try loading the older format strings, used in QGIS < 3.40
+  sslconfig2.loadConfigString( QStringLiteral( "2|||470|||2|||10~~19|||0~~2" ) );
   QCOMPARE( sslconfig2.sslProtocol(), QSsl::TlsV1_0 );
   QCOMPARE( sslconfig2.version(), 2 );
   QCOMPARE( sslconfig2.qtVersion(), 470 );
   QCOMPARE( sslconfig2.sslPeerVerifyMode(), QSslSocket::VerifyNone );
   QCOMPARE( sslconfig2.sslPeerVerifyDepth(), 2 );
   QCOMPARE( sslconfig2.sslIgnoredErrorEnums(), sslerrenums );
-  QCOMPARE( sslconfig2.configString(), confstr );
+  QCOMPARE( sslconfig2.configString(), QStringLiteral( "2|||470|||TlsV1_0|||10~~19|||0~~2" ) );
+
+  sslconfig2.loadConfigString( QStringLiteral( "2|||470|||3|||10~~19|||0~~2" ) );
+  QCOMPARE( sslconfig2.sslProtocol(), QSsl::TlsV1_1 );
+  QCOMPARE( sslconfig2.version(), 2 );
+  QCOMPARE( sslconfig2.qtVersion(), 470 );
+  QCOMPARE( sslconfig2.sslPeerVerifyMode(), QSslSocket::VerifyNone );
+  QCOMPARE( sslconfig2.sslPeerVerifyDepth(), 2 );
+  QCOMPARE( sslconfig2.sslIgnoredErrorEnums(), sslerrenums );
+  QCOMPARE( sslconfig2.configString(), QStringLiteral( "2|||470|||TlsV1_1|||10~~19|||0~~2" ) );
+
+  QgsAuthConfigSslServer sslconfig3;
+  // try loading the newer format string, used in QGIS >= 3.40
+  sslconfig2.loadConfigString( QStringLiteral( "2|||470|||TlsV1_3|||10~~19|||0~~2" ) );
+  QCOMPARE( sslconfig2.sslProtocol(), QSsl::TlsV1_3 );
+  QCOMPARE( sslconfig2.version(), 2 );
+  QCOMPARE( sslconfig2.qtVersion(), 470 );
+  QCOMPARE( sslconfig2.sslPeerVerifyMode(), QSslSocket::VerifyNone );
+  QCOMPARE( sslconfig2.sslPeerVerifyDepth(), 2 );
+  QCOMPARE( sslconfig2.sslIgnoredErrorEnums(), sslerrenums );
+  QCOMPARE( sslconfig2.configString(), QStringLiteral( "2|||470|||TlsV1_3|||10~~19|||0~~2" ) );
 }
 
 QGSTEST_MAIN( TestQgsAuthConfig )

@@ -13,6 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsrendererrasterpropertieswidget.h"
+#include "moc_qgsrendererrasterpropertieswidget.cpp"
 
 #include "qgis.h"
 #include "qgsmapcanvas.h"
@@ -24,17 +25,17 @@
 #include "qgsrasterrendererregistry.h"
 #include "qgssinglebandgrayrendererwidget.h"
 #include "qgssinglebandpseudocolorrendererwidget.h"
+#include "qgsrastersinglecolorrendererwidget.h"
 #include "qgsmultibandcolorrendererwidget.h"
 #include "qgspalettedrendererwidget.h"
 #include "qgshillshaderendererwidget.h"
 #include "qgsmultibandcolorrenderer.h"
 #include "qgssinglebandgrayrenderer.h"
 #include "qgsapplication.h"
+#include "qgsproject.h"
+#include "qgsprojectutils.h"
 
-
-#include "qgsmessagelog.h"
-
-static void _initRendererWidgetFunctions()
+void QgsRendererRasterPropertiesWidget::initRendererWidgetFunctions()
 {
   static bool sInitialized = false;
   if ( sInitialized )
@@ -44,13 +45,12 @@ static void _initRendererWidgetFunctions()
   QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "multibandcolor" ), QgsMultiBandColorRendererWidget::create );
   QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "singlebandpseudocolor" ), QgsSingleBandPseudoColorRendererWidget::create );
   QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "singlebandgray" ), QgsSingleBandGrayRendererWidget::create );
+  QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "singlecolor" ), QgsRasterSingleColorRendererWidget::create );
   QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "hillshade" ), QgsHillshadeRendererWidget::create );
   QgsApplication::rasterRendererRegistry()->insertWidgetFunction( QStringLiteral( "contour" ), QgsRasterContourRendererWidget::create );
 
   sInitialized = true;
 }
-
-
 
 QgsRendererRasterPropertiesWidget::QgsRendererRasterPropertiesWidget( QgsMapLayer *layer, QgsMapCanvas *canvas, QWidget *parent )
   : QgsMapLayerConfigWidget( layer, canvas, parent )
@@ -62,32 +62,32 @@ QgsRendererRasterPropertiesWidget::QgsRendererRasterPropertiesWidget( QgsMapLaye
   setupUi( this );
   connect( mResetColorRenderingBtn, &QToolButton::clicked, this, &QgsRendererRasterPropertiesWidget::mResetColorRenderingBtn_clicked );
 
-  _initRendererWidgetFunctions();
+  initRendererWidgetFunctions();
 
   mResamplingUtils.initWidgets( mRasterLayer, mZoomedInResamplingComboBox, mZoomedOutResamplingComboBox, mMaximumOversamplingSpinBox, mCbEarlyResampling );
 
   connect( cboRenderers, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsRendererRasterPropertiesWidget::rendererChanged );
 
   connect( mSliderBrightness, &QAbstractSlider::valueChanged, mBrightnessSpinBox, &QSpinBox::setValue );
-  connect( mBrightnessSpinBox, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), mSliderBrightness, &QAbstractSlider::setValue );
+  connect( mBrightnessSpinBox, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), mSliderBrightness, &QAbstractSlider::setValue );
   mBrightnessSpinBox->setClearValue( 0 );
 
   connect( mSliderContrast, &QAbstractSlider::valueChanged, mContrastSpinBox, &QSpinBox::setValue );
-  connect( mContrastSpinBox, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), mSliderContrast, &QAbstractSlider::setValue );
+  connect( mContrastSpinBox, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), mSliderContrast, &QAbstractSlider::setValue );
   mContrastSpinBox->setClearValue( 0 );
 
   connect( mSliderGamma, &QAbstractSlider::valueChanged, this, &QgsRendererRasterPropertiesWidget::updateGammaSpinBox );
-  connect( mGammaSpinBox, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ), this, &QgsRendererRasterPropertiesWidget::updateGammaSlider );
+  connect( mGammaSpinBox, static_cast<void ( QDoubleSpinBox::* )( double )>( &QDoubleSpinBox::valueChanged ), this, &QgsRendererRasterPropertiesWidget::updateGammaSlider );
   mGammaSpinBox->setClearValue( 1.0 );
 
   // Connect saturation slider and spin box
   connect( sliderSaturation, &QAbstractSlider::valueChanged, spinBoxSaturation, &QSpinBox::setValue );
-  connect( spinBoxSaturation, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), sliderSaturation, &QAbstractSlider::setValue );
+  connect( spinBoxSaturation, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), sliderSaturation, &QAbstractSlider::setValue );
   spinBoxSaturation->setClearValue( 0 );
 
   // Connect colorize strength slider and spin box
   connect( sliderColorizeStrength, &QAbstractSlider::valueChanged, spinColorizeStrength, &QSpinBox::setValue );
-  connect( spinColorizeStrength, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), sliderColorizeStrength, &QAbstractSlider::setValue );
+  connect( spinColorizeStrength, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), sliderColorizeStrength, &QAbstractSlider::setValue );
   spinColorizeStrength->setClearValue( 100 );
 
   // enable or disable saturation slider and spin box depending on grayscale combo choice
@@ -97,18 +97,19 @@ QgsRendererRasterPropertiesWidget::QgsRendererRasterPropertiesWidget( QgsMapLaye
   connect( mColorizeCheck, &QAbstractButton::toggled, this, &QgsRendererRasterPropertiesWidget::toggleColorizeControls );
 
   // Just connect the spin boxes because the sliders update the spinners
-  connect( mBrightnessSpinBox, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
-  connect( mContrastSpinBox, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
-  connect( mGammaSpinBox, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
-  connect( spinBoxSaturation, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
-  connect( spinColorizeStrength, static_cast < void ( QSpinBox::* )( int ) > ( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( mBrightnessSpinBox, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( mContrastSpinBox, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( mGammaSpinBox, static_cast<void ( QDoubleSpinBox::* )( double )>( &QDoubleSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( spinBoxSaturation, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( spinColorizeStrength, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
   connect( btnColorizeColor, &QgsColorButton::colorChanged, this, &QgsPanelWidget::widgetChanged );
+  connect( mInvertColorsCheck, &QAbstractButton::toggled, this, &QgsPanelWidget::widgetChanged );
 
   connect( mBlendModeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsPanelWidget::widgetChanged );
   connect( mZoomedInResamplingComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsPanelWidget::widgetChanged );
   connect( mZoomedOutResamplingComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsPanelWidget::widgetChanged );
-  connect( mMaximumOversamplingSpinBox, static_cast < void ( QDoubleSpinBox::* )( double ) > ( &QDoubleSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
-  connect( mCbEarlyResampling,  &QAbstractButton::toggled, this, &QgsPanelWidget::widgetChanged );
+  connect( mMaximumOversamplingSpinBox, static_cast<void ( QDoubleSpinBox::* )( double )>( &QDoubleSpinBox::valueChanged ), this, &QgsPanelWidget::widgetChanged );
+  connect( mCbEarlyResampling, &QAbstractButton::toggled, this, &QgsPanelWidget::widgetChanged );
 
   // finally sync to the layer - even though some actions may emit widgetChanged signal,
   // this is not a problem - nobody is listening to our signals yet
@@ -124,7 +125,7 @@ void QgsRendererRasterPropertiesWidget::setMapCanvas( QgsMapCanvas *canvas )
 
 void QgsRendererRasterPropertiesWidget::rendererChanged()
 {
-  QString rendererName = cboRenderers->currentData().toString();
+  const QString rendererName = cboRenderers->currentData().toString();
   setRendererWidget( rendererName );
   emit widgetChanged();
 }
@@ -160,6 +161,7 @@ void QgsRendererRasterPropertiesWidget::apply()
     hueSaturationFilter->setColorizeOn( mColorizeCheck->checkState() );
     hueSaturationFilter->setColorizeColor( btnColorizeColor->color() );
     hueSaturationFilter->setColorizeStrength( sliderColorizeStrength->value() );
+    hueSaturationFilter->setInvertColors( mInvertColorsCheck->isChecked() );
   }
 
   mResamplingUtils.refreshLayerFromWidgets();
@@ -179,8 +181,7 @@ void QgsRendererRasterPropertiesWidget::syncToLayer( QgsRasterLayer *layer )
   {
     if ( QgsApplication::rasterRendererRegistry()->rendererData( name, entry ) )
     {
-      if ( ( mRasterLayer->rasterType() != QgsRasterLayer::ColorLayer && entry.name != QLatin1String( "singlebandcolordata" ) ) ||
-           ( mRasterLayer->rasterType() == QgsRasterLayer::ColorLayer && entry.name == QLatin1String( "singlebandcolordata" ) ) )
+      if ( ( mRasterLayer->rasterType() != Qgis::RasterLayerType::SingleBandColorData && entry.name != QLatin1String( "singlebandcolordata" ) ) || ( mRasterLayer->rasterType() == Qgis::RasterLayerType::SingleBandColorData && entry.name == QLatin1String( "singlebandcolordata" ) ) )
       {
         cboRenderers->addItem( entry.icon(), entry.visibleName, entry.name );
       }
@@ -219,9 +220,12 @@ void QgsRendererRasterPropertiesWidget::syncToLayer( QgsRasterLayer *layer )
     btnColorizeColor->setColor( hueSaturationFilter->colorizeColor() );
     toggleColorizeControls( hueSaturationFilter->colorizeOn() );
     sliderColorizeStrength->setValue( hueSaturationFilter->colorizeStrength() );
+
+    mInvertColorsCheck->setChecked( hueSaturationFilter->invertColors() );
   }
 
   //blend mode
+  mBlendModeComboBox->setShowClippingModes( QgsProjectUtils::layerIsContainedInGroupLayer( QgsProject::instance(), mRasterLayer ) );
   mBlendModeComboBox->setBlendMode( mRasterLayer->blendMode() );
 
   //set combo boxes to current resampling types
@@ -238,6 +242,7 @@ void QgsRendererRasterPropertiesWidget::mResetColorRenderingBtn_clicked()
   comboGrayscale->setCurrentIndex( ( int ) QgsHueSaturationFilter::GrayscaleOff );
   mColorizeCheck->setChecked( false );
   sliderColorizeStrength->setValue( 100 );
+  mInvertColorsCheck->setChecked( false );
 }
 
 void QgsRendererRasterPropertiesWidget::toggleSaturationControls( int grayscaleMode )
@@ -288,18 +293,24 @@ void QgsRendererRasterPropertiesWidget::setRendererWidget( const QString &render
     {
       QgsDebugMsgLevel( QStringLiteral( "renderer has widgetCreateFunction" ), 3 );
       // Current canvas extent (used to calc min/max) in layer CRS
-      QgsRectangle myExtent = mMapCanvas->mapSettings().outputExtentToLayerExtent( mRasterLayer, mMapCanvas->extent() );
+      const QgsRectangle myExtent = QgsCoordinateTransform::isTransformationPossible( mRasterLayer->crs(), mMapCanvas->mapSettings().destinationCrs() )
+                                      ? mMapCanvas->mapSettings().outputExtentToLayerExtent( mRasterLayer, mMapCanvas->extent() )
+                                      : mRasterLayer->extent();
       if ( oldWidget )
       {
-        if ( rendererName == QLatin1String( "singlebandgray" ) )
+        std::unique_ptr<QgsRasterRenderer> oldRenderer( oldWidget->renderer() );
+        if ( !oldRenderer || oldRenderer->type() != rendererName )
         {
-          whileBlocking( mRasterLayer )->setRenderer( QgsApplication::rasterRendererRegistry()->defaultRendererForDrawingStyle( QgsRaster::SingleBandGray, mRasterLayer->dataProvider() ) );
-          whileBlocking( mRasterLayer )->setDefaultContrastEnhancement();
-        }
-        else if ( rendererName == QLatin1String( "multibandcolor" ) )
-        {
-          whileBlocking( mRasterLayer )->setRenderer( QgsApplication::rasterRendererRegistry()->defaultRendererForDrawingStyle( QgsRaster::MultiBandColor, mRasterLayer->dataProvider() ) );
-          whileBlocking( mRasterLayer )->setDefaultContrastEnhancement();
+          if ( rendererName == QLatin1String( "singlebandgray" ) )
+          {
+            whileBlocking( mRasterLayer )->setRenderer( QgsApplication::rasterRendererRegistry()->defaultRendererForDrawingStyle( Qgis::RasterDrawingStyle::SingleBandGray, mRasterLayer->dataProvider() ) );
+            whileBlocking( mRasterLayer )->setDefaultContrastEnhancement();
+          }
+          else if ( rendererName == QLatin1String( "multibandcolor" ) )
+          {
+            whileBlocking( mRasterLayer )->setRenderer( QgsApplication::rasterRendererRegistry()->defaultRendererForDrawingStyle( Qgis::RasterDrawingStyle::MultiBandColor, mRasterLayer->dataProvider() ) );
+            whileBlocking( mRasterLayer )->setDefaultContrastEnhancement();
+          }
         }
       }
       mRasterLayer->renderer()->setAlphaBand( alphaBand );
@@ -334,12 +345,11 @@ void QgsRendererRasterPropertiesWidget::setRendererWidget( const QString &render
   if ( mRendererWidget != oldWidget )
     delete oldWidget;
 
-  int widgetIndex = cboRenderers->findData( rendererName );
+  const int widgetIndex = cboRenderers->findData( rendererName );
   if ( widgetIndex != -1 )
   {
     whileBlocking( cboRenderers )->setCurrentIndex( widgetIndex );
   }
-
 }
 
 void QgsRendererRasterPropertiesWidget::refreshAfterStyleChanged()
@@ -352,20 +362,20 @@ void QgsRendererRasterPropertiesWidget::refreshAfterStyleChanged()
       const QgsContrastEnhancement *redCe = mbcr->redContrastEnhancement();
       if ( redCe )
       {
-        mRendererWidget->setMin( QString::number( redCe->minimumValue() ), 0 );
-        mRendererWidget->setMax( QString::number( redCe->maximumValue() ), 0 );
+        mRendererWidget->setMin( QLocale().toString( redCe->minimumValue() ), 0 );
+        mRendererWidget->setMax( QLocale().toString( redCe->maximumValue() ), 0 );
       }
       const QgsContrastEnhancement *greenCe = mbcr->greenContrastEnhancement();
       if ( greenCe )
       {
-        mRendererWidget->setMin( QString::number( greenCe->minimumValue() ), 1 );
-        mRendererWidget->setMax( QString::number( greenCe->maximumValue() ), 1 );
+        mRendererWidget->setMin( QLocale().toString( greenCe->minimumValue() ), 1 );
+        mRendererWidget->setMax( QLocale().toString( greenCe->maximumValue() ), 1 );
       }
       const QgsContrastEnhancement *blueCe = mbcr->blueContrastEnhancement();
       if ( blueCe )
       {
-        mRendererWidget->setMin( QString::number( blueCe->minimumValue() ), 2 );
-        mRendererWidget->setMax( QString::number( blueCe->maximumValue() ), 2 );
+        mRendererWidget->setMin( QLocale().toString( blueCe->minimumValue() ), 2 );
+        mRendererWidget->setMax( QLocale().toString( blueCe->maximumValue() ), 2 );
       }
     }
     else if ( QgsSingleBandGrayRenderer *sbgr = dynamic_cast<QgsSingleBandGrayRenderer *>( renderer ) )
@@ -373,8 +383,8 @@ void QgsRendererRasterPropertiesWidget::refreshAfterStyleChanged()
       const QgsContrastEnhancement *ce = sbgr->contrastEnhancement();
       if ( ce )
       {
-        mRendererWidget->setMin( QString::number( ce->minimumValue() ) );
-        mRendererWidget->setMax( QString::number( ce->maximumValue() ) );
+        mRendererWidget->setMin( QLocale().toString( ce->minimumValue() ) );
+        mRendererWidget->setMax( QLocale().toString( ce->maximumValue() ) );
       }
     }
   }

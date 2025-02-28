@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayoutimagedrophandler.h"
+#include "moc_qgslayoutimagedrophandler.cpp"
 #include "qgslayoutdesignerinterface.h"
 #include "qgslayout.h"
 #include "qgslayoutview.h"
@@ -26,12 +27,11 @@
 QgsLayoutImageDropHandler::QgsLayoutImageDropHandler( QObject *parent )
   : QgsLayoutCustomDropHandler( parent )
 {
-
 }
 
 bool QgsLayoutImageDropHandler::handleFileDrop( QgsLayoutDesignerInterface *iface, QPointF point, const QString &file )
 {
-  QFileInfo fi( file );
+  const QFileInfo fi( file );
   bool matched = false;
   bool svg = false;
   if ( fi.suffix().compare( "svg", Qt::CaseInsensitive ) == 0 )
@@ -58,11 +58,11 @@ bool QgsLayoutImageDropHandler::handleFileDrop( QgsLayoutDesignerInterface *ifac
   if ( !iface->layout() )
     return false;
 
-  std::unique_ptr< QgsLayoutItemPicture > item = std::make_unique< QgsLayoutItemPicture >( iface->layout() );
+  auto item = std::make_unique<QgsLayoutItemPicture>( iface->layout() );
 
-  QgsLayoutPoint layoutPoint = iface->layout()->convertFromLayoutUnits( point, iface->layout()->units() );
+  const QgsLayoutPoint layoutPoint = iface->layout()->convertFromLayoutUnits( point, iface->layout()->units() );
 
-  item->setPicturePath( file, svg ? QgsLayoutItemPicture::FormatSVG : QgsLayoutItemPicture::FormatRaster );
+  item->setPicturePath( file, svg ? Qgis::PictureFormat::SVG : Qgis::PictureFormat::Raster );
 
   // force a resize to the image's actual size
   item->setResizeMode( QgsLayoutItemPicture::FrameToImageSize );
@@ -77,7 +77,7 @@ bool QgsLayoutImageDropHandler::handleFileDrop( QgsLayoutDesignerInterface *ifac
   item->setReferencePoint( QgsLayoutItem::UpperLeft );
 
   // and auto select new item for convenience
-  QList< QgsLayoutItem * > newSelection;
+  QList<QgsLayoutItem *> newSelection;
   newSelection << item.get();
   iface->layout()->addLayoutItem( item.release() );
   iface->layout()->deselectAll();
@@ -91,8 +91,8 @@ bool QgsLayoutImageDropHandler::handlePaste( QgsLayoutDesignerInterface *iface, 
   if ( !data->hasImage() )
     return false;
 
-  QgsLayoutPoint layoutPoint = iface->layout()->convertFromLayoutUnits( pastePoint, iface->layout()->units() );
-  std::unique_ptr< QgsLayoutItemPicture > item = std::make_unique< QgsLayoutItemPicture >( iface->layout() );
+  const QgsLayoutPoint layoutPoint = iface->layout()->convertFromLayoutUnits( pastePoint, iface->layout()->units() );
+  auto item = std::make_unique<QgsLayoutItemPicture>( iface->layout() );
 
   const QByteArray imageData = data->data( QStringLiteral( "application/x-qt-image" ) );
   if ( imageData.isEmpty() )
@@ -103,7 +103,7 @@ bool QgsLayoutImageDropHandler::handlePaste( QgsLayoutDesignerInterface *iface, 
   QString path( encoded );
   path.prepend( QLatin1String( "base64:" ) );
 
-  item->setPicturePath( path, QgsLayoutItemPicture::FormatRaster );
+  item->setPicturePath( path, Qgis::PictureFormat::Raster );
 
   // force a resize to the image's actual size
   item->setResizeMode( QgsLayoutItemPicture::FrameToImageSize );

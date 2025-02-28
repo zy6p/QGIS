@@ -14,15 +14,14 @@ email                : hugo dot mercier at oslandia dot com
  *                                                                         *
  ***************************************************************************/
 
+#include "qgsvirtuallayerdefinition.h"
+#include "fromencodedcomponenthelper.h"
+
 #include <QUrl>
-#include <QRegExp>
+#include <QRegularExpression>
 #include <QStringList>
 #include <QUrlQuery>
-#include <QtEndian>
 
-#include "qgsvirtuallayerdefinition.h"
-#include "qgsvectorlayer.h"
-#include "qgsvectordataprovider.h"
 
 QgsVirtualLayerDefinition::QgsVirtualLayerDefinition( const QString &filePath )
   : mFilePath( filePath )
@@ -36,7 +35,7 @@ QgsVirtualLayerDefinition QgsVirtualLayerDefinition::fromUrl( const QUrl &url )
   def.setFilePath( url.toLocalFile() );
 
   // regexp for column name
-  const QString columnNameRx( QStringLiteral( "[a-zA-Z_\x80-\xFF][a-zA-Z0-9_\x80-\xFF]*" ) );
+  const QString columnNameRx( QStringLiteral( "[a-zA-Z_\\x80-\\xFF][a-zA-Z0-9_\\x80-\\xFF]*" ) );
 
   QgsFields fields;
 
@@ -45,22 +44,22 @@ QgsVirtualLayerDefinition QgsVirtualLayerDefinition::fromUrl( const QUrl &url )
   const QList<QPair<QString, QString> > items = QUrlQuery( url ).queryItems( QUrl::FullyEncoded );
   for ( int i = 0; i < items.size(); i++ )
   {
-    QString key = items.at( i ).first;
-    QString value = items.at( i ).second;
+    const QString key = items.at( i ).first;
+    const QString value = items.at( i ).second;
     if ( key == QLatin1String( "layer_ref" ) )
     {
       layerIdx++;
       // layer id, with optional layer_name
-      int pos = value.indexOf( ':' );
+      const int pos = value.indexOf( ':' );
       QString layerId, vlayerName;
       if ( pos == -1 )
       {
-        layerId = value;
+        layerId = QUrl::fromPercentEncoding( value.toUtf8() );
         vlayerName = QStringLiteral( "vtab%1" ).arg( layerIdx );
       }
       else
       {
-        layerId = value.left( pos );
+        layerId = QUrl::fromPercentEncoding( value.left( pos ).toUtf8() );
         vlayerName = QUrl::fromPercentEncoding( value.mid( pos + 1 ).toUtf8() );
       }
       // add the layer to the list
@@ -70,7 +69,7 @@ QgsVirtualLayerDefinition QgsVirtualLayerDefinition::fromUrl( const QUrl &url )
     {
       layerIdx++;
       // syntax: layer=provider:url_encoded_source_URI(:name(:encoding)?)?
-      int pos = value.indexOf( ':' );
+      const int pos = value.indexOf( ':' );
       if ( pos != -1 )
       {
         QString providerKey, source, vlayerName, encoding = QStringLiteral( "UTF-8" );
@@ -82,7 +81,7 @@ QgsVirtualLayerDefinition QgsVirtualLayerDefinition::fromUrl( const QUrl &url )
         if ( pos2 != -1 )
         {
           source = QUrl::fromPercentEncoding( value.mid( pos + 1, pos2 - pos - 1 ).toUtf8() );
-          int pos3 = value.indexOf( ':', pos2 + 1 );
+          const int pos3 = value.indexOf( ':', pos2 + 1 );
           if ( pos3 != -1 )
           {
             vlayerName = QUrl::fromPercentEncoding( value.mid( pos2 + 1, pos3 - pos2 - 1 ).toUtf8() );
@@ -106,27 +105,27 @@ QgsVirtualLayerDefinition QgsVirtualLayerDefinition::fromUrl( const QUrl &url )
     {
       // geometry field definition, optional
       // geometry_column(:wkb_type:srid)?
-      QRegExp reGeom( "(" + columnNameRx + ")(?::([a-zA-Z0-9]+):(\\d+))?" );
-      int pos = reGeom.indexIn( value );
-      if ( pos >= 0 )
+      const thread_local QRegularExpression reGeom( "(" + columnNameRx + ")(?::([a-zA-Z0-9]+):(\\d+))?" );
+      const QRegularExpressionMatch match = reGeom.match( value );
+      if ( match.hasMatch() )
       {
-        def.setGeometryField( reGeom.cap( 1 ) );
-        if ( reGeom.captureCount() > 1 )
+        def.setGeometryField( match.captured( 1 ) );
+        if ( match.capturedTexts().size() > 2 )
         {
           // not used by the spatialite provider for now ...
-          QgsWkbTypes::Type wkbType = QgsWkbTypes::parseType( reGeom.cap( 2 ) );
-          if ( wkbType == QgsWkbTypes::Unknown )
+          Qgis::WkbType wkbType = QgsWkbTypes::parseType( match.captured( 2 ) );
+          if ( wkbType == Qgis::WkbType::Unknown )
           {
-            wkbType = static_cast<QgsWkbTypes::Type>( reGeom.cap( 2 ).toLong() );
+            wkbType = static_cast<Qgis::WkbType>( match.captured( 2 ).toLong() );
           }
           def.setGeometryWkbType( wkbType );
-          def.setGeometrySrid( reGeom.cap( 3 ).toLong() );
+          def.setGeometrySrid( match.captured( 3 ).toLong() );
         }
       }
     }
     else if ( key == QLatin1String( "nogeometry" ) )
     {
-      def.setGeometryWkbType( QgsWkbTypes::NoGeometry );
+      def.setGeometryWkbType( Qgis::WkbType::NoGeometry );
     }
     else if ( key == QLatin1String( "uid" ) )
     {
@@ -140,23 +139,23 @@ QgsVirtualLayerDefinition QgsVirtualLayerDefinition::fromUrl( const QUrl &url )
     else if ( key == QLatin1String( "field" ) )
     {
       // field_name:type (int, real, text)
-      QRegExp reField( "(" + columnNameRx + "):(int|real|text)" );
-      int pos = reField.indexIn( value );
-      if ( pos >= 0 )
+      const thread_local QRegularExpression reField( "(" + columnNameRx + "):(int|real|text)" );
+      const QRegularExpressionMatch match = reField.match( value );
+      if ( match.hasMatch() )
       {
-        QString fieldName( reField.cap( 1 ) );
-        QString fieldType( reField.cap( 2 ) );
+        const QString fieldName( match.captured( 1 ) );
+        const QString fieldType( match.captured( 2 ) );
         if ( fieldType == QLatin1String( "int" ) )
         {
-          fields.append( QgsField( fieldName, QVariant::LongLong, fieldType ) );
+          fields.append( QgsField( fieldName, QMetaType::Type::LongLong, fieldType ) );
         }
         else if ( fieldType == QLatin1String( "real" ) )
         {
-          fields.append( QgsField( fieldName, QVariant::Double, fieldType ) );
+          fields.append( QgsField( fieldName, QMetaType::Type::Double, fieldType ) );
         }
         if ( fieldType == QLatin1String( "text" ) )
         {
-          fields.append( QgsField( fieldName, QVariant::String, fieldType ) );
+          fields.append( QgsField( fieldName, QMetaType::Type::QString, fieldType ) );
         }
       }
     }
@@ -172,82 +171,6 @@ QgsVirtualLayerDefinition QgsVirtualLayerDefinition::fromUrl( const QUrl &url )
   def.setFields( fields );
 
   return def;
-}
-
-// Mega ewwww. all this is taken from Qt's QUrl::addEncodedQueryItem compatibility helper.
-// (I can't see any way to port the below code to NOT require this without breaking
-// existing projects.)
-
-inline char toHexUpper( uint value ) noexcept
-{
-  return "0123456789ABCDEF"[value & 0xF];
-}
-
-static inline ushort encodeNibble( ushort c )
-{
-  return ushort( toHexUpper( c ) );
-}
-
-static bool qt_is_ascii( const char *&ptr, const char *end ) noexcept
-{
-  while ( ptr + 4 <= end )
-  {
-    quint32 data = qFromUnaligned<quint32>( ptr );
-    if ( data &= 0x80808080U )
-    {
-#if Q_BYTE_ORDER == Q_BIG_ENDIAN
-      uint idx = qCountLeadingZeroBits( data );
-#else
-      uint idx = qCountTrailingZeroBits( data );
-#endif
-      ptr += idx / 8;
-      return false;
-    }
-    ptr += 4;
-  }
-  while ( ptr != end )
-  {
-    if ( quint8( *ptr ) & 0x80 )
-      return false;
-    ++ptr;
-  }
-  return true;
-}
-
-QString fromEncodedComponent_helper( const QByteArray &ba )
-{
-  if ( ba.isNull() )
-    return QString();
-  // scan ba for anything above or equal to 0x80
-  // control points below 0x20 are fine in QString
-  const char *in = ba.constData();
-  const char *const end = ba.constEnd();
-  if ( qt_is_ascii( in, end ) )
-  {
-    // no non-ASCII found, we're safe to convert to QString
-    return QString::fromLatin1( ba, ba.size() );
-  }
-  // we found something that we need to encode
-  QByteArray intermediate = ba;
-  intermediate.resize( ba.size() * 3 - ( in - ba.constData() ) );
-  uchar *out = reinterpret_cast<uchar *>( intermediate.data() + ( in - ba.constData() ) );
-  for ( ; in < end; ++in )
-  {
-    if ( *in & 0x80 )
-    {
-      // encode
-      *out++ = '%';
-      *out++ = encodeNibble( uchar( *in ) >> 4 );
-      *out++ = encodeNibble( uchar( *in ) & 0xf );
-    }
-    else
-    {
-      // keep
-      *out++ = uchar( *in );
-    }
-  }
-  // now it's safe to call fromLatin1
-  return QString::fromLatin1( intermediate, out - reinterpret_cast<uchar *>( intermediate.data() ) );
 }
 
 QUrl QgsVirtualLayerDefinition::toUrl() const
@@ -282,12 +205,12 @@ QUrl QgsVirtualLayerDefinition::toUrl() const
   if ( !uid().isEmpty() )
     urlQuery.addQueryItem( QStringLiteral( "uid" ), uid() );
 
-  if ( geometryWkbType() == QgsWkbTypes::NoGeometry )
+  if ( geometryWkbType() == Qgis::WkbType::NoGeometry )
     urlQuery.addQueryItem( QStringLiteral( "nogeometry" ), QString() );
   else if ( !geometryField().isEmpty() )
   {
     if ( hasDefinedGeometry() )
-      urlQuery.addQueryItem( QStringLiteral( "geometry" ), QStringLiteral( "%1:%2:%3" ).arg( geometryField() ). arg( geometryWkbType() ).arg( geometrySrid() ).toUtf8() );
+      urlQuery.addQueryItem( QStringLiteral( "geometry" ), QStringLiteral( "%1:%2:%3" ).arg( geometryField() ). arg( qgsEnumValueToKey( geometryWkbType() ) ).arg( geometrySrid() ).toUtf8() );
     else
       urlQuery.addQueryItem( QStringLiteral( "geometry" ), geometryField() );
   }
@@ -295,14 +218,14 @@ QUrl QgsVirtualLayerDefinition::toUrl() const
   const auto constFields = fields();
   for ( const QgsField &f : constFields )
   {
-    if ( f.type() == QVariant::Int
-         || f.type() == QVariant::UInt
-         || f.type() == QVariant::Bool
-         || f.type() == QVariant::LongLong )
+    if ( f.type() == QMetaType::Type::Int
+         || f.type() == QMetaType::Type::UInt
+         || f.type() == QMetaType::Type::Bool
+         || f.type() == QMetaType::Type::LongLong )
       urlQuery.addQueryItem( QStringLiteral( "field" ), f.name() + ":int" );
-    else if ( f.type() == QVariant::Double )
+    else if ( f.type() == QMetaType::Type::Double )
       urlQuery.addQueryItem( QStringLiteral( "field" ), f.name() + ":real" );
-    else if ( f.type() == QVariant::String )
+    else if ( f.type() == QMetaType::Type::QString )
       urlQuery.addQueryItem( QStringLiteral( "field" ), f.name() + ":text" );
   }
 

@@ -14,16 +14,16 @@
  ***************************************************************************/
 
 #include "qgsmeshrendererscalarsettingswidget.h"
+#include "moc_qgsmeshrendererscalarsettingswidget.cpp"
 
 #include "QDialogButtonBox"
 
 #include "qgis.h"
 #include "qgsmeshlayer.h"
-#include "qgsmeshlayerutils.h"
-#include "qgsmessagelog.h"
 #include "qgsmeshvariablestrokewidthwidget.h"
-#include "qgssettings.h"
+#include "qgsmapcanvas.h"
 #include <QPointer>
+#include "qgsmessagelog.h"
 
 QgsMeshRendererScalarSettingsWidget::QgsMeshRendererScalarSettingsWidget( QWidget *parent )
   : QWidget( parent )
@@ -31,37 +31,57 @@ QgsMeshRendererScalarSettingsWidget::QgsMeshRendererScalarSettingsWidget( QWidge
 {
   setupUi( this );
 
+  mScalarMinSpinBox->setClearValueMode( QgsDoubleSpinBox::ClearValueMode::MinimumValue );
+  mScalarMinSpinBox->setSpecialValueText( QString() );
+  mScalarMaxSpinBox->setClearValueMode( QgsDoubleSpinBox::ClearValueMode::MinimumValue );
+  mScalarMaxSpinBox->setSpecialValueText( QString() );
+
+  mScalarMinSpinBox->setEnabled( true );
+  mScalarMaxSpinBox->setEnabled( true );
+
   // add items to data interpolation combo box
-  mScalarInterpolationTypeComboBox->addItem( tr( "None" ), QgsMeshRendererScalarSettings::None );
+  mScalarInterpolationTypeComboBox->addItem( tr( "No Resampling" ), QgsMeshRendererScalarSettings::NoResampling );
   mScalarInterpolationTypeComboBox->addItem( tr( "Neighbour Average" ), QgsMeshRendererScalarSettings::NeighbourAverage );
   mScalarInterpolationTypeComboBox->setCurrentIndex( 0 );
 
-  mScalarEdgeStrokeWidthUnitSelectionWidget->setUnits( QgsUnitTypes::RenderUnitList()
-      << QgsUnitTypes::RenderMillimeters
-      << QgsUnitTypes::RenderMetersInMapUnits
-      << QgsUnitTypes::RenderPixels
-      << QgsUnitTypes::RenderPoints );
+  mMinMaxValueTypeComboBox->addItem( tr( "Whole Mesh" ), QVariant::fromValue( Qgis::MeshRangeExtent::WholeMesh ) );
+  mMinMaxValueTypeComboBox->addItem( tr( "Current Canvas" ), QVariant::fromValue( Qgis::MeshRangeExtent::FixedCanvas ) );
+  mMinMaxValueTypeComboBox->addItem( tr( "Updated Canvas" ), QVariant::fromValue( Qgis::MeshRangeExtent::UpdatedCanvas ) );
+  mMinMaxValueTypeComboBox->setCurrentIndex( 0 );
+
+  mUserDefinedRadioButton->setChecked( true );
+  mMinMaxValueTypeComboBox->setEnabled( false );
+
+  mScalarEdgeStrokeWidthUnitSelectionWidget->setUnits(
+    {
+      Qgis::RenderUnit::Millimeters,
+      Qgis::RenderUnit::MetersInMapUnits,
+      Qgis::RenderUnit::Pixels,
+      Qgis::RenderUnit::Points,
+    }
+  );
 
   // connect
   connect( mScalarRecalculateMinMaxButton, &QPushButton::clicked, this, &QgsMeshRendererScalarSettingsWidget::recalculateMinMaxButtonClicked );
-  connect( mScalarMinLineEdit, &QLineEdit::textChanged, this, &QgsMeshRendererScalarSettingsWidget::minMaxChanged );
-  connect( mScalarMaxLineEdit, &QLineEdit::textChanged, this, &QgsMeshRendererScalarSettingsWidget::minMaxChanged );
-  connect( mScalarMinLineEdit, &QLineEdit::textEdited, this, &QgsMeshRendererScalarSettingsWidget::minMaxEdited );
-  connect( mScalarMaxLineEdit, &QLineEdit::textEdited, this, &QgsMeshRendererScalarSettingsWidget::minMaxEdited );
+  connect( mScalarMinSpinBox, qOverload<double>( &QgsDoubleSpinBox::valueChanged ), this, [=]( double ) { minMaxChanged(); } );
+  connect( mScalarMaxSpinBox, qOverload<double>( &QgsDoubleSpinBox::valueChanged ), this, [=]( double ) { minMaxChanged(); } );
   connect( mScalarEdgeStrokeWidthVariableRadioButton, &QRadioButton::toggled, this, &QgsMeshRendererScalarSettingsWidget::onEdgeStrokeWidthMethodChanged );
 
   connect( mScalarColorRampShaderWidget, &QgsColorRampShaderWidget::widgetChanged, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
   connect( mOpacityWidget, &QgsOpacityWidget::opacityChanged, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
   connect( mScalarInterpolationTypeComboBox, qOverload<int>( &QComboBox::currentIndexChanged ), this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
 
-  connect( mScalarEdgeStrokeWidthUnitSelectionWidget, &QgsUnitSelectionWidget::changed,
-           this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
-  connect( mScalarEdgeStrokeWidthSpinBox, qOverload<double>( &QgsDoubleSpinBox::valueChanged ),
-           this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
+  connect( mScalarEdgeStrokeWidthUnitSelectionWidget, &QgsUnitSelectionWidget::changed, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
+  connect( mScalarEdgeStrokeWidthSpinBox, qOverload<double>( &QgsDoubleSpinBox::valueChanged ), this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
   connect( mScalarEdgeStrokeWidthVariableRadioButton, &QCheckBox::toggled, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
   connect( mScalarEdgeStrokeWidthFixedRadioButton, &QCheckBox::toggled, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
   connect( mScalarEdgeStrokeWidthVariablePushButton, &QgsMeshVariableStrokeWidthButton::widgetChanged, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
 
+  connect( mUserDefinedRadioButton, &QRadioButton::toggled, this, &QgsMeshRendererScalarSettingsWidget::mUserDefinedRadioButton_toggled );
+  connect( mMinMaxRadioButton, &QRadioButton::toggled, this, &QgsMeshRendererScalarSettingsWidget::mMinMaxRadioButton_toggled );
+
+  connect( mMinMaxValueTypeComboBox, qOverload<int>( &QComboBox::currentIndexChanged ), this, &QgsMeshRendererScalarSettingsWidget::recalculateMinMax );
+  connect( mMinMaxValueTypeComboBox, qOverload<int>( &QComboBox::currentIndexChanged ), this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
 }
 
 void QgsMeshRendererScalarSettingsWidget::setLayer( QgsMeshLayer *layer )
@@ -80,15 +100,25 @@ QgsMeshRendererScalarSettings QgsMeshRendererScalarSettingsWidget::settings() co
 {
   QgsMeshRendererScalarSettings settings;
   settings.setColorRampShader( mScalarColorRampShaderWidget->shader() );
-  settings.setClassificationMinimumMaximum( lineEditValue( mScalarMinLineEdit ), lineEditValue( mScalarMaxLineEdit ) );
   settings.setOpacity( mOpacityWidget->opacity() );
   settings.setDataResamplingMethod( dataIntepolationMethod() );
 
-  bool hasEdges = ( mMeshLayer->dataProvider() &&
-                    mMeshLayer->dataProvider()->contains( QgsMesh::ElementType::Edge ) );
+  settings.setClassificationMinimumMaximum( spinBoxValue( mScalarMinSpinBox ), spinBoxValue( mScalarMaxSpinBox ) );
+
+  settings.setExtent( mMinMaxValueTypeComboBox->currentData().value<Qgis::MeshRangeExtent>() );
+
+  if ( mUserDefinedRadioButton->isChecked() )
+  {
+    settings.setLimits( Qgis::MeshRangeLimit::NotSet );
+  }
+  else
+  {
+    settings.setLimits( Qgis::MeshRangeLimit::MinimumMaximum );
+  }
+
+  const bool hasEdges = ( mMeshLayer->contains( QgsMesh::ElementType::Edge ) );
   if ( hasEdges )
   {
-
     QgsInterpolatedLineWidth edgeStrokeWidth = mScalarEdgeStrokeWidthVariablePushButton->variableStrokeWidth();
     edgeStrokeWidth.setIsVariableWidth( mScalarEdgeStrokeWidthVariableRadioButton->isChecked() );
     edgeStrokeWidth.setFixedStrokeWidth( mScalarEdgeStrokeWidthSpinBox->value() );
@@ -99,7 +129,7 @@ QgsMeshRendererScalarSettings QgsMeshRendererScalarSettingsWidget::settings() co
   return settings;
 }
 
-void QgsMeshRendererScalarSettingsWidget::syncToLayer( )
+void QgsMeshRendererScalarSettingsWidget::syncToLayer()
 {
   if ( !mMeshLayer )
     return;
@@ -110,21 +140,40 @@ void QgsMeshRendererScalarSettingsWidget::syncToLayer( )
   const QgsMeshRendererSettings rendererSettings = mMeshLayer->rendererSettings();
   const QgsMeshRendererScalarSettings settings = rendererSettings.scalarSettings( mActiveDatasetGroup );
   const QgsColorRampShader shader = settings.colorRampShader();
+
   const double min = settings.classificationMinimum();
   const double max = settings.classificationMaximum();
 
-  whileBlocking( mScalarMinLineEdit )->setText( QString::number( min ) );
-  whileBlocking( mScalarMaxLineEdit )->setText( QString::number( max ) );
+  whileBlocking( mScalarMinSpinBox )->setValue( min );
+  whileBlocking( mScalarMaxSpinBox )->setValue( max );
+
+  whileBlocking( mMinMaxValueTypeComboBox )->setCurrentIndex( mMinMaxValueTypeComboBox->findData( QVariant::fromValue( settings.extent() ) ) );
+
+  if ( settings.limits() == Qgis::MeshRangeLimit::MinimumMaximum )
+  {
+    whileBlocking( mUserDefinedRadioButton )->setChecked( false );
+    whileBlocking( mMinMaxRadioButton )->setChecked( true );
+    mScalarMinSpinBox->setEnabled( false );
+    mScalarMaxSpinBox->setEnabled( false );
+    mMinMaxValueTypeComboBox->setEnabled( true );
+  }
+  else
+  {
+    whileBlocking( mUserDefinedRadioButton )->setChecked( true );
+    whileBlocking( mMinMaxRadioButton )->setChecked( false );
+    mScalarMinSpinBox->setEnabled( true );
+    mScalarMaxSpinBox->setEnabled( true );
+    mMinMaxValueTypeComboBox->setEnabled( false );
+  }
+
   whileBlocking( mScalarColorRampShaderWidget )->setFromShader( shader );
   whileBlocking( mScalarColorRampShaderWidget )->setMinimumMaximum( min, max );
   whileBlocking( mOpacityWidget )->setOpacity( settings.opacity() );
-  int index = mScalarInterpolationTypeComboBox->findData( settings.dataResamplingMethod() );
+  const int index = mScalarInterpolationTypeComboBox->findData( settings.dataResamplingMethod() );
   whileBlocking( mScalarInterpolationTypeComboBox )->setCurrentIndex( index );
 
-  bool hasEdges = ( mMeshLayer->dataProvider() &&
-                    mMeshLayer->dataProvider()->contains( QgsMesh::ElementType::Edge ) );
-  bool hasFaces = ( mMeshLayer->dataProvider() &&
-                    mMeshLayer->dataProvider()->contains( QgsMesh::ElementType::Face ) );
+  const bool hasEdges = ( mMeshLayer->contains( QgsMesh::ElementType::Edge ) );
+  const bool hasFaces = ( mMeshLayer->contains( QgsMesh::ElementType::Face ) );
 
   mScalarResamplingWidget->setVisible( hasFaces );
 
@@ -132,7 +181,7 @@ void QgsMeshRendererScalarSettingsWidget::syncToLayer( )
 
   if ( hasEdges )
   {
-    QgsInterpolatedLineWidth edgeStrokeWidth = settings.edgeStrokeWidth();
+    const QgsInterpolatedLineWidth edgeStrokeWidth = settings.edgeStrokeWidth();
     whileBlocking( mScalarEdgeStrokeWidthVariablePushButton )->setVariableStrokeWidth( edgeStrokeWidth );
     whileBlocking( mScalarEdgeStrokeWidthSpinBox )->setValue( edgeStrokeWidth.fixedStrokeWidth() );
     whileBlocking( mScalarEdgeStrokeWidthVariableRadioButton )->setChecked( edgeStrokeWidth.isVariableWidth() );
@@ -141,51 +190,44 @@ void QgsMeshRendererScalarSettingsWidget::syncToLayer( )
       mOpacityContainerWidget->setVisible( false );
 
     const QgsMeshDatasetGroupMetadata metadata = mMeshLayer->datasetGroupMetadata( mActiveDatasetGroup );
-    double min = metadata.minimum();
-    double max = metadata.maximum();
+    const double min = metadata.minimum();
+    const double max = metadata.maximum();
     mScalarEdgeStrokeWidthVariablePushButton->setDefaultMinMaxValue( min, max );
   }
 
   onEdgeStrokeWidthMethodChanged();
 }
 
-double QgsMeshRendererScalarSettingsWidget::lineEditValue( const QLineEdit *lineEdit ) const
+double QgsMeshRendererScalarSettingsWidget::spinBoxValue( const QgsDoubleSpinBox *spinBox ) const
 {
-  if ( lineEdit->text().isEmpty() )
+  if ( spinBox->value() == spinBox->clearValue() )
   {
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  return lineEdit->text().toDouble();
+  return spinBox->value();
 }
 
 void QgsMeshRendererScalarSettingsWidget::minMaxChanged()
 {
-  double min = lineEditValue( mScalarMinLineEdit );
-  double max = lineEditValue( mScalarMaxLineEdit );
-  mScalarColorRampShaderWidget->setMinimumMaximum( min, max );
-}
-
-void QgsMeshRendererScalarSettingsWidget::minMaxEdited()
-{
-  double min = lineEditValue( mScalarMinLineEdit );
-  double max = lineEditValue( mScalarMaxLineEdit );
+  const double min = spinBoxValue( mScalarMinSpinBox );
+  const double max = spinBoxValue( mScalarMaxSpinBox );
   mScalarColorRampShaderWidget->setMinimumMaximumAndClassify( min, max );
 }
 
 void QgsMeshRendererScalarSettingsWidget::recalculateMinMaxButtonClicked()
 {
   const QgsMeshDatasetGroupMetadata metadata = mMeshLayer->datasetGroupMetadata( mActiveDatasetGroup );
-  double min = metadata.minimum();
-  double max = metadata.maximum();
-  whileBlocking( mScalarMinLineEdit )->setText( QString::number( min ) );
-  whileBlocking( mScalarMaxLineEdit )->setText( QString::number( max ) );
+  const double min = metadata.minimum();
+  const double max = metadata.maximum();
+  whileBlocking( mScalarMinSpinBox )->setValue( min );
+  whileBlocking( mScalarMaxSpinBox )->setValue( max );
   mScalarColorRampShaderWidget->setMinimumMaximumAndClassify( min, max );
 }
 
 void QgsMeshRendererScalarSettingsWidget::onEdgeStrokeWidthMethodChanged()
 {
-  bool variableWidth = mScalarEdgeStrokeWidthVariableRadioButton->isChecked();
+  const bool variableWidth = mScalarEdgeStrokeWidthVariableRadioButton->isChecked();
   mScalarEdgeStrokeWidthVariablePushButton->setVisible( variableWidth );
   mScalarEdgeStrokeWidthSpinBox->setVisible( !variableWidth );
 }
@@ -205,7 +247,7 @@ bool QgsMeshRendererScalarSettingsWidget::dataIsDefinedOnFaces() const
   if ( mActiveDatasetGroup < 0 )
     return false;
 
-  QgsMeshDatasetGroupMetadata meta = mMeshLayer->datasetGroupMetadata( mActiveDatasetGroup );
+  const QgsMeshDatasetGroupMetadata meta = mMeshLayer->datasetGroupMetadata( mActiveDatasetGroup );
   const bool onFaces = ( meta.dataType() == QgsMeshDatasetGroupMetadata::DataOnFaces );
   return onFaces;
 }
@@ -218,9 +260,80 @@ bool QgsMeshRendererScalarSettingsWidget::dataIsDefinedOnEdges() const
   if ( mActiveDatasetGroup < 0 )
     return false;
 
-  QgsMeshDatasetGroupMetadata meta = mMeshLayer->datasetGroupMetadata( mActiveDatasetGroup );
+  const QgsMeshDatasetGroupMetadata meta = mMeshLayer->datasetGroupMetadata( mActiveDatasetGroup );
   const bool onEdges = ( meta.dataType() == QgsMeshDatasetGroupMetadata::DataOnEdges );
   return onEdges;
 }
 
+void QgsMeshRendererScalarSettingsWidget::setCanvas( QgsMapCanvas *canvas )
+{
+  mCanvas = canvas;
+}
 
+void QgsMeshRendererScalarSettingsWidget::recalculateMinMax()
+{
+  QgsRectangle searchExtent;
+
+  Qgis::MeshRangeExtent extentRange = mMinMaxValueTypeComboBox->currentData().value<Qgis::MeshRangeExtent>();
+
+  switch ( extentRange )
+  {
+    case Qgis::MeshRangeExtent::WholeMesh:
+    {
+      searchExtent = mMeshLayer->extent();
+      break;
+    }
+    case Qgis::MeshRangeExtent::FixedCanvas:
+    case Qgis::MeshRangeExtent::UpdatedCanvas:
+    {
+      QgsCoordinateTransform ct = QgsCoordinateTransform( mCanvas->mapSettings().destinationCrs(), mMeshLayer->crs(), QgsProject::instance() );
+      searchExtent = mCanvas->extent();
+      try
+      {
+        searchExtent = ct.transform( searchExtent );
+      }
+      catch ( const QgsCsException &e )
+      {
+        QgsMessageLog::logMessage( QObject::tr( "Transform error caught: %1" ).arg( e.what() ), QObject::tr( "CRS" ) );
+        // can properly transform canvas extent to meshlayer crs, use full mesh layer extent
+        searchExtent = mMeshLayer->extent();
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  if ( !searchExtent.isEmpty() )
+  {
+    QgsMeshDatasetIndex datasetIndex = mMeshLayer->activeScalarDatasetAtTime( mCanvas->temporalRange(), mActiveDatasetGroup );
+    double min, max;
+    bool found;
+
+    found = mMeshLayer->minimumMaximumActiveScalarDataset( searchExtent, datasetIndex, min, max );
+    if ( found )
+    {
+      whileBlocking( mScalarMinSpinBox )->setValue( min );
+      whileBlocking( mScalarMaxSpinBox )->setValue( max );
+      minMaxChanged();
+    }
+  }
+}
+
+void QgsMeshRendererScalarSettingsWidget::mUserDefinedRadioButton_toggled( bool toggled )
+{
+  mMinMaxValueTypeComboBox->setEnabled( !toggled );
+  mScalarMinSpinBox->setEnabled( toggled );
+  mScalarMaxSpinBox->setEnabled( toggled );
+  mScalarRecalculateMinMaxButton->setEnabled( toggled );
+  emit widgetChanged();
+}
+
+void QgsMeshRendererScalarSettingsWidget::mMinMaxRadioButton_toggled( bool toggled )
+{
+  mMinMaxValueTypeComboBox->setEnabled( toggled );
+  mScalarMinSpinBox->setEnabled( !toggled );
+  mScalarMaxSpinBox->setEnabled( !toggled );
+  mScalarRecalculateMinMaxButton->setEnabled( !toggled );
+  emit widgetChanged();
+}

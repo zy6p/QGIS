@@ -70,7 +70,7 @@ class QgsBackgroundCachedSharedData
     bool downloadFinished() const { return mDownloadFinished; }
 
     //! Returns layer feature count. Might issue a network request if issueRequestIfNeeded == true
-    int getFeatureCount( bool issueRequestIfNeeded = true );
+    long long getFeatureCount( bool issueRequestIfNeeded = true );
 
     //! Return a "consolidated" extent mixing the one from the capabilities from the one of the features already downloaded.
     QgsRectangle consolidatedExtent() const;
@@ -124,6 +124,9 @@ class QgsBackgroundCachedSharedData
     //! Return current BBOX used by the downloader
     const QgsRectangle &currentRect() const { return mRect; }
 
+    //! Set current BBOX used by the downloader.
+    void setCurrentRect( const QgsRectangle &rect ) { mRect = rect; }
+
     //! Returns a unique identifier made from feature content
     static QString getMD5( const QgsFeature &f );
 
@@ -136,7 +139,7 @@ class QgsBackgroundCachedSharedData
      * Used by a QgsBackgroundCachedFeatureIterator to start a downloader and get the
      * generation counter.
     */
-    int registerToCache( QgsBackgroundCachedFeatureIterator *iterator, int limit, const QgsRectangle &rect = QgsRectangle() );
+    int registerToCache( QgsBackgroundCachedFeatureIterator *iterator, int limit, const QgsRectangle &rect = QgsRectangle(), const QString &serverExpression = QString() );
 
     /**
      * Used by the rewind() method of an iterator so as to get the up-to-date
@@ -151,10 +154,10 @@ class QgsBackgroundCachedSharedData
     void serializeFeatures( QVector<QgsFeatureUniqueIdPair> &featureList );
 
     //! Called by QgsFeatureDownloader::run() at the end of the download process.
-    void endOfDownload( bool success, int featureCount, bool truncatedResponse, bool interrupted, const QString &errorMsg );
+    void endOfDownload( bool success, long long featureCount, bool truncatedResponse, bool interrupted, const QString &errorMsg );
 
     //! Force an update of the feature count
-    void setFeatureCount( int featureCount, bool featureCountExact );
+    void setFeatureCount( long long featureCount, bool featureCountExact );
 
     //! Returns the name of temporary directory. To be paired with releaseCacheDirectory()
     QString acquireCacheDirectory();
@@ -166,6 +169,9 @@ class QgsBackgroundCachedSharedData
     void setHideProgressDialog( bool b ) { mHideProgressDialog = b; }
 
     //////// Pure virtual methods
+
+    //! Returns computed server expression
+    virtual QString computedExpression( const QgsExpression &expression ) const = 0;
 
     //! Instantiate a new feature downloader implementation.
     virtual std::unique_ptr<QgsFeatureDownloaderImpl> newFeatureDownloaderImpl( QgsFeatureDownloader *, bool requestMadeFromMainThread ) = 0;
@@ -180,10 +186,9 @@ class QgsBackgroundCachedSharedData
     virtual QString layerName() const = 0;
 
     //! Called when an error must be raised to the provider
-    virtual void pushError( const QString &errorMsg ) = 0;
+    virtual void pushError( const QString &errorMsg ) const = 0;
 
   protected:
-
     //////////// Input members. Implementations should define them to meaningful values
 
     //! Attribute fields of the layer
@@ -199,13 +204,16 @@ class QgsBackgroundCachedSharedData
     QString mClientSideFilterExpression;
 
     //! Server-side or user-side limit of downloaded features (including with paging). Valid if > 0
-    int mMaxFeatures = 0;
+    long long mMaxFeatures = 0;
 
     //! Server-side limit of downloaded features (including with paging). Valid if > 0
-    int mServerMaxFeatures = 0;
+    long long mServerMaxFeatures = 0;
 
     //! Bounding box for the layer as returned by GetCapabilities
     QgsRectangle mCapabilityExtent;
+
+    //! Extent computed from downloaded features
+    QgsRectangle mComputedExtent;
 
     //! Flag is a /items request returns a numberMatched property
     bool mHasNumberMatched = false;
@@ -213,13 +221,21 @@ class QgsBackgroundCachedSharedData
     //! Whether progress dialog should be hidden
     bool mHideProgressDialog = false;
 
+    //! Server filter expression
+    QString mServerExpression;
+
     //////////// Methods
+
+    //! To be used by the clone() method of derived classes
+    void copyStateToClone( QgsBackgroundCachedSharedData *clone ) const;
 
     //! Should be called in the destructor of the implementation of this class !
     void cleanup();
 
-  private:
+    //! Returns true if it is likely that the server doesn't properly honor axis order.
+    virtual bool detectPotentialServerAxisOrderIssueFromSingleFeatureExtent() const { return false; }
 
+  private:
     //! Cache directory manager
     QgsCacheDirectoryManager &mCacheDirectoryManager;
 
@@ -247,14 +263,11 @@ class QgsBackgroundCachedSharedData
     */
     int mGenCounter = 0;
 
-    //! Extent computed from downloaded features
-    QgsRectangle mComputedExtent;
-
     //! Spatial index of requested cached regions
     QgsSpatialIndex mCachedRegions;
 
     //! Requested cached regions
-    QVector< QgsFeature > mRegions;
+    QVector<QgsFeature> mRegions;
 
     //! Limit of retrieved number of features for the current request
     int mRequestLimit = 0;
@@ -288,13 +301,13 @@ class QgsBackgroundCachedSharedData
     QgsFeatureId mNextCachedIdQgisId = 1;
 
     //! Number of features that have been cached, or attempted to be cached
-    int mTotalFeaturesAttemptedToBeCached = 0;
+    long long mTotalFeaturesAttemptedToBeCached = 0;
 
     //! Whether we have already tried fetching one feature after realizing that the capabilities extent is wrong
     bool mTryFetchingOneFeature = false;
 
     //! Number of features of the layer
-    int mFeatureCount = 0;
+    long long mFeatureCount = 0;
 
     //! Whether mFeatureCount value is exact or approximate / in construction
     bool mFeatureCountExact = false;
@@ -340,7 +353,7 @@ class QgsBackgroundCachedSharedData
     virtual QgsRectangle getExtentFromSingleFeatureRequest() const = 0;
 
     //! Launch a synchronous request to count the number of features (return -1 in case of error)
-    virtual int getFeatureCountFromServer() const = 0;
+    virtual long long getFeatureCountFromServer() const = 0;
 };
 
 #endif

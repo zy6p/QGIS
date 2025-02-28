@@ -14,28 +14,25 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsauthsettingswidget.h"
+#include "moc_qgsauthsettingswidget.cpp"
 #include "qgsauthmanager.h"
 #include "qgsauthconfig.h"
 #include "qgsapplication.h"
 
 #include <QDateTime>
 
-QgsAuthSettingsWidget::QgsAuthSettingsWidget( QWidget *parent,
-    const QString &configId,
-    const QString &username,
-    const QString &password,
-    const QString &dataprovider )
+QgsAuthSettingsWidget::QgsAuthSettingsWidget( QWidget *parent, const QString &configId, const QString &username, const QString &password, const QString &dataprovider )
   : QWidget( parent )
   , mDataprovider( dataprovider )
 {
   setupUi( this );
   txtPassword->setText( password );
   txtUserName->setText( username );
-  if ( ! dataprovider.isEmpty( ) )
+  if ( !dataprovider.isEmpty() )
   {
     mAuthConfigSelect->setDataProviderKey( dataprovider );
   }
-  if ( ! configId.isEmpty( ) )
+  if ( !configId.isEmpty() )
   {
     mAuthConfigSelect->setConfigId( configId );
   }
@@ -45,10 +42,18 @@ QgsAuthSettingsWidget::QgsAuthSettingsWidget( QWidget *parent,
   connect( btnConvertToEncrypted, &QPushButton::clicked, this, &QgsAuthSettingsWidget::convertToEncrypted );
   connect( txtUserName, &QLineEdit::textChanged, this, &QgsAuthSettingsWidget::userNameTextChanged );
   connect( txtPassword, &QLineEdit::textChanged, this, &QgsAuthSettingsWidget::passwordTextChanged );
+  connect( mAuthConfigSelect, &QgsAuthConfigSelect::selectedConfigIdChanged, this, &QgsAuthSettingsWidget::configIdChanged );
+
   // Hide store password and username by default
   showStoreCheckboxes( false );
   updateSelectedTab();
   updateConvertBtnState();
+}
+
+void QgsAuthSettingsWidget::removeBasicSettings()
+{
+  tabAuth->removeTab( tabAuth->indexOf( tabBasic ) );
+  tabAuth->setCurrentIndex( tabAuth->indexOf( tabConfigurations ) );
 }
 
 void QgsAuthSettingsWidget::setWarningText( const QString &warningText )
@@ -60,10 +65,10 @@ void QgsAuthSettingsWidget::setBasicText( const QString &basicText )
 {
   lblBasic->setText( basicText );
   // hide unused widget so its word wrapping does not add to parent widget's height
-  lblBasic->setVisible( ! basicText.isEmpty() );
+  lblBasic->setVisible( !basicText.isEmpty() );
 }
 
-const QString QgsAuthSettingsWidget::username() const
+QString QgsAuthSettingsWidget::username() const
 {
   return txtUserName->text();
 }
@@ -74,7 +79,7 @@ void QgsAuthSettingsWidget::setUsername( const QString &username )
   updateSelectedTab();
 }
 
-const QString QgsAuthSettingsWidget::password() const
+QString QgsAuthSettingsWidget::password() const
 {
   return txtPassword->text();
 }
@@ -97,14 +102,14 @@ void QgsAuthSettingsWidget::setDataprovider( const QString &dataprovider )
   mAuthConfigSelect->setDataProviderKey( dataprovider );
 }
 
-const QString QgsAuthSettingsWidget::dataprovider() const
+QString QgsAuthSettingsWidget::dataprovider() const
 {
   return mDataprovider;
 }
 
-const QString QgsAuthSettingsWidget::formattedWarning( WarningType warning )
+QString QgsAuthSettingsWidget::formattedWarning( WarningType warning )
 {
-  QString out = tr( "Warning: credentials stored as plain text in %1." );
+  const QString out = tr( "Warning: credentials stored as plain text in %1." );
   switch ( warning )
   {
     case ProjectFile:
@@ -115,14 +120,14 @@ const QString QgsAuthSettingsWidget::formattedWarning( WarningType warning )
   return QString(); // no build warnings
 }
 
-const QString QgsAuthSettingsWidget::configId() const
+QString QgsAuthSettingsWidget::configId() const
 {
   return mAuthConfigSelect->configId();
 }
 
 bool QgsAuthSettingsWidget::btnConvertToEncryptedIsEnabled() const
 {
-  return btnConvertToEncrypted->isEnabled( );
+  return btnConvertToEncrypted->isEnabled();
 }
 
 void QgsAuthSettingsWidget::showStoreCheckboxes( bool enabled )
@@ -151,36 +156,36 @@ void QgsAuthSettingsWidget::setStorePasswordChecked( bool checked )
 
 bool QgsAuthSettingsWidget::storePasswordIsChecked() const
 {
-  return cbStorePassword->isChecked( );
+  return cbStorePassword->isChecked();
 }
 
 bool QgsAuthSettingsWidget::storeUsernameIsChecked() const
 {
-  return cbStoreUsername->isChecked( );
+  return cbStoreUsername->isChecked();
 }
 
 bool QgsAuthSettingsWidget::configurationTabIsSelected()
 {
-  return tabAuth->currentIndex( ) == tabAuth->indexOf( tabConfigurations );
+  return tabAuth->currentIndex() == tabAuth->indexOf( tabConfigurations );
 }
 
-bool QgsAuthSettingsWidget::convertToEncrypted( )
+bool QgsAuthSettingsWidget::convertToEncrypted()
 {
   tabAuth->setCurrentIndex( tabAuth->indexOf( tabConfigurations ) );
   QgsAuthMethodConfig config( QStringLiteral( "Basic" ) );
-  config.setName( tr( "Converted config %1" ).arg( QDateTime::currentDateTime().toString( ) ) );
+  config.setName( tr( "Converted config %1" ).arg( QDateTime::currentDateTime().toString() ) );
   config.setConfig( QStringLiteral( "username" ), txtUserName->text() );
   config.setConfig( QStringLiteral( "password" ), txtPassword->text() );
-  if ( ! QgsApplication::authManager()->storeAuthenticationConfig( config ) )
+  if ( !QgsApplication::authManager()->storeAuthenticationConfig( config ) )
   {
     mAuthConfigSelect->showMessage( tr( "Couldn't create a Basic authentication configuration!" ) );
     return false;
   }
   else
   {
-    txtUserName->setText( QString( ) );
-    txtPassword->setText( QString( ) );
-    mAuthConfigSelect->setConfigId( config.id( ) );
+    txtUserName->setText( QString() );
+    txtPassword->setText( QString() );
+    mAuthConfigSelect->setConfigId( config.id() );
     return true;
   }
 }
@@ -189,26 +194,28 @@ void QgsAuthSettingsWidget::userNameTextChanged( const QString &text )
 {
   Q_UNUSED( text )
   updateConvertBtnState();
+  emit usernameChanged();
 }
 
 void QgsAuthSettingsWidget::passwordTextChanged( const QString &text )
 {
   Q_UNUSED( text )
   updateConvertBtnState();
+  emit passwordChanged();
 }
 
 void QgsAuthSettingsWidget::updateConvertBtnState()
 {
-  btnConvertToEncrypted->setEnabled( ! txtUserName->text().isEmpty() || ! txtPassword->text().isEmpty() );
+  btnConvertToEncrypted->setEnabled( !txtUserName->text().isEmpty() || !txtPassword->text().isEmpty() );
 }
 
 void QgsAuthSettingsWidget::updateSelectedTab()
 {
-  if ( ! mAuthConfigSelect->configId().isEmpty( ) )
+  if ( !mAuthConfigSelect->configId().isEmpty() )
   {
     tabAuth->setCurrentIndex( tabAuth->indexOf( tabConfigurations ) );
   }
-  else if ( !( txtUserName->text( ).isEmpty() && txtPassword->text( ).isEmpty( ) ) )
+  else if ( !( txtUserName->text().isEmpty() && txtPassword->text().isEmpty() ) )
   {
     tabAuth->setCurrentIndex( tabAuth->indexOf( tabBasic ) );
   }

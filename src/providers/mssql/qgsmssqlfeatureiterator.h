@@ -24,21 +24,25 @@
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
+#include "qgscoordinatetransform.h"
 
 #include "qgsmssqlprovider.h"
 
 class QgsMssqlProvider;
+class QgsMssqlQuery;
 
-class QgsMssqlFeatureSource final: public QgsAbstractFeatureSource
+class QgsMssqlFeatureSource final : public QgsAbstractFeatureSource
 {
   public:
     explicit QgsMssqlFeatureSource( const QgsMssqlProvider *p );
 
     QgsFeatureIterator getFeatures( const QgsFeatureRequest &request ) override;
 
+    const QString &connInfo() const;
+
   private:
     QgsFields mFields;
-    QgsMssqlPrimaryKeyType mPrimaryKeyType;
+    QgsMssqlDatabase::PrimaryKeyType mPrimaryKeyType;
     QList<int> mPrimaryKeyAttrs;
     std::shared_ptr<QgsMssqlSharedData> mShared;
     long mSRId;
@@ -52,6 +56,7 @@ class QgsMssqlFeatureSource final: public QgsAbstractFeatureSource
     // current layer name
     QString mSchemaName;
     QString mTableName;
+    QString mQuery;
 
     // login
     QString mUserName;
@@ -69,14 +74,19 @@ class QgsMssqlFeatureSource final: public QgsAbstractFeatureSource
 
     QgsCoordinateReferenceSystem mCrs;
 
+    std::shared_ptr<QgsMssqlDatabase> mTransactionConn;
+
     // Return True if this feature source has spatial attributes.
     bool isSpatial() { return !mGeometryColName.isEmpty() || !mGeometryColType.isEmpty(); }
+
+    // Uri information for query logger
+    QString mConnInfo;
 
     friend class QgsMssqlFeatureIterator;
     friend class QgsMssqlExpressionCompiler;
 };
 
-class QgsMssqlFeatureIterator final: public QgsAbstractFeatureIteratorFromSource<QgsMssqlFeatureSource>
+class QgsMssqlFeatureIterator final : public QgsAbstractFeatureIteratorFromSource<QgsMssqlFeatureSource>
 {
   public:
     QgsMssqlFeatureIterator( QgsMssqlFeatureSource *source, bool ownSource, const QgsFeatureRequest &request );
@@ -95,17 +105,16 @@ class QgsMssqlFeatureIterator final: public QgsAbstractFeatureIteratorFromSource
     QString whereClauseFid( QgsFeatureId featureId );
 
   private:
-
     bool prepareOrderBy( const QList<QgsFeatureRequest::OrderByClause> &orderBys ) override;
 
     double validLat( double latitude ) const;
     double validLon( double longitude ) const;
 
     // The current database
-    QSqlDatabase mDatabase;
+    std::shared_ptr<QgsMssqlDatabase> mDatabase;
 
     // The current sql query
-    std::unique_ptr< QSqlQuery > mQuery;
+    std::unique_ptr<QgsMssqlQuery> mQuery;
 
     // The current sql statement
     QString mStatement;
@@ -125,6 +134,8 @@ class QgsMssqlFeatureIterator final: public QgsAbstractFeatureIteratorFromSource
 
     QgsCoordinateTransform mTransform;
     QgsRectangle mFilterRect;
+    QgsGeometry mDistanceWithinGeom;
+    std::unique_ptr<QgsGeometryEngine> mDistanceWithinEngine;
 };
 
 #endif // QGSMSSQLFEATUREITERATOR_H

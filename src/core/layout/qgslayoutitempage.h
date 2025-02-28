@@ -17,6 +17,8 @@
 #ifndef QGSLAYOUTITEMPAGE_H
 #define QGSLAYOUTITEMPAGE_H
 
+#include <QPageLayout>
+
 #include "qgis_core.h"
 #include "qgslayoutitem.h"
 #include "qgslayoutitemregistry.h"
@@ -32,7 +34,6 @@
  *
  * This is drawn separately to the underlying page item since the grid needs to be
  * drawn above all other layout items, while the paper item is drawn below all others.
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsLayoutItemPageGrid: public QGraphicsRectItem
 {
@@ -51,7 +52,6 @@ class CORE_EXPORT QgsLayoutItemPageGrid: public QGraphicsRectItem
  * \ingroup core
  * \class QgsLayoutItemPage
  * \brief Item representing the paper in a layout.
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsLayoutItemPage : public QgsLayoutItem
 {
@@ -105,6 +105,12 @@ class CORE_EXPORT QgsLayoutItemPage : public QgsLayoutItem
      * \see pageSize()
      */
     bool setPageSize( const QString &size, Orientation orientation = Portrait );
+
+    /**
+     * Returns the page layout for the page, suitable to pass to QPrinter::setPageLayout
+     * \since QGIS 3.20
+     */
+    QPageLayout pageLayout() const;
 
     /**
      * Returns the size of the page.

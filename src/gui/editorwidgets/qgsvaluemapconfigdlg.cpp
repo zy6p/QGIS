@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsvaluemapconfigdlg.h"
+#include "moc_qgsvaluemapconfigdlg.cpp"
 
 #include "qgsattributetypeloaddialog.h"
 #include "qgsvaluemapfieldformatter.h"
@@ -26,11 +27,15 @@
 #include <QClipboard>
 #include <QKeyEvent>
 #include <QMimeData>
+#include <QRegularExpression>
 
 QgsValueMapConfigDlg::QgsValueMapConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent )
   : QgsEditorConfigWidget( vl, fieldIdx, parent )
 {
   setupUi( this );
+
+  mValueMapErrorsLabel->setVisible( false );
+  mValueMapErrorsLabel->setStyleSheet( QStringLiteral( "QLabel { color : red; }" ) );
 
   tableWidget->insertRow( 0 );
 
@@ -89,26 +94,29 @@ void QgsValueMapConfigDlg::setConfig( const QVariantMap &config )
   }
 
   QList<QVariant> valueList = config.value( QStringLiteral( "map" ) ).toList();
+  QList<QPair<QString, QVariant>> orderedList;
 
   if ( valueList.count() > 0 )
   {
     for ( int i = 0, row = 0; i < valueList.count(); i++, row++ )
     {
-      setRow( row, valueList[i].toMap().constBegin().value().toString(), valueList[i].toMap().constBegin().key() );
+      orderedList.append( qMakePair( valueList[i].toMap().constBegin().value().toString(), valueList[i].toMap().constBegin().key() ) );
     }
   }
   else
   {
     int row = 0;
-    QVariantMap values = config.value( QStringLiteral( "map" ) ).toMap();
+    const QVariantMap values = config.value( QStringLiteral( "map" ) ).toMap();
     for ( QVariantMap::ConstIterator mit = values.constBegin(); mit != values.constEnd(); mit++, row++ )
     {
-      if ( mit.value().isNull() )
-        setRow( row, mit.key(), QString() );
+      if ( QgsVariantUtils::isNull( mit.value() ) )
+        orderedList.append( qMakePair( mit.key(), QVariant() ) );
       else
-        setRow( row, mit.value().toString(), mit.key() );
+        orderedList.append( qMakePair( mit.value().toString(), mit.key() ) );
     }
   }
+
+  updateMap( orderedList, false );
 }
 
 void QgsValueMapConfigDlg::vCellChanged( int row, int column )
@@ -118,6 +126,24 @@ void QgsValueMapConfigDlg::vCellChanged( int row, int column )
   {
     tableWidget->insertRow( row + 1 );
   } //else check type
+
+  if ( layer()->fields().exists( field() ) )
+  {
+    // check cell value
+    QTableWidgetItem *item = tableWidget->item( row, 0 );
+    if ( item )
+    {
+      const QString validValue = checkValueLength( item->text() );
+      if ( validValue.length() != item->text().length() )
+      {
+        const QString errorMessage = tr( "Value '%1' has been trimmed (maximum field length: %2)" )
+                                       .arg( item->text(), QString::number( layer()->fields().field( field() ).length() ) );
+        item->setText( validValue );
+        mValueMapErrorsLabel->setVisible( true );
+        mValueMapErrorsLabel->setText( QStringLiteral( "%1<br>%2" ).arg( errorMessage, mValueMapErrorsLabel->text() ) );
+      }
+    }
+  }
 
   emit changed();
 }
@@ -132,16 +158,16 @@ void QgsValueMapConfigDlg::removeSelectedButtonPushed()
   {
     if ( list[i]->column() == 0 )
     {
-      int row = list[i]->row();
+      const int row = list[i]->row();
       if ( !rowsToRemove.contains( row ) )
       {
         rowsToRemove.insert( row );
       }
     }
   }
-  for ( i = 0; i < rowsToRemove.size(); i++ )
+  for ( const int rowToRemoved : rowsToRemove )
   {
-    tableWidget->removeRow( rowsToRemove.values().at( i ) - removed );
+    tableWidget->removeRow( rowToRemoved - removed );
     removed++;
   }
   emit changed();
@@ -150,7 +176,7 @@ void QgsValueMapConfigDlg::removeSelectedButtonPushed()
 void QgsValueMapConfigDlg::updateMap( const QMap<QString, QVariant> &map, bool insertNull )
 {
   QList<QPair<QString, QVariant>> orderedMap;
-  auto end = map.constEnd();
+  const auto end = map.constEnd();
   for ( auto it = map.constBegin(); it != end; ++it )
   {
     orderedMap.append( qMakePair( it.key(), it.value() ) );
@@ -162,6 +188,8 @@ void QgsValueMapConfigDlg::updateMap( const QMap<QString, QVariant> &map, bool i
 void QgsValueMapConfigDlg::updateMap( const QList<QPair<QString, QVariant>> &list, bool insertNull )
 {
   tableWidget->clearContents();
+  mValueMapErrorsLabel->setVisible( false );
+
   for ( int i = tableWidget->rowCount() - 1; i > 0; i-- )
   {
     tableWidget->removeRow( i );
@@ -174,14 +202,59 @@ void QgsValueMapConfigDlg::updateMap( const QList<QPair<QString, QVariant>> &lis
     ++row;
   }
 
+  constexpr int maxOverflowErrors { 5 };
+  QStringList reportedErrors;
+  const bool hasField { layer()->fields().exists( field() ) };
+  const QgsField mappedField { hasField ? layer()->fields().field( field() ) : QgsField() };
+
   for ( const auto &pair : list )
   {
-    if ( pair.second.isNull() )
+    if ( QgsVariantUtils::isNull( pair.second ) )
       setRow( row, pair.first, QString() );
     else
-      setRow( row, pair.first, pair.second.toString() );
+    {
+      const QString value { pair.first };
+      // Check value
+      const QString validValue = checkValueLength( value );
+
+      if ( validValue.length() != value.length() )
+      {
+        if ( reportedErrors.length() < maxOverflowErrors )
+        {
+          reportedErrors.push_back( tr( "Value '%1' has been trimmed (maximum field length: %2)" )
+                                      .arg( value, QString::number( mappedField.length() ) ) );
+        }
+        else if ( reportedErrors.length() == maxOverflowErrors )
+        {
+          reportedErrors.push_back( tr( "Only first %1 errors have been reported." )
+                                      .arg( maxOverflowErrors ) );
+        }
+      }
+
+      setRow( row, validValue, pair.second.toString() );
+
+      // Show errors if any
+      if ( !reportedErrors.isEmpty() )
+      {
+        mValueMapErrorsLabel->setVisible( true );
+        mValueMapErrorsLabel->setText( reportedErrors.join( QLatin1String( "<br>" ) ) );
+      }
+    }
     ++row;
   }
+}
+
+QString QgsValueMapConfigDlg::checkValueLength( const QString &value )
+{
+  if ( layer()->fields().exists( field() ) )
+  {
+    const QgsField mappedField { layer()->fields().field( field() ) };
+    if ( mappedField.length() > 0 && value.length() > mappedField.length() )
+    {
+      return value.mid( 0, mappedField.length() );
+    }
+  }
+  return value;
 }
 
 void QgsValueMapConfigDlg::populateComboBox( QComboBox *comboBox, const QVariantMap &config, bool skipNull )
@@ -231,7 +304,7 @@ bool QgsValueMapConfigDlg::eventFilter( QObject *watched, QEvent *event )
 
 void QgsValueMapConfigDlg::setRow( int row, const QString &value, const QString &description )
 {
-  QgsSettings settings;
+  const QgsSettings settings;
   QTableWidgetItem *valueCell = nullptr;
   QTableWidgetItem *descriptionCell = new QTableWidgetItem( description );
   tableWidget->insertRow( row );
@@ -260,7 +333,7 @@ void QgsValueMapConfigDlg::copySelectionToClipboard()
 
   QString clipboardText;
   QModelIndex previous = indexes.first();
-  std::unique_ptr<QMimeData> mimeData = std::make_unique<QMimeData>();
+  auto mimeData = std::make_unique<QMimeData>();
   for ( const QModelIndex &current : indexes )
   {
     const QString text = model->data( current ).toString();
@@ -295,68 +368,47 @@ void QgsValueMapConfigDlg::loadFromLayerButtonPushed()
 
 void QgsValueMapConfigDlg::loadFromCSVButtonPushed()
 {
-  QgsSettings settings;
+  const QgsSettings settings;
 
-  QString fileName = QFileDialog::getOpenFileName( nullptr, tr( "Load Value Map from File" ), QDir::homePath() );
+  const QString fileName = QFileDialog::getOpenFileName( nullptr, tr( "Load Value Map from File" ), QDir::homePath() );
   if ( fileName.isNull() )
     return;
+  loadMapFromCSV( fileName );
+}
 
-  QFile f( fileName );
+void QgsValueMapConfigDlg::loadMapFromCSV( const QString &filePath )
+{
+  QFile f( filePath );
 
   if ( !f.open( QIODevice::ReadOnly ) )
   {
-    QMessageBox::information( nullptr,
-                              tr( "Load Value Map from File" ),
-                              tr( "Could not open file %1\nError was: %2" ).arg( fileName, f.errorString() ),
-                              QMessageBox::Cancel );
+    QMessageBox::information( nullptr, tr( "Load Value Map from File" ), tr( "Could not open file %1\nError was: %2" ).arg( filePath, f.errorString() ), QMessageBox::Cancel );
     return;
   }
 
   QTextStream s( &f );
   s.setAutoDetectUnicode( true );
 
-  QRegExp re0( "^([^;]*);(.*)$" );
-  re0.setMinimal( true );
-  QRegExp re1( "^([^,]*),(.*)$" );
-  re1.setMinimal( true );
-
+  const thread_local QRegularExpression re( "(?:^\"|[;,]\")(\"\"|[\\w\\W]*?)(?=\"[;,]|\"$)|(?:^(?!\")|[;,](?!\"))([^;,]*?)(?=$|[;,])|(\\r\\n|\\n)" );
   QList<QPair<QString, QVariant>> map;
-
   while ( !s.atEnd() )
   {
-    QString l = s.readLine().trimmed();
-
-    QString key;
-    QString val;
-
-    if ( re0.indexIn( l ) >= 0 && re0.captureCount() == 2 )
+    const QString l = s.readLine().trimmed();
+    QRegularExpressionMatchIterator matches = re.globalMatch( l );
+    QStringList ceils;
+    while ( matches.hasNext() && ceils.size() < 2 )
     {
-      key = re0.cap( 1 ).trimmed();
-      val = re0.cap( 2 ).trimmed();
+      const QRegularExpressionMatch match = matches.next();
+      ceils << match.capturedTexts().last().trimmed().replace( QLatin1String( "\"\"" ), QLatin1String( "\"" ) );
     }
-    else if ( re1.indexIn( l ) >= 0 && re1.captureCount() == 2 )
-    {
-      key = re1.cap( 1 ).trimmed();
-      val = re1.cap( 2 ).trimmed();
-    }
-    else
+
+    if ( ceils.size() != 2 )
       continue;
 
-    if ( ( key.startsWith( '\"' ) && key.endsWith( '\"' ) ) ||
-         ( key.startsWith( '\'' ) && key.endsWith( '\'' ) ) )
-    {
-      key = key.mid( 1, key.length() - 2 );
-    }
-
-    if ( ( val.startsWith( '\"' ) && val.endsWith( '\"' ) ) ||
-         ( val.startsWith( '\'' ) && val.endsWith( '\'' ) ) )
-    {
-      val = val.mid( 1, val.length() - 2 );
-    }
-
+    QString key = ceils[0];
+    QString val = ceils[1];
     if ( key == QgsApplication::nullRepresentation() )
       key = QgsValueMapFieldFormatter::NULL_VALUE;
-
     map.append( qMakePair( key, val ) );
   }
 

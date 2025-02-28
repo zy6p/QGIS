@@ -17,21 +17,21 @@
 #include "qgsmessageoutput.h"
 #include "qgsmimedatautils.h"
 #include "qgsproviderregistry.h"
-#include "qgsrasterlayer.h"
 #include "qgsrasterdataprovider.h"
 #include "qgsrasterprojector.h"
 #include "qgslogger.h"
 #include "qgssettings.h"
 #include "qgsdataitemprovider.h"
 #include "qgsgrassprovidermodule.h"
+#include "moc_qgsgrassprovidermodule.cpp"
 #include "qgsgrassprovider.h"
 #include "qgsgrass.h"
 #include "qgsgrassvector.h"
-#include "qgsprovidermetadata.h"
+#include "qgsproject.h"
+#include "qgsapplication.h"
 
 #ifdef HAVE_GUI
 #include "qgsnewnamedialog.h"
-#include "qgsgrassoptions.h"
 #endif
 
 #include <QAction>
@@ -42,6 +42,7 @@
 #include <QProgressBar>
 #include <QScrollBar>
 #include <QTextEdit>
+#include <QRegularExpression>
 
 //----------------------- QgsGrassItemActions ------------------------------
 #ifdef HAVE_GUI
@@ -96,7 +97,8 @@ QList<QAction *> QgsGrassItemActions::actions( QWidget *parent )
   }
 
   if ( ( mGrassObject.type() == QgsGrassObject::Raster || mGrassObject.type() == QgsGrassObject::Vector
-         ||  mGrassObject.type() == QgsGrassObject::Group ) && isMapsetOwner )
+         || mGrassObject.type() == QgsGrassObject::Group )
+       && isMapsetOwner )
   {
     QAction *renameAction = new QAction( tr( "Rename…" ), parent );
     connect( renameAction, &QAction::triggered, this, &QgsGrassItemActions::renameGrassObject );
@@ -129,19 +131,18 @@ QList<QAction *> QgsGrassItemActions::actions( QWidget *parent )
 
 void QgsGrassItemActions::newMapset()
 {
-
   QStringList existingNames = QgsGrass::mapsets( mGrassObject.gisdbase(), mGrassObject.mapsetPath() );
-  QgsDebugMsg( "existingNames = " + existingNames.join( "," ) );
-  QRegExp regExp = QgsGrassObject::newNameRegExp( QgsGrassObject::Mapset );
+  QgsDebugMsgLevel( QStringLiteral( "existingNames = " ) + existingNames.join( ',' ), 2 );
   Qt::CaseSensitivity caseSensitivity = QgsGrass::caseSensitivity();
-  QgsNewNameDialog dialog( QString(), QString(), QStringList(), existingNames, regExp, caseSensitivity );
+  QgsNewNameDialog dialog( QString(), QString(), QStringList(), existingNames, caseSensitivity );
+  dialog.setRegularExpression( QgsGrassObject::newNameRegExp( QgsGrassObject::Mapset ) );
 
   if ( dialog.exec() != QDialog::Accepted )
   {
     return;
   }
   QString name = dialog.name();
-  QgsDebugMsg( "name = " + name );
+  QgsDebugMsgLevel( "name = " + name, 2 );
   QString error;
   QgsGrass::createMapset( mGrassObject.gisdbase(), mGrassObject.location(), name, error );
   if ( !error.isEmpty() )
@@ -185,28 +186,27 @@ void QgsGrassItemActions::removeMapsetFromSearchPath()
 
 void QgsGrassItemActions::renameGrassObject()
 {
-
   QStringList existingNames = QgsGrass::grassObjects( mGrassObject, mGrassObject.type() );
   // remove current name to avoid warning that exists
   existingNames.removeOne( mGrassObject.name() );
-  QgsDebugMsg( "existingNames = " + existingNames.join( "," ) );
-  QRegExp regExp = QgsGrassObject::newNameRegExp( mGrassObject.type() );
+  QgsDebugMsgLevel( QStringLiteral( "existingNames = " ) + existingNames.join( ',' ), 2 );
   Qt::CaseSensitivity caseSensitivity = QgsGrass::caseSensitivity();
-  QgsNewNameDialog dialog( mGrassObject.name(), mGrassObject.name(), QStringList(), existingNames, regExp, caseSensitivity );
+  QgsNewNameDialog dialog( mGrassObject.name(), mGrassObject.name(), QStringList(), existingNames, caseSensitivity );
+  dialog.setRegularExpression( QgsGrassObject::newNameRegExp( mGrassObject.type() ) );
 
   if ( dialog.exec() != QDialog::Accepted || dialog.name() == mGrassObject.name() )
   {
     return;
   }
 
-  QgsDebugMsg( "rename " + mGrassObject.name() + " -> " + dialog.name() );
+  QgsDebugMsgLevel( "rename " + mGrassObject.name() + " -> " + dialog.name(), 2 );
 
   QgsGrassObject obj( mGrassObject );
   obj.setName( dialog.name() );
   QString errorTitle = QObject::tr( "Rename GRASS %1" ).arg( mGrassObject.elementName() );
   if ( QgsGrass::objectExists( obj ) )
   {
-    QgsDebugMsg( obj.name() + " exists -> delete" );
+    QgsDebugMsgLevel( obj.name() + " exists -> delete", 2 );
     if ( !QgsGrass::deleteObject( obj ) )
     {
       QgsMessageOutput::showMessage( errorTitle, QObject::tr( "Cannot delete %1" ).arg( obj.name() ), QgsMessageOutput::MessageText );
@@ -220,15 +220,12 @@ void QgsGrassItemActions::renameGrassObject()
   }
   catch ( QgsGrass::Exception &e )
   {
-    QgsMessageOutput::showMessage( errorTitle,
-                                   QObject::tr( "Cannot rename %1 to %2" ).arg( mGrassObject.name(), obj.name() ) + "\n" + e.what(),
-                                   QgsMessageOutput::MessageText );
+    QgsMessageOutput::showMessage( errorTitle, QObject::tr( "Cannot rename %1 to %2" ).arg( mGrassObject.name(), obj.name() ) + "\n" + e.what(), QgsMessageOutput::MessageText );
   }
 }
 
 void QgsGrassItemActions::deleteGrassObject()
 {
-
   if ( !QgsGrass::deleteObjectDialog( mGrassObject ) )
     return;
 
@@ -241,19 +238,18 @@ void QgsGrassItemActions::deleteGrassObject()
 
 QString QgsGrassItemActions::newVectorMap()
 {
-
   QStringList existingNames = QgsGrass::grassObjects( mGrassObject, QgsGrassObject::Vector );
-  QgsDebugMsg( "existingNames = " + existingNames.join( "," ) );
-  QRegExp regExp = QgsGrassObject::newNameRegExp( QgsGrassObject::Vector );
+  QgsDebugMsgLevel( QStringLiteral( "existingNames = " ) + existingNames.join( ',' ), 2 );
   Qt::CaseSensitivity caseSensitivity = QgsGrass::caseSensitivity();
-  QgsNewNameDialog dialog( QString(), QString(), QStringList(), existingNames, regExp, caseSensitivity );
+  QgsNewNameDialog dialog( QString(), QString(), QStringList(), existingNames, caseSensitivity );
+  dialog.setRegularExpression( QgsGrassObject::newNameRegExp( QgsGrassObject::Vector ) );
 
   if ( dialog.exec() != QDialog::Accepted )
   {
     return QString();
   }
   QString name = dialog.name();
-  QgsDebugMsg( "name = " + name );
+  QgsDebugMsgLevel( "name = " + name, 2 );
 
   QgsGrassObject mapObject = mGrassObject;
   mapObject.setName( name );
@@ -283,10 +279,10 @@ void QgsGrassItemActions::newLayer( const QString &type )
     name = mGrassObject.name();
   }
 
-  QgsDebugMsg( "name = " + name );
+  QgsDebugMsgLevel( "name = " + name, 2 );
   if ( name.isEmpty() )
   {
-    QgsDebugMsg( "culd not create map" );
+    QgsDebugError( QStringLiteral( "could not create map" ) );
     return;
   }
 
@@ -298,10 +294,10 @@ void QgsGrassItemActions::newLayer( const QString &type )
   vector.openHead();
   int layerNumber = vector.maxLayerNumber() + 1;
 
-  QgsDebugMsg( QString( "layerNumber = %1" ).arg( layerNumber ) );
+  QgsDebugMsgLevel( QStringLiteral( "layerNumber = %1" ).arg( layerNumber ), 2 );
 
   QString uri = mGrassObject.mapsetPath() + "/" + name + QStringLiteral( "/%1_%2" ).arg( layerNumber ).arg( type );
-  QgsDebugMsg( "uri = " + uri );
+  QgsDebugMsgLevel( "uri = " + uri, 2 );
   QgsGrass::instance()->emitNewLayer( uri, name );
 }
 
@@ -330,7 +326,7 @@ QgsGrassObjectItemBase::QgsGrassObjectItemBase( const QgsGrassObject &grassObjec
 
 //----------------------- QgsGrassLocationItem ------------------------------
 
-QgsGrassLocationItem::QgsGrassLocationItem( QgsDataItem *parent, QString dirPath, QString path )
+QgsGrassLocationItem::QgsGrassLocationItem( QgsDataItem *parent, const QString &dirPath, const QString &path )
   : QgsDirectoryItem( parent, QString(), dirPath, path )
   , QgsGrassObjectItemBase( QgsGrassObject() )
 {
@@ -349,18 +345,18 @@ QgsGrassLocationItem::QgsGrassLocationItem( QgsDataItem *parent, QString dirPath
   mIconName = QStringLiteral( "grass_location.svg" );
 
   // set Directory type so that when sorted it gets into dirs (after the dir it represents)
-  mType = QgsDataItem::Directory;
+  mType = Qgis::BrowserItemType::Directory;
 }
 
-QVector<QgsDataItem *>QgsGrassLocationItem::createChildren()
+QVector<QgsDataItem *> QgsGrassLocationItem::createChildren()
 {
   QVector<QgsDataItem *> mapsets;
 
   QDir dir( mDirPath );
 
-  QStringList entries = dir.entryList( QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name );
-  const auto constEntries = entries;
-  for ( const QString &name : constEntries )
+  const QStringList entries = dir.entryList( QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name );
+  mapsets.reserve( entries.size() );
+  for ( const QString &name : entries )
   {
     QString path = dir.absoluteFilePath( name );
 
@@ -375,7 +371,7 @@ QVector<QgsDataItem *>QgsGrassLocationItem::createChildren()
 
 QIcon QgsGrassLocationItem::icon()
 {
-  return QgsApplication::getThemeIcon( "/grass_mapset.svg" );
+  return QgsApplication::getThemeIcon( QStringLiteral( "/grass_mapset.svg" ) );
 }
 
 
@@ -383,7 +379,7 @@ QIcon QgsGrassLocationItem::icon()
 
 QList<QgsGrassImport *> QgsGrassMapsetItem::sImports;
 
-QgsGrassMapsetItem::QgsGrassMapsetItem( QgsDataItem *parent, QString dirPath, QString path )
+QgsGrassMapsetItem::QgsGrassMapsetItem( QgsDataItem *parent, const QString &dirPath, const QString &path )
   : QgsDirectoryItem( parent, QString(), dirPath, path )
   , QgsGrassObjectItemBase( QgsGrassObject() )
   , mRefreshLater( false )
@@ -411,23 +407,22 @@ QIcon QgsGrassMapsetItem::icon()
 {
   if ( mGrassObject == QgsGrass::getDefaultMapsetObject() )
   {
-    return QgsApplication::getThemeIcon( "/grass_mapset_open.svg" );
+    return QgsApplication::getThemeIcon( QStringLiteral( "/grass_mapset_open.svg" ) );
   }
   else if ( mGrassObject.locationIdentical( QgsGrass::getDefaultLocationObject() ) )
   {
     if ( QgsGrass::instance()->isMapsetInSearchPath( mGrassObject.mapset() ) )
     {
-      return QgsApplication::getThemeIcon( "/grass_mapset_search.svg" );
+      return QgsApplication::getThemeIcon( QStringLiteral( "/grass_mapset_search.svg" ) );
     }
   }
-  return QgsApplication::getThemeIcon( "/grass_mapset.svg" );
+  return QgsApplication::getThemeIcon( QStringLiteral( "/grass_mapset.svg" ) );
 }
 
-void QgsGrassMapsetItem::setState( State state )
+void QgsGrassMapsetItem::setState( Qgis::BrowserItemState state )
 {
-
   // TODO: it seems to be causing strange icon switching during import, sometimes
-  if ( state == Populated )
+  if ( state == Qgis::BrowserItemState::Populated )
   {
     if ( !mMapsetFileSystemWatcher )
     {
@@ -437,7 +432,7 @@ void QgsGrassMapsetItem::setState( State state )
       connect( mMapsetFileSystemWatcher, &QFileSystemWatcher::directoryChanged, this, &QgsGrassMapsetItem::onDirectoryChanged );
     }
   }
-  else if ( state == NotPopulated )
+  else if ( state == Qgis::BrowserItemState::NotPopulated )
   {
     if ( mMapsetFileSystemWatcher )
     {
@@ -473,7 +468,6 @@ bool QgsGrassMapsetItem::objectInImports( const QgsGrassObject &grassObject )
 
 QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
 {
-
   QVector<QgsDataItem *> items;
 
   QStringList vectorNames = QgsGrass::vectors( mDirPath );
@@ -494,16 +488,16 @@ QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
     // and Windows does not allow deleting the temporary map to qgis.v.in. In any case we don't want to show temporary import maps.
     // TODO: add some auto cleaning mechanism to remove temporary maps left after import fail
     // keep excluded tmp name in sync with qgis.v.in
-    QgsDebugMsg( "name = " + name );
+    QgsDebugMsgLevel( "name = " + name, 2 );
     if ( name.startsWith( QLatin1String( "qgis_import_tmp_" ) ) )
     {
-      QgsDebugMsg( "skip tmp import vector " + name );
+      QgsDebugMsgLevel( "skip tmp import vector " + name, 2 );
       continue;
     }
 
     if ( objectInImports( vectorObject ) )
     {
-      QgsDebugMsg( "skip currently being imported vector " + name );
+      QgsDebugMsgLevel( "skip currently being imported vector " + name, 2 );
       continue;
     }
 
@@ -516,7 +510,7 @@ QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
     int topoMajor = 0;
     int topoMinor = 0;
     bool gotTopoVersion = QgsGrass::topoVersion( mGrassObject.gisdbase(), mGrassObject.location(), mGrassObject.mapset(), name, topoMajor, topoMinor );
-    QgsDebugMsg( QString( "name = %1 topoMajor = %2 topoMinor = %3" ).arg( name ).arg( topoMajor ).arg( topoMinor ) );
+    QgsDebugMsgLevel( QStringLiteral( "name = %1 topoMajor = %2 topoMinor = %3" ).arg( name ).arg( topoMajor ).arg( topoMinor ), 2 );
     QString topoError;
     if ( !gotTopoVersion )
     {
@@ -528,7 +522,7 @@ QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
     {
       topoError = tr( "topology version not supported" );
     }
-    else if ( topoMinor == 0 &&  GRASS_VERSION_MAJOR == 7 )
+    else if ( topoMinor == 0 && GRASS_VERSION_MAJOR == 7 )
     {
       topoError = tr( "topology version 6" );
     }
@@ -569,16 +563,16 @@ QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
       // don't use QDir::separator(), windows work with '/' and backslash may be lost if
       // somewhere not properly escaped (there was bug in QgsMimeDataUtils for example)
       QString uri = mDirPath + "/" + name + "/" + layerName;
-      QgsLayerItem::LayerType layerType = QgsLayerItem::Vector;
+      Qgis::BrowserLayerType layerType = Qgis::BrowserLayerType::Vector;
       QString typeName = layerName.split( '_' ).value( 1 );
       QString baseLayerName = layerName.split( '_' ).value( 0 );
 
       if ( typeName == QLatin1String( "point" ) || typeName == QLatin1String( "node" ) )
-        layerType = QgsLayerItem::Point;
+        layerType = Qgis::BrowserLayerType::Point;
       else if ( typeName == QLatin1String( "line" ) )
-        layerType = QgsLayerItem::Line;
+        layerType = Qgis::BrowserLayerType::Line;
       else if ( typeName == QLatin1String( "polygon" ) )
-        layerType = QgsLayerItem::Polygon;
+        layerType = Qgis::BrowserLayerType::Polygon;
 
       QString layerPath = mapPath + "/" + layerName;
       if ( !map )
@@ -596,15 +590,13 @@ QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
     }
     if ( map )
     {
-      map->setState( Populated );
+      map->setState( Qgis::BrowserItemState::Populated );
       items.append( map );
     }
   }
 
-  QStringList rasterNames = QgsGrass::rasters( mDirPath );
-
-  const auto constRasterNames = rasterNames;
-  for ( const QString &name : constRasterNames )
+  const QStringList rasterNames = QgsGrass::rasters( mDirPath );
+  for ( const QString &name : rasterNames )
   {
     if ( mRefreshLater )
     {
@@ -613,12 +605,12 @@ QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
     }
     QString path = mPath + "/" + "raster" + "/" + name;
     QString uri = mDirPath + "/" + "cellhd" + "/" + name;
-    QgsDebugMsg( "uri = " + uri );
+    QgsDebugMsgLevel( "uri = " + uri, 2 );
 
     QgsGrassObject rasterObject( mGrassObject.gisdbase(), mGrassObject.location(), mGrassObject.mapset(), name, QgsGrassObject::Raster );
     if ( objectInImports( rasterObject ) )
     {
-      QgsDebugMsg( "skip currently being imported raster " + name );
+      QgsDebugMsgLevel( "skip currently being imported raster " + name, 2 );
       continue;
     }
 
@@ -637,7 +629,7 @@ QVector<QgsDataItem *> QgsGrassMapsetItem::createChildren()
     }
     QString path = mPath + "/" + "group" + "/" + name;
     QString uri = mDirPath + "/" + "group" + "/" + name;
-    QgsDebugMsg( "uri = " + uri );
+    QgsDebugMsgLevel( "uri = " + uri, 2 );
 
     QgsGrassObject rasterObject( mGrassObject.gisdbase(), mGrassObject.location(), mGrassObject.mapset(), name, QgsGrassObject::Group );
     QgsGrassGroupItem *layer = new QgsGrassGroupItem( this, rasterObject, path, uri );
@@ -717,7 +709,7 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
     QgsDataProvider *provider = nullptr;
     QStringList extensions;
     QStringList existingNames;
-    QRegExp regExp;
+    QString regExp;
     QgsGrassObject srcObject;
     QString srcName;
 
@@ -754,7 +746,7 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
       existingNames = existingVectors;
       regExp = QgsGrassObject::newNameRegExp( QgsGrassObject::Vector );
     }
-    QgsDebugMsg( "existingNames = " + existingNames.join( "," ) );
+    QgsDebugMsgLevel( QStringLiteral( "existingNames = " ) + existingNames.join( ',' ), 2 );
 
     if ( useCopy )
     {
@@ -784,10 +776,15 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
     QString destName = srcName.replace( QLatin1String( " " ), QLatin1String( "_" ) );
 #ifdef HAVE_GUI
     Qt::CaseSensitivity caseSensitivity = QgsGrass::caseSensitivity();
+
+    const QRegularExpression destNameRegExp( QRegularExpression::anchoredPattern( regExp ) );
+    const QRegularExpressionMatch destNameRegExpMatch = destNameRegExp.match( destName );
+
     if ( QgsNewNameDialog::exists( destName, extensions, existingNames, caseSensitivity )
-         || !regExp.exactMatch( destName ) )
+         || !destNameRegExpMatch.hasMatch() )
     {
-      QgsNewNameDialog dialog( srcName, destName, extensions, existingNames, regExp, caseSensitivity );
+      QgsNewNameDialog dialog( srcName, destName, extensions, existingNames, caseSensitivity );
+      dialog.setRegularExpression( regExp );
       if ( dialog.exec() != QDialog::Accepted )
       {
         delete provider;
@@ -800,7 +797,7 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
     QgsGrassImport *import = nullptr;
     if ( useCopy )
     {
-      QgsDebugMsg( "location is the same -> g.copy" );
+      QgsDebugMsgLevel( QStringLiteral( "location is the same -> g.copy" ), 2 );
       QgsGrassObject destObject( mGrassObject );
       destObject.setName( destName );
       destObject.setType( srcObject.type() );
@@ -813,7 +810,7 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
       int newXSize;
       int newYSize;
       bool useSrcRegion = true;
-      if ( rasterProvider->capabilities() & QgsRasterInterface::Size )
+      if ( rasterProvider->capabilities() & Qgis::RasterInterfaceCapability::Size )
       {
         newXSize = rasterProvider->xSize();
         newYSize = rasterProvider->ySize();
@@ -822,7 +819,7 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
       {
         // TODO: open dialog with size options
         // use location default
-        QgsDebugMsg( "Unknown size -> using default location region" );
+        QgsDebugMsgLevel( QStringLiteral( "Unknown size -> using default location region" ), 2 );
         struct Cell_head window;
         if ( !QgsGrass::defaultRegion( mGrassObject.gisdbase(), mGrassObject.location(), &window ) )
         {
@@ -839,8 +836,8 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
       }
 
       QgsCoordinateReferenceSystem providerCrs = rasterProvider->crs();
-      QgsDebugMsg( "providerCrs = " + providerCrs.toWkt() );
-      QgsDebugMsg( "mapsetCrs = " + mapsetCrs.toWkt() );
+      QgsDebugMsgLevel( "providerCrs = " + providerCrs.toWkt(), 2 );
+      QgsDebugMsgLevel( "mapsetCrs = " + mapsetCrs.toWkt(), 2 );
 
       bool settingsExternal = settings.value( QStringLiteral( "GRASS/browser/import/external" ), true ).toBool();
       QgsGrassObject rasterObject( mGrassObject.gisdbase(), mGrassObject.location(), mGrassObject.mapset(), destName, QgsGrassObject::Raster );
@@ -857,19 +854,18 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
         if ( providerCrs.isValid() && mapsetCrs.isValid() && providerCrs != mapsetCrs )
         {
           QgsRasterProjector *projector = new QgsRasterProjector;
-          projector->setCrs( providerCrs, mapsetCrs );
+          projector->setCrs( providerCrs, mapsetCrs, QgsProject::instance()->transformContext() );
           if ( useSrcRegion )
           {
-            projector->destExtentSize( rasterProvider->extent(), rasterProvider->xSize(), rasterProvider->ySize(),
-                                       newExtent, newXSize, newYSize );
+            projector->destExtentSize( rasterProvider->extent(), rasterProvider->xSize(), rasterProvider->ySize(), newExtent, newXSize, newYSize );
           }
           QgsRasterProjector::Precision precision = settings.enumValue( QStringLiteral( "GRASS/browser/import/crsTransform" ), QgsRasterProjector::Approximate );
           projector->setPrecision( precision );
 
           pipe->set( projector );
         }
-        QgsDebugMsg( "newExtent = " + newExtent.toString() );
-        QgsDebugMsg( QString( "newXSize = %1 newYSize = %2" ).arg( newXSize ).arg( newYSize ) );
+        QgsDebugMsgLevel( "newExtent = " + newExtent.toString(), 2 );
+        QgsDebugMsgLevel( QStringLiteral( "newXSize = %1 newYSize = %2" ).arg( newXSize ).arg( newYSize ), 2 );
 
         //QString path = mPath + "/" + "raster" + "/" + u.name;
         import = new QgsGrassRasterImport( pipe, rasterObject, newExtent, newXSize, newYSize ); // takes pipe ownership
@@ -896,7 +892,7 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
       obj.setName( name );
       if ( QgsGrass::objectExists( obj ) )
       {
-        QgsDebugMsg( name + " exists -> delete" );
+        QgsDebugMsgLevel( name + " exists -> delete", 2 );
         if ( !QgsGrass::deleteObject( obj ) )
         {
           errors.append( tr( "Cannot delete %1" ).arg( name ) );
@@ -925,9 +921,7 @@ bool QgsGrassMapsetItem::handleDrop( const QMimeData *data, Qt::DropAction )
 
   if ( !errors.isEmpty() )
   {
-    QgsMessageOutput::showMessage( tr( "Import to GRASS mapset" ),
-                                   tr( "Failed to import some layers!\n\n" ) + errors.join( QLatin1Char( '\n' ) ),
-                                   QgsMessageOutput::MessageText );
+    QgsMessageOutput::showMessage( tr( "Import to GRASS mapset" ), tr( "Failed to import some layers!\n\n" ) + errors.join( QLatin1Char( '\n' ) ), QgsMessageOutput::MessageText );
   }
 
   return true;
@@ -939,9 +933,7 @@ void QgsGrassMapsetItem::onImportFinished( QgsGrassImport *import )
   {
     QgsMessageOutput *output = QgsMessageOutput::createMessageOutput();
     output->setTitle( tr( "Import to GRASS mapset failed" ) );
-    output->setMessage( tr( "Failed to import %1 to %2: %3" ).arg( import->srcDescription(),
-                        import->grassObject().mapsetPath(),
-                        import->error() ), QgsMessageOutput::MessageText );
+    output->setMessage( tr( "Failed to import %1 to %2: %3" ).arg( import->srcDescription(), import->grassObject().mapsetPath(), import->error() ), QgsMessageOutput::MessageText );
     output->showMessage();
   }
 
@@ -952,7 +944,7 @@ void QgsGrassMapsetItem::onImportFinished( QgsGrassImport *import )
 
 void QgsGrassMapsetItem::onDirectoryChanged()
 {
-  if ( state() == Populating )
+  if ( state() == Qgis::BrowserItemState::Populating )
   {
     // schedule to refresh later, because refres() simply returns if Populating
     mRefreshLater = true;
@@ -965,13 +957,13 @@ void QgsGrassMapsetItem::onDirectoryChanged()
 
 void QgsGrassMapsetItem::childrenCreated()
 {
-  QgsDebugMsg( QString( "mRefreshLater = %1" ).arg( mRefreshLater ) );
+  QgsDebugMsgLevel( QStringLiteral( "mRefreshLater = %1" ).arg( mRefreshLater ), 2 );
 
   if ( mRefreshLater )
   {
-    QgsDebugMsg( "directory changed during createChidren() -> refresh() again" );
+    QgsDebugMsgLevel( QStringLiteral( "directory changed during createChildren() -> refresh() again" ), 2 );
     mRefreshLater = false;
-    setState( Populated );
+    setState( Qgis::BrowserItemState::Populated );
     refresh();
   }
   else
@@ -982,13 +974,11 @@ void QgsGrassMapsetItem::childrenCreated()
 
 //------------------------ QgsGrassObjectItem ----------------------------------
 
-QgsGrassObjectItem::QgsGrassObjectItem( QgsDataItem *parent, QgsGrassObject grassObject,
-                                        QString name, QString path, QString uri,
-                                        LayerType layerType, QString providerKey )
+QgsGrassObjectItem::QgsGrassObjectItem( QgsDataItem *parent, const QgsGrassObject &grassObject, const QString &name, const QString &path, const QString &uri, Qgis::BrowserLayerType layerType, const QString &providerKey )
   : QgsLayerItem( parent, name, path, uri, layerType, providerKey )
   , QgsGrassObjectItemBase( grassObject )
 {
-  setState( Populated ); // no children, to show non expandable in browser
+  setState( Qgis::BrowserItemState::Populated ); // no children, to show non expandable in browser
 #ifdef HAVE_GUI
   mActions = new QgsGrassItemActions( mGrassObject, true, this );
 #endif
@@ -1002,17 +992,17 @@ bool QgsGrassObjectItem::equal( const QgsDataItem *other )
 
 //----------------------- QgsGrassVectorItem ------------------------------
 
-QgsGrassVectorItem::QgsGrassVectorItem( QgsDataItem *parent, QgsGrassObject grassObject, QString path, QString labelName, bool valid )
+QgsGrassVectorItem::QgsGrassVectorItem( QgsDataItem *parent, const QgsGrassObject &grassObject, const QString &path, const QString &labelName, bool valid )
   : QgsDataCollectionItem( parent, labelName.isEmpty() ? grassObject.name() : labelName, path )
   , QgsGrassObjectItemBase( grassObject )
   , mValid( valid )
 {
-  QgsDebugMsg( "name = " + grassObject.name() + " path = " + path );
-  mCapabilities = NoCapabilities; // disable Fertile from QgsDataCollectionItem
-  setCapabilities( QgsDataItem::NoCapabilities ); // disable fertility
+  QgsDebugMsgLevel( "name = " + grassObject.name() + " path = " + path, 2 );
+  mCapabilities = Qgis::BrowserItemCapability::NoCapabilities;    // disable Fertile from QgsDataCollectionItem
+  setCapabilities( Qgis::BrowserItemCapability::NoCapabilities ); // disable fertility
   if ( !mValid )
   {
-    setState( Populated );
+    setState( Qgis::BrowserItemState::Populated );
     setIconName( QStringLiteral( "/mIconDelete.svg" ) );
   }
 #ifdef HAVE_GUI
@@ -1020,7 +1010,7 @@ QgsGrassVectorItem::QgsGrassVectorItem( QgsDataItem *parent, QgsGrassObject gras
 #endif
 
   QString watchPath = mGrassObject.mapsetPath() + "/vector/" + mGrassObject.name();
-  QgsDebugMsg( "add watcher on " + watchPath );
+  QgsDebugMsgLevel( "add watcher on " + watchPath, 2 );
   // The watcher does not seem to work without parent
   mWatcher = new QFileSystemWatcher( this );
   mWatcher->addPath( watchPath );
@@ -1068,9 +1058,7 @@ bool QgsGrassVectorItem::equal( const QgsDataItem *other )
 
 //----------------------- QgsGrassVectorLayerItem ------------------------------
 
-QgsGrassVectorLayerItem::QgsGrassVectorLayerItem( QgsDataItem *parent, QgsGrassObject grassObject, QString layerName,
-    QString path, QString uri,
-    LayerType layerType, bool singleLayer )
+QgsGrassVectorLayerItem::QgsGrassVectorLayerItem( QgsDataItem *parent, const QgsGrassObject &grassObject, const QString &layerName, const QString &path, const QString &uri, Qgis::BrowserLayerType layerType, bool singleLayer )
   : QgsGrassObjectItem( parent, grassObject, layerName, path, uri, layerType, QStringLiteral( "grass" ) )
   , mSingleLayer( singleLayer )
 {
@@ -1097,9 +1085,8 @@ bool QgsGrassVectorLayerItem::equal( const QgsDataItem *other )
 
 //----------------------- QgsGrassRasterItem ------------------------------
 
-QgsGrassRasterItem::QgsGrassRasterItem( QgsDataItem *parent, QgsGrassObject grassObject,
-                                        QString path, QString uri, bool isExternal )
-  : QgsGrassObjectItem( parent, grassObject, grassObject.name(), path, uri, QgsLayerItem::Raster, QStringLiteral( "grassraster" ) )
+QgsGrassRasterItem::QgsGrassRasterItem( QgsDataItem *parent, const QgsGrassObject &grassObject, const QString &path, const QString &uri, bool isExternal )
+  : QgsGrassObjectItem( parent, grassObject, grassObject.name(), path, uri, Qgis::BrowserLayerType::Raster, QStringLiteral( "grassraster" ) )
   , mExternal( isExternal )
 {
 }
@@ -1116,14 +1103,13 @@ QIcon QgsGrassRasterItem::icon()
 bool QgsGrassRasterItem::equal( const QgsDataItem *other )
 {
   const QgsGrassRasterItem *item = qobject_cast<const QgsGrassRasterItem *>( other );
-  return QgsGrassObjectItem::equal( other )  && item && mExternal == item->mExternal;
+  return QgsGrassObjectItem::equal( other ) && item && mExternal == item->mExternal;
 }
 
 //----------------------- QgsGrassGroupItem ------------------------------
 
-QgsGrassGroupItem::QgsGrassGroupItem( QgsDataItem *parent, QgsGrassObject grassObject,
-                                      QString path, QString uri )
-  : QgsGrassObjectItem( parent, grassObject, grassObject.name(), path, uri, QgsLayerItem::Raster, QStringLiteral( "grassraster" ) )
+QgsGrassGroupItem::QgsGrassGroupItem( QgsDataItem *parent, const QgsGrassObject &grassObject, const QString &path, const QString &uri )
+  : QgsGrassObjectItem( parent, grassObject, grassObject.name(), path, uri, Qgis::BrowserLayerType::Raster, QStringLiteral( "grassraster" ) )
 {
 }
 
@@ -1174,12 +1160,12 @@ void QgsGrassImportItemWidget::onProgressChanged( const QString &recentHtml, con
 QgsAnimatedIcon *QgsGrassImportItem::sImportIcon = nullptr;
 
 QgsGrassImportItem::QgsGrassImportItem( QgsDataItem *parent, const QString &name, const QString &path, QgsGrassImport *import )
-  : QgsDataItem( QgsDataItem::Layer, parent, name, path )
+  : QgsDataItem( Qgis::BrowserItemType::Layer, parent, name, path )
   , QgsGrassObjectItemBase( import->grassObject() )
   , mImport( import )
 {
-  setCapabilities( QgsDataItem::NoCapabilities ); // disable fertility
-  setState( Populated );
+  setCapabilities( Qgis::BrowserItemCapability::NoCapabilities ); // disable fertility
+  setState( Qgis::BrowserItemState::Populated );
 
   QgsGrassImportIcon::instance()->connectFrameChanged( this, &QgsGrassImportItem::updateIcon );
 }
@@ -1207,8 +1193,7 @@ QWidget *QgsGrassImportItem::paramWidget()
 
   if ( mImport && mImport->progress() )
   {
-    connect( mImport->progress(), &QgsGrassImportProgress::progressChanged,
-             widget, &QgsGrassImportItemWidget::onProgressChanged );
+    connect( mImport->progress(), &QgsGrassImportProgress::progressChanged, widget, &QgsGrassImportItemWidget::onProgressChanged );
 
     widget->setHtml( mImport->progress()->progressHtml() );
   }
@@ -1219,7 +1204,7 @@ void QgsGrassImportItem::cancel()
 {
   if ( !mImport ) // should not happen
   {
-    QgsDebugMsg( "mImport is null" );
+    QgsDebugError( QStringLiteral( "mImport is null" ) );
     return;
   }
   if ( mImport->isCanceled() )
@@ -1256,7 +1241,7 @@ class QgsGrassDataItemProvider : public QgsDataItemProvider
   public:
     QString name() override { return QStringLiteral( "GRASS" ); }
 
-    int capabilities() const override { return QgsDataProvider::Dir; }
+    Qgis::DataItemProviderCapabilities capabilities() const override { return Qgis::DataItemProviderCapability::Directories; }
 
     QgsDataItem *createDataItem( const QString &dirPath, QgsDataItem *parentItem ) override
     {
@@ -1286,36 +1271,49 @@ class QgsGrassDataItemProvider : public QgsDataItemProvider
     }
 };
 
-class QgsGrassProviderMetadata: public QgsProviderMetadata
-{
-  public:
-    QgsGrassProviderMetadata(): QgsProviderMetadata( PROVIDER_KEY, PROVIDER_DESCRIPTION ) {}
-    QgsGrassProvider *createProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options, QgsDataProvider::ReadFlags flags = QgsDataProvider::ReadFlags() ) override
-    {
-      Q_UNUSED( options );
-      Q_UNUSED( flags );
-      return new QgsGrassProvider( uri );
-    }
-    QList< QgsDataItemProvider * > dataItemProviders() const override
-    {
-      QList< QgsDataItemProvider * > providers;
-      providers << new QgsGrassDataItemProvider;
-      return providers;
-    }
 
-    void initProvider() override
-    {
-      // Init GRASS in the first function called by provider registry so that it is called
-      // on main thread, not sure but suspicious that init in thread is causing problems,
-      // at least on Windows, not that dataItem() is called in thread
-      if ( !QgsGrass::init() )
-      {
-        QgsDebugMsg( "init failed" );
-      }
-    }
-};
+QgsGrassProviderMetadata::QgsGrassProviderMetadata()
+  : QgsProviderMetadata( PROVIDER_KEY, PROVIDER_DESCRIPTION )
+{}
+
+QgsDataProvider *QgsGrassProviderMetadata::createProvider( const QString &uri, const QgsDataProvider::ProviderOptions &options, Qgis::DataProviderReadFlags flags )
+{
+  Q_UNUSED( options )
+  Q_UNUSED( flags )
+  return new QgsGrassProvider( uri );
+}
+
+QList<QgsDataItemProvider *> QgsGrassProviderMetadata::dataItemProviders() const
+{
+  QList<QgsDataItemProvider *> providers;
+  providers << new QgsGrassDataItemProvider;
+  return providers;
+}
+
+void QgsGrassProviderMetadata::initProvider()
+{
+  // Init GRASS in the first function called by provider registry so that it is called
+  // on main thread, not sure but suspicious that init in thread is causing problems,
+  // at least on Windows, not that dataItem() is called in thread
+  if ( !QgsGrass::init() )
+  {
+    QgsDebugError( QStringLiteral( "init failed" ) );
+  }
+}
+
 
 QGISEXTERN QgsProviderMetadata *providerMetadataFactory()
 {
   return new QgsGrassProviderMetadata();
+}
+
+
+QList<Qgis::LayerType> QgsGrassProviderMetadata::supportedLayerTypes() const
+{
+  return { Qgis::LayerType::Vector };
+}
+
+QIcon QgsGrassProviderMetadata::icon() const
+{
+  return QgsApplication::getThemeIcon( QStringLiteral( "providerGrass.svg" ) );
 }

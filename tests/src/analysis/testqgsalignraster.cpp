@@ -19,11 +19,11 @@
 #include "qgsapplication.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsrectangle.h"
+#include "qgis.h"
 
 #include <QDir>
 
 #include <gdal.h>
-
 
 
 static QString _tempFile( const QString &name )
@@ -32,9 +32,14 @@ static QString _tempFile( const QString &name )
 }
 
 
-class TestAlignRaster : public QObject
+class TestAlignRaster : public QgsTest
 {
     Q_OBJECT
+
+  public:
+    TestAlignRaster()
+      : QgsTest( QStringLiteral( "Align Raster Tests" ) )
+    {}
 
     QString SRC_FILE;
   private slots:
@@ -48,9 +53,14 @@ class TestAlignRaster : public QObject
       QgsApplication::init(); // needed for CRS database
     }
 
+    void cleanupTestCase()
+    {
+      QgsApplication::exitQgis();
+    }
+
     void testRasterInfo()
     {
-      QgsAlignRaster::RasterInfo out( SRC_FILE );
+      const QgsAlignRaster::RasterInfo out( SRC_FILE );
       QVERIFY( out.isValid() );
       QCOMPARE( out.cellSize(), QSizeF( 0.2, 0.2 ) );
       QCOMPARE( out.gridOffset(), QPointF( 0.0, 0.0 ) );
@@ -59,7 +69,7 @@ class TestAlignRaster : public QObject
 
     void testClip()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "clip" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "clip" ) ) );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
@@ -67,7 +77,7 @@ class TestAlignRaster : public QObject
       align.setRasters( rasters );
       align.setParametersFromRaster( SRC_FILE );
       align.setClipExtent( 106.3, -6.65, 106.35, -6.5 );
-      bool res = align.run();
+      const bool res = align.run();
       QVERIFY( res );
 
       QgsAlignRaster::RasterInfo out( tmpFile );
@@ -80,7 +90,7 @@ class TestAlignRaster : public QObject
 
     void testClipOutside()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "clip-outside" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "clip-outside" ) ) );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
@@ -88,13 +98,13 @@ class TestAlignRaster : public QObject
       align.setRasters( rasters );
       align.setParametersFromRaster( SRC_FILE );
       align.setClipExtent( 1, 1, 2, 2 );
-      bool res = align.run();
+      const bool res = align.run();
       QVERIFY( !res );
     }
 
     void testChangeGridOffsetNN()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "change-grid-offset-nn" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "change-grid-offset-nn" ) ) );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
@@ -104,7 +114,7 @@ class TestAlignRaster : public QObject
       QPointF offset = align.gridOffset();
       offset.rx() += 0.25;
       align.setGridOffset( offset );
-      bool res = align.run();
+      const bool res = align.run();
       QVERIFY( res );
 
       QgsAlignRaster::RasterInfo out( tmpFile );
@@ -118,18 +128,18 @@ class TestAlignRaster : public QObject
 
     void testChangeGridOffsetBilinear()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "change-grid-offset-bilinear" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "change-grid-offset-bilinear" ) ) );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
       rasters << QgsAlignRaster::Item( SRC_FILE, tmpFile );
-      rasters[0].resampleMethod = QgsAlignRaster::RA_Bilinear;
+      rasters[0].resampleMethod = Qgis::GdalResampleAlgorithm::RA_Bilinear;
       align.setRasters( rasters );
       align.setParametersFromRaster( SRC_FILE );
       QPointF offset = align.gridOffset();
       offset.rx() += 0.1;
       align.setGridOffset( offset );
-      bool res = align.run();
+      const bool res = align.run();
       QVERIFY( res );
 
       QgsAlignRaster::RasterInfo out( tmpFile );
@@ -141,16 +151,16 @@ class TestAlignRaster : public QObject
 
     void testSmallerCellSize()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "smaller-cell-size" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "smaller-cell-size" ) ) );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
       rasters << QgsAlignRaster::Item( SRC_FILE, tmpFile );
-      rasters[0].resampleMethod = QgsAlignRaster::RA_Bilinear;
+      rasters[0].resampleMethod = Qgis::GdalResampleAlgorithm::RA_Bilinear;
       align.setRasters( rasters );
       align.setParametersFromRaster( SRC_FILE );
       align.setCellSize( 0.1, 0.1 );
-      bool res = align.run();
+      const bool res = align.run();
       QVERIFY( res );
 
       QgsAlignRaster::RasterInfo out( tmpFile );
@@ -158,21 +168,20 @@ class TestAlignRaster : public QObject
       QCOMPARE( out.rasterSize(), QSize( 8, 8 ) );
       QCOMPARE( out.cellSize(), QSizeF( 0.1, 0.1 ) );
       QCOMPARE( out.identify( 106.15, -6.35 ), 2.25 );
-
     }
 
 
     void testBiggerCellSize()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "bigger-cell-size" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "bigger-cell-size" ) ) );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
       rasters << QgsAlignRaster::Item( SRC_FILE, tmpFile );
-      rasters[0].resampleMethod = QgsAlignRaster::RA_Average;
+      rasters[0].resampleMethod = Qgis::GdalResampleAlgorithm::RA_Average;
       align.setRasters( rasters );
       align.setParametersFromRaster( SRC_FILE, QString(), QSizeF( 0.4, 0.4 ) );
-      bool res = align.run();
+      const bool res = align.run();
       QVERIFY( res );
 
       QgsAlignRaster::RasterInfo out( tmpFile );
@@ -185,16 +194,16 @@ class TestAlignRaster : public QObject
 
     void testRescaleBiggerCellSize()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "rescale-bigger-cell-size" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "rescale-bigger-cell-size" ) ) );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
       rasters << QgsAlignRaster::Item( SRC_FILE, tmpFile );
-      rasters[0].resampleMethod = QgsAlignRaster::RA_Average;
+      rasters[0].resampleMethod = Qgis::GdalResampleAlgorithm::RA_Average;
       rasters[0].rescaleValues = true;
       align.setRasters( rasters );
       align.setParametersFromRaster( SRC_FILE, QString(), QSizeF( 0.4, 0.4 ) );
-      bool res = align.run();
+      const bool res = align.run();
       QVERIFY( res );
 
       QgsAlignRaster::RasterInfo out( tmpFile );
@@ -206,32 +215,32 @@ class TestAlignRaster : public QObject
 
     void testReprojectToOtherCRS()
     {
-      QString tmpFile( _tempFile( QStringLiteral( "reproject-utm-47n" ) ) );
+      const QString tmpFile( _tempFile( QStringLiteral( "reproject-utm-47n" ) ) );
 
       // reproject from WGS84 to UTM zone 47N
       // (the true UTM zone for this raster is 48N, but here it is
       // more obvious the different shape of the resulting raster)
-      QgsCoordinateReferenceSystem destCRS( QStringLiteral( "EPSG:32647" ) );
+      const QgsCoordinateReferenceSystem destCRS( QStringLiteral( "EPSG:32647" ) );
       QVERIFY( destCRS.isValid() );
 
       QgsAlignRaster align;
       QgsAlignRaster::List rasters;
       rasters << QgsAlignRaster::Item( SRC_FILE, tmpFile );
       align.setRasters( rasters );
-      align.setParametersFromRaster( SRC_FILE, destCRS.toWkt( QgsCoordinateReferenceSystem::WKT_PREFERRED ) );
-      bool res = align.run();
+      align.setParametersFromRaster( SRC_FILE, destCRS.toWkt( Qgis::CrsWktVariant::Preferred ) );
+      const bool res = align.run();
       QVERIFY( res );
 
       QgsAlignRaster::RasterInfo out( tmpFile );
       QVERIFY( out.isValid() );
-      QgsCoordinateReferenceSystem outCRS( out.crs() );
+      const QgsCoordinateReferenceSystem outCRS( out.crs() );
       QCOMPARE( outCRS, destCRS );
       QCOMPARE( out.rasterSize(), QSize( 4, 4 ) );
       // tolerance of 1 to keep the test more robust
-      QGSCOMPARENEAR( out.cellSize().width(), 22293, 1 ); // ~ 22293.256065
+      QGSCOMPARENEAR( out.cellSize().width(), 22293, 1 );  // ~ 22293.256065
       QGSCOMPARENEAR( out.cellSize().height(), 22293, 1 ); // ~ 22293.256065
-      QGSCOMPARENEAR( out.gridOffset().x(), 4327, 1 ); // ~ 4327.168434
-      QGSCOMPARENEAR( out.gridOffset().y(), 637, 1 ); // ~ 637.007990
+      QGSCOMPARENEAR( out.gridOffset().x(), 4327, 1 );     // ~ 4327.168434
+      QGSCOMPARENEAR( out.gridOffset().y(), 637, 1 );      // ~ 637.007990
       QCOMPARE( out.identify( 1308405, -746611 ), 10. );
     }
 
@@ -246,9 +255,7 @@ class TestAlignRaster : public QObject
       align.setRasters( rasters );
 
       QCOMPARE( align.suggestedReferenceLayer(), 0 );
-
     }
-
 };
 
 QGSTEST_MAIN( TestAlignRaster )

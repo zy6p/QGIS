@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgsauthesritokenedit.h"
+#include "moc_qgsauthesritokenedit.cpp"
 #include "ui_qgsauthesritokenedit.h"
 
 
@@ -27,7 +28,7 @@ QgsAuthEsriTokenEdit::QgsAuthEsriTokenEdit( QWidget *parent )
 
 bool QgsAuthEsriTokenEdit::validateConfig()
 {
-  bool curvalid = !mTokenEdit->toPlainText().isEmpty();
+  const bool curvalid = !mTokenEdit->toPlainText().isEmpty();
   if ( mValid != curvalid )
   {
     mValid = curvalid;

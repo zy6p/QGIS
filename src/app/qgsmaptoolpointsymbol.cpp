@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsmaptoolpointsymbol.h"
+#include "moc_qgsmaptoolpointsymbol.cpp"
 #include "qgsfeatureiterator.h"
 #include "qgsrenderer.h"
 #include "qgsvectorlayer.h"
@@ -50,16 +51,16 @@ void QgsMapToolPointSymbol::canvasPressEvent( QgsMapMouseEvent *e )
     return;
   }
 
-  if ( mActiveLayer->geometryType() != QgsWkbTypes::PointGeometry )
+  if ( mActiveLayer->geometryType() != Qgis::GeometryType::Point )
   {
     return;
   }
 
   //find the closest feature to the pressed position
-  QgsPointLocator::Match m = mCanvas->snappingUtils()->snapToCurrentLayer( e->pos(), QgsPointLocator::Vertex );
+  const QgsPointLocator::Match m = mCanvas->snappingUtils()->snapToCurrentLayer( e->pos(), QgsPointLocator::Vertex );
   if ( !m.isValid() )
   {
-    emit messageEmitted( tr( "No point feature was detected at the clicked position. Please click closer to the feature or enhance the search tolerance under Settings->Options->Digitizing->Search radius for vertex edits" ), Qgis::Critical );
+    emit messageEmitted( tr( "No point feature was detected at the clicked position. Please click closer to the feature or enhance the search tolerance under Settings->Options->Digitizing->Search radius for vertex edits" ), Qgis::MessageLevel::Critical );
     return; //error during snapping
   }
 
@@ -76,7 +77,7 @@ void QgsMapToolPointSymbol::canvasPressEvent( QgsMapMouseEvent *e )
   if ( !mActiveLayer->renderer() )
     return;
 
-  std::unique_ptr< QgsFeatureRenderer > renderer( mActiveLayer->renderer()->clone() );
+  std::unique_ptr<QgsFeatureRenderer> renderer( mActiveLayer->renderer()->clone() );
   QgsRenderContext context = QgsRenderContext::fromMapSettings( mCanvas->mapSettings() );
   context.expressionContext() << QgsExpressionContextUtils::layerScope( mActiveLayer );
   context.expressionContext().setFeature( feature );
@@ -92,7 +93,7 @@ void QgsMapToolPointSymbol::canvasPressEvent( QgsMapMouseEvent *e )
     {
       if ( s && s->type() == Qgis::SymbolType::Marker )
       {
-        hasCompatibleSymbol = hasCompatibleSymbol || checkSymbolCompatibility( static_cast< QgsMarkerSymbol * >( s ), context );
+        hasCompatibleSymbol = hasCompatibleSymbol || checkSymbolCompatibility( static_cast<QgsMarkerSymbol *>( s ), context );
       }
     }
   }
@@ -101,7 +102,7 @@ void QgsMapToolPointSymbol::canvasPressEvent( QgsMapMouseEvent *e )
     QgsSymbol *s = renderer->originalSymbolForFeature( feature, context );
     if ( s && s->type() == Qgis::SymbolType::Marker )
     {
-      hasCompatibleSymbol = hasCompatibleSymbol || checkSymbolCompatibility( static_cast< QgsMarkerSymbol * >( s ), context );
+      hasCompatibleSymbol = hasCompatibleSymbol || checkSymbolCompatibility( static_cast<QgsMarkerSymbol *>( s ), context );
     }
   }
 
@@ -111,4 +112,3 @@ void QgsMapToolPointSymbol::canvasPressEvent( QgsMapMouseEvent *e )
   else
     noCompatibleSymbols();
 }
-

@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgscustomlayerorderwidget.h"
+#include "moc_qgscustomlayerorderwidget.cpp"
 
 #include <QCheckBox>
 #include <QListView>
@@ -25,8 +26,6 @@
 
 #include "qgsmaplayer.h"
 #include "qgsproject.h"
-
-
 
 
 QgsCustomLayerOrderWidget::QgsCustomLayerOrderWidget( QgsLayerTreeMapCanvasBridge *bridge, QWidget *parent )
@@ -88,7 +87,6 @@ void QgsCustomLayerOrderWidget::modelUpdated()
 }
 
 
-
 ///@cond PRIVATE
 
 CustomLayerOrderModel::CustomLayerOrderModel( QgsLayerTreeMapCanvasBridge *bridge, QObject *parent )
@@ -104,7 +102,7 @@ int CustomLayerOrderModel::rowCount( const QModelIndex & ) const
 
 QVariant CustomLayerOrderModel::data( const QModelIndex &index, int role ) const
 {
-  QString id = mOrder.at( index.row() );
+  const QString id = mOrder.at( index.row() );
 
   if ( role == Qt::DisplayRole )
   {
@@ -135,11 +133,11 @@ bool CustomLayerOrderModel::setData( const QModelIndex &index, const QVariant &v
   Q_UNUSED( value ); // Toggle
   if ( role == Qt::CheckStateRole )
   {
-    QString id = mOrder.at( index.row() );
+    const QString id = mOrder.at( index.row() );
     QgsLayerTreeLayer *nodeLayer = mBridge->rootGroup()->findLayer( id );
     if ( nodeLayer )
     {
-      nodeLayer->setItemVisibilityChecked( ! nodeLayer->itemVisibilityChecked() );
+      nodeLayer->setItemVisibilityChecked( !nodeLayer->itemVisibilityChecked() );
       return true;
     }
   }
@@ -188,7 +186,7 @@ bool CustomLayerOrderModel::dropMimeData( const QMimeData *data, Qt::DropAction 
   if ( !data->hasFormat( QStringLiteral( "application/qgis.layerorderdata" ) ) )
     return false;
 
-  QByteArray encodedData = data->data( QStringLiteral( "application/qgis.layerorderdata" ) );
+  const QByteArray encodedData = data->data( QStringLiteral( "application/qgis.layerorderdata" ) );
   QStringList lst = QString::fromUtf8( encodedData ).split( '\n' );
 
   if ( row < 0 )
@@ -235,11 +233,10 @@ void CustomLayerOrderModel::refreshModel( const QList<QgsMapLayer *> &order )
 
 void CustomLayerOrderModel::updateLayerVisibility( const QString &layerId )
 {
-  int row = mOrder.indexOf( layerId );
+  const int row = mOrder.indexOf( layerId );
   if ( row != -1 )
     emit dataChanged( index( row ), index( row ) );
 }
-
 
 
 ///@endcond

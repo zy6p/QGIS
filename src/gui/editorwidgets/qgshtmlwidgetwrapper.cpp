@@ -15,10 +15,12 @@
  ***************************************************************************/
 
 #include "qgshtmlwidgetwrapper.h"
-#include "qgsmessagelog.h"
+#include "moc_qgshtmlwidgetwrapper.cpp"
 #include "qgsexpressioncontextutils.h"
-#include "qgsapplication.h"
 #include "qgswebframe.h"
+#include "qgsvaluerelationfieldformatter.h"
+#include "qgsattributeform.h"
+
 #include <QScreen>
 
 QgsHtmlWidgetWrapper::QgsHtmlWidgetWrapper( QgsVectorLayer *layer, QWidget *editor, QWidget *parent )
@@ -34,6 +36,23 @@ bool QgsHtmlWidgetWrapper::valid() const
 
 QWidget *QgsHtmlWidgetWrapper::createWidget( QWidget *parent )
 {
+  QgsAttributeForm *form = qobject_cast<QgsAttributeForm *>( parent );
+
+  if ( form )
+  {
+    mFormFeature = form->feature();
+    connect( form, &QgsAttributeForm::widgetValueChanged, this, [=]( const QString &attribute, const QVariant &newValue, bool attributeChanged ) {
+      if ( attributeChanged )
+      {
+        if ( mRequiresFormScope )
+        {
+          mFormFeature.setAttribute( attribute, newValue );
+          setHtmlContext();
+        }
+      }
+    } );
+  }
+
   return new QgsWebView( parent );
 }
 
@@ -44,7 +63,8 @@ void QgsHtmlWidgetWrapper::initWidget( QWidget *editor )
   if ( !mWidget )
     return;
 
-  mWidget->setHtml( mHtmlCode );
+  mWidget->setHtml( mHtmlCode.replace( "\n", " " ) );
+
 #ifdef WITH_QTWEBKIT
 
   const int horizontalDpi = mWidget->logicalDpiX();
@@ -53,13 +73,14 @@ void QgsHtmlWidgetWrapper::initWidget( QWidget *editor )
 
   QWebPage *page = mWidget->page();
   connect( page, &QWebPage::contentsChanged, this, &QgsHtmlWidgetWrapper::fixHeight, Qt::ConnectionType::UniqueConnection );
-  connect( page, &QWebPage::loadFinished, this, [ = ]( bool ) { fixHeight(); }, Qt::ConnectionType::UniqueConnection );
+  connect( page, &QWebPage::loadFinished, this, &QgsHtmlWidgetWrapper::fixHeight, Qt::ConnectionType::UniqueConnection );
 
 #endif
+
+  checkGeometryNeeds();
 }
 
-
-void QgsHtmlWidgetWrapper::reinitWidget( )
+void QgsHtmlWidgetWrapper::reinitWidget()
 {
   if ( !mWidget )
     return;
@@ -67,31 +88,70 @@ void QgsHtmlWidgetWrapper::reinitWidget( )
   initWidget( mWidget );
 }
 
+void QgsHtmlWidgetWrapper::checkGeometryNeeds()
+{
+  if ( !mWidget )
+    return;
+
+  // initialize a temporary QgsWebView to render HTML code and check if one evaluated expression
+  // needs geometry
+  QgsWebView webView;
+  NeedsGeometryEvaluator evaluator;
+
+  const QgsAttributeEditorContext attributecontext = context();
+  if ( QgsVectorLayer *vl = layer() )
+  {
+    const QgsExpressionContext expressionContext = vl->createExpressionContext();
+    evaluator.setExpressionContext( expressionContext );
+  }
+
+  auto frame = webView.page()->mainFrame();
+  connect( frame, &QWebFrame::javaScriptWindowObjectCleared, frame, [frame, &evaluator] {
+    frame->addToJavaScriptWindowObject( QStringLiteral( "expression" ), &evaluator );
+  } );
+
+  webView.setHtml( mHtmlCode );
+
+  mNeedsGeometry = evaluator.needsGeometry();
+}
+
 void QgsHtmlWidgetWrapper::setHtmlCode( const QString &htmlCode )
 {
   mHtmlCode = htmlCode;
+
+  bool ok = false;
+  const thread_local QRegularExpression expRe( QStringLiteral( R"re(expression.evaluate\s*\(\s*"(.*)"\))re" ), QRegularExpression::PatternOption::MultilineOption | QRegularExpression::PatternOption::DotMatchesEverythingOption );
+  QRegularExpressionMatchIterator matchIt = expRe.globalMatch( mHtmlCode );
+  while ( !ok && matchIt.hasNext() )
+  {
+    const QRegularExpressionMatch match = matchIt.next();
+    const QgsExpression exp = match.captured( 1 );
+    ok = QgsValueRelationFieldFormatter::expressionRequiresFormScope( exp );
+  }
+  mRequiresFormScope = ok;
+
+  checkGeometryNeeds();
 }
 
-void QgsHtmlWidgetWrapper::setHtmlContext( )
+void QgsHtmlWidgetWrapper::setHtmlContext()
 {
   if ( !mWidget )
     return;
 
   const QgsAttributeEditorContext attributecontext = context();
   QgsExpressionContext expressionContext = layer()->createExpressionContext();
-  expressionContext << QgsExpressionContextUtils::formScope( mFeature, attributecontext.attributeFormModeString() );
+  expressionContext << QgsExpressionContextUtils::formScope( mFormFeature, attributecontext.attributeFormModeString() );
   if ( attributecontext.parentFormFeature().isValid() )
   {
     expressionContext << QgsExpressionContextUtils::parentFormScope( attributecontext.parentFormFeature() );
   }
+
   expressionContext.setFeature( mFeature );
 
   HtmlExpression *htmlExpression = new HtmlExpression();
   htmlExpression->setExpressionContext( expressionContext );
-  mWidget->page()->settings()->setAttribute( QWebSettings::DeveloperExtrasEnabled, true );
   auto frame = mWidget->page()->mainFrame();
-  connect( frame, &QWebFrame::javaScriptWindowObjectCleared, frame, [ = ]
-  {
+  connect( frame, &QWebFrame::javaScriptWindowObjectCleared, frame, [=] {
     frame->addToJavaScriptWindowObject( QStringLiteral( "expression" ), htmlExpression );
   } );
 
@@ -102,7 +162,7 @@ void QgsHtmlWidgetWrapper::setHtmlContext( )
 void QgsHtmlWidgetWrapper::fixHeight()
 {
   QWebPage *page = mWidget->page();
-  int docHeight { page->mainFrame()->contentsSize().height() };
+  const int docHeight { page->mainFrame()->contentsSize().height() };
   mWidget->setFixedHeight( docHeight );
 }
 #endif
@@ -113,8 +173,15 @@ void QgsHtmlWidgetWrapper::setFeature( const QgsFeature &feature )
     return;
 
   mFeature = feature;
+  mFormFeature = feature;
   setHtmlContext();
 }
+
+bool QgsHtmlWidgetWrapper::needsGeometry() const
+{
+  return mNeedsGeometry;
+}
+
 
 ///@cond PRIVATE
 void HtmlExpression::setExpressionContext( const QgsExpressionContext &context )
@@ -124,8 +191,22 @@ void HtmlExpression::setExpressionContext( const QgsExpressionContext &context )
 
 QString HtmlExpression::evaluate( const QString &expression ) const
 {
-  QgsExpression exp = QgsExpression( expression );
+  QgsExpression exp { expression };
   exp.prepare( &mExpressionContext );
   return exp.evaluate( &mExpressionContext ).toString();
 }
+
+void NeedsGeometryEvaluator::evaluate( const QString &expression )
+{
+  QgsExpression exp { expression };
+  exp.prepare( &mExpressionContext );
+  mNeedsGeometry |= exp.needsGeometry();
+}
+
+void NeedsGeometryEvaluator::setExpressionContext( const QgsExpressionContext &context )
+{
+  mExpressionContext = context;
+}
+
+
 ///@endcond

@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgslayoutmodel.h"
+#include "moc_qgslayoutmodel.cpp"
 #include "qgslayout.h"
 #include "qgsapplication.h"
 #include "qgslogger.h"
@@ -173,7 +174,7 @@ QVariant QgsLayoutModel::data( const QModelIndex &index, int role ) const
       return QVariant::fromValue( qobject_cast<QObject *>( item ) );
 
     case Qt::TextAlignmentRole:
-      return Qt::AlignLeft & Qt::AlignVCenter;
+      return static_cast<Qt::Alignment::Int>( Qt::AlignLeft & Qt::AlignVCenter );
 
     case Qt::CheckStateRole:
       switch ( index.column() )
@@ -255,7 +256,7 @@ QVariant QgsLayoutModel::headerData( int section, Qt::Orientation orientation, i
     }
 
     case Qt::TextAlignmentRole:
-      return Qt::AlignLeft & Qt::AlignVCenter;
+      return static_cast<Qt::Alignment::Int>( Qt::AlignLeft & Qt::AlignVCenter );
 
     default:
       return QAbstractItemModel::headerData( section, orientation, role );
@@ -333,7 +334,6 @@ bool QgsLayoutModel::dropMimeData( const QMimeData *data,
   QByteArray encodedData = data->data( QStringLiteral( "application/x-vnd.qgis.qgis.composeritemid" ) );
   QDataStream stream( &encodedData, QIODevice::ReadOnly );
   QList<QgsLayoutItem *> droppedItems;
-  int rows = 0;
 
   while ( !stream.atEnd() )
   {
@@ -343,7 +343,6 @@ bool QgsLayoutModel::dropMimeData( const QMimeData *data,
     if ( item )
     {
       droppedItems << item;
-      ++rows;
     }
   }
 

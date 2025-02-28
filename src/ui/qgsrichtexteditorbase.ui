@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>846</width>
-    <height>312</height>
+    <height>705</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -30,26 +30,7 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QToolBar" name="mToolBar">
-     <addaction name="mActionUndo"/>
-     <addaction name="mActionRedo"/>
-     <addaction name="mActionCut"/>
-     <addaction name="mActionCopy"/>
-     <addaction name="mActionPaste"/>
-     <addaction name="separator"/>
-     <addaction name="mActionBold"/>
-     <addaction name="mActionItalic"/>
-     <addaction name="mActionUnderline"/>
-     <addaction name="mActionStrikeOut"/>
-     <addaction name="mActionBulletList"/>
-     <addaction name="mActionOrderedList"/>
-     <addaction name="mActionDecreaseIndent"/>
-     <addaction name="mActionIncreaseIndent"/>
-     <addaction name="separator"/>
-     <addaction name="mActionInsertLink"/>
-     <addaction name="mActionInsertImage"/>
-     <addaction name="mActionEditSource"/>
-    </widget>
+    <widget class="QToolBar" name="mToolBar"/>
    </item>
    <item>
     <widget class="QStackedWidget" name="mStackedWidget">
@@ -137,7 +118,7 @@
      <normaloff>:/images/themes/default/mActionEditPaste.svg</normaloff>:/images/themes/default/mActionEditPaste.svg</iconset>
    </property>
    <property name="text">
-    <string>Past</string>
+    <string>Paste</string>
    </property>
    <property name="toolTip">
     <string>Paste</string>
@@ -148,8 +129,8 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset theme="insert-link">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditInsertLink.svg</normaloff>:/images/themes/default/mActionEditInsertLink.svg</iconset>
    </property>
    <property name="text">
     <string>Insert Link</string>
@@ -163,8 +144,8 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset theme="format-text-bold">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditBold.svg</normaloff>:/images/themes/default/mActionEditBold.svg</iconset>
    </property>
    <property name="text">
     <string>Bold</string>
@@ -175,8 +156,8 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset theme="format-text-italic">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditItalic.svg</normaloff>:/images/themes/default/mActionEditItalic.svg</iconset>
    </property>
    <property name="text">
     <string>Italic</string>
@@ -190,8 +171,8 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset theme="format-text-underline">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditUnderline.svg</normaloff>:/images/themes/default/mActionEditUnderline.svg</iconset>
    </property>
    <property name="text">
     <string>Underline</string>
@@ -205,8 +186,8 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset theme="format-text-strikethrough">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionStrikeOut.svg</normaloff>:/images/themes/default/mActionStrikeOut.svg</iconset>
    </property>
    <property name="text">
     <string>Strike Out</string>
@@ -239,8 +220,8 @@
   </action>
   <action name="mActionDecreaseIndent">
    <property name="icon">
-    <iconset theme="format-indent-less">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditIndentLess.svg</normaloff>:/images/themes/default/mActionEditIndentLess.svg</iconset>
    </property>
    <property name="text">
     <string>Decrease Indentation</string>
@@ -251,8 +232,8 @@
   </action>
   <action name="mActionIncreaseIndent">
    <property name="icon">
-    <iconset theme="format-indent-more">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditIndentMore.svg</normaloff>:/images/themes/default/mActionEditIndentMore.svg</iconset>
    </property>
    <property name="text">
     <string>Increase Indentation</string>
@@ -263,8 +244,8 @@
   </action>
   <action name="mActionInsertImage">
    <property name="icon">
-    <iconset theme="insert-image">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset resource="../../images/images.qrc">
+     <normaloff>:/images/themes/default/mActionEditInsertImage.svg</normaloff>:/images/themes/default/mActionEditInsertImage.svg</iconset>
    </property>
    <property name="text">
     <string>Insert Image</string>

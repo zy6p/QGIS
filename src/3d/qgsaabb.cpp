@@ -34,24 +34,20 @@ QgsAABB::QgsAABB( float xMin, float yMin, float zMin, float xMax, float yMax, fl
 
 bool QgsAABB::intersects( const QgsAABB &other ) const
 {
-  return xMin < other.xMax && other.xMin < xMax &&
-         yMin < other.yMax && other.yMin < yMax &&
-         zMin < other.zMax && other.zMin < zMax;
+  return xMin < other.xMax && other.xMin < xMax && yMin < other.yMax && other.yMin < yMax && zMin < other.zMax && other.zMin < zMax;
 }
 
 bool QgsAABB::intersects( float x, float y, float z ) const
 {
-  return xMin <= x && xMax >= x &&
-         yMin <= y && yMax >= y &&
-         zMin <= z && zMax >= z;
+  return xMin <= x && xMax >= x && yMin <= y && yMax >= y && zMin <= z && zMax >= z;
 }
 
 
 float QgsAABB::distanceFromPoint( float x, float y, float z ) const
 {
-  float dx = std::max( xMin - x, std::max( 0.f, x - xMax ) );
-  float dy = std::max( yMin - y, std::max( 0.f, y - yMax ) );
-  float dz = std::max( zMin - z, std::max( 0.f, z - zMax ) );
+  const float dx = std::max( xMin - x, std::max( 0.f, x - xMax ) );
+  const float dy = std::max( yMin - y, std::max( 0.f, y - yMax ) );
+  const float dz = std::max( zMin - z, std::max( 0.f, z - zMax ) );
   return sqrt( dx * dx + dy * dy + dz * dz );
 }
 
@@ -65,13 +61,13 @@ QList<QVector3D> QgsAABB::verticesForLines() const
   QList<QVector3D> vertices;
   for ( int i = 0; i < 2; ++i )
   {
-    float x = i ? xMax : xMin;
+    const float x = i ? xMax : xMin;
     for ( int j = 0; j < 2; ++j )
     {
-      float y = j ? yMax : yMin;
+      const float y = j ? yMax : yMin;
       for ( int k = 0; k < 2; ++k )
       {
-        float z = k ? zMax : zMin;
+        const float z = k ? zMax : zMin;
         if ( i == 0 )
         {
           vertices.append( QVector3D( xMin, y, z ) );

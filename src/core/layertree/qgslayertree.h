@@ -27,7 +27,6 @@
  * Only generally useful routines should be here. Miscellaneous utility functions for work
  * with the layer tree are in QgsLayerTreeUtils class.
  *
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
 {
@@ -38,7 +37,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
     /**
      * Check whether the node is a valid group node
      *
-     * \since QGIS 2.4
      */
     static inline bool isGroup( QgsLayerTreeNode *node )
     {
@@ -48,7 +46,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
     /**
      * Check whether the node is a valid layer node
      *
-     * \since QGIS 2.4
      */
     static inline bool isLayer( const QgsLayerTreeNode *node )
     {
@@ -56,42 +53,48 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
     }
 
     /**
-     * Cast node to a group. No type checking is done - use isGroup() to find out whether this operation is legal.
+     * Cast node to a group.
      *
      * \note Not available in Python bindings, because cast is automatic.
-     * \since QGIS 2.4
      */
     static inline QgsLayerTreeGroup *toGroup( QgsLayerTreeNode *node ) SIP_SKIP
     {
-      return static_cast<QgsLayerTreeGroup *>( node );
+      return qobject_cast<QgsLayerTreeGroup *>( node );
     }
 
     /**
-     * Cast node to a layer. No type checking is done - use isLayer() to find out whether this operation is legal.
+     * Cast node to a layer.
      *
      * \note Not available in Python bindings, because cast is automatic.
-     * \since QGIS 2.4
      */
     static inline QgsLayerTreeLayer *toLayer( QgsLayerTreeNode *node ) SIP_SKIP
     {
-      return static_cast<QgsLayerTreeLayer *>( node );
+      return qobject_cast<QgsLayerTreeLayer *>( node );
     }
 
     /**
-     * Cast node to a layer. No type checking is done - use isLayer() to find out whether this operation is legal.
+     * Cast node to a layer.
      *
      * \note Not available in Python bindings, because cast is automatic.
-     * \since QGIS 2.4
      */
     static inline const QgsLayerTreeLayer *toLayer( const QgsLayerTreeNode *node ) SIP_SKIP
     {
-      return static_cast< const QgsLayerTreeLayer *>( node );
+      return qobject_cast< const QgsLayerTreeLayer *>( node );
     }
 
     /**
      * Create a new empty layer tree
      */
     QgsLayerTree();
+
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    // override parent QgsLayerTreeGroup __repr__ and resort back to default repr for QgsLayerTree -- there's no extra useful context we can show
+    QString str = QStringLiteral( "<qgis._core.QgsLayerTree object at 0x%1>" ).arg( reinterpret_cast<quintptr>( sipCpp ), 2 * QT_POINTER_SIZE, 16, QLatin1Char( '0' ) );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
 
     /**
      * The order in which layers will be rendered on the canvas.
@@ -102,7 +105,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      * \see layerOrder
      * \see hasCustomLayerOrder
      *
-     * \since QGIS 3.0
      */
     QList<QgsMapLayer *> customLayerOrder() const;
 
@@ -115,7 +117,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      * \see layerOrder
      * \see hasCustomLayerOrder
      *
-     * \since QGIS 3.0
      */
     void setCustomLayerOrder( const QList<QgsMapLayer *> &customLayerOrder );
 
@@ -128,7 +129,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      * \see layerOrder
      * \see hasCustomLayerOrder
      *
-     * \since QGIS 3.0
      */
     void setCustomLayerOrder( const QStringList &customLayerOrder ) SIP_PYNAME( setCustomLayerOrderByIds );
 
@@ -140,7 +140,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      *
      * \see customLayerOrder
      *
-     * \since QGIS 3.0
      */
     QList<QgsMapLayer *> layerOrder() const;
 
@@ -150,7 +149,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      *
      * \see customLayerOrder
      *
-     * \since QGIS 3.0
      */
     bool hasCustomLayerOrder() const;
 
@@ -160,7 +158,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      *
      * \see setCustomLayerOrder
      *
-     * \since QGIS 3.0
      */
     void setHasCustomLayerOrder( bool hasCustomLayerOrder );
 
@@ -170,15 +167,13 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      * resolveReferences() needs to be called after loading the layers and
      * before using the tree.
      *
-     * \since QGIS 3.0
      */
-    static QgsLayerTree *readXml( QDomElement &element, const QgsReadWriteContext &context );
+    static QgsLayerTree *readXml( QDomElement &element, const QgsReadWriteContext &context ); // cppcheck-suppress duplInheritedMember
 
     /**
      * Load the layer order from an XML element.
      * Make sure that this is only called after the layers are loaded.
      *
-     * \since QGIS 3.0
      */
     void readLayerOrderFromXml( const QDomElement &doc );
 
@@ -189,7 +184,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
     /**
      * Clear any information from this layer tree.
      *
-     * \since QGIS 3.0
      */
     void clear();
 
@@ -198,14 +192,12 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
     /**
      * Emitted when the custom layer order has changed.
      *
-     * \since QGIS 3.0
      */
     void customLayerOrderChanged();
 
     /**
      * Emitted when the layer order has changed.
      *
-     * \since QGIS 3.0
      */
     void layerOrderChanged();
 
@@ -214,7 +206,6 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
      *
      * \see hasCustomLayerOrder
      *
-     * \since QGIS 3.0
      */
     void hasCustomLayerOrderChanged( bool hasCustomLayerOrder );
 
@@ -223,8 +214,10 @@ class CORE_EXPORT QgsLayerTree : public QgsLayerTreeGroup
     void nodeRemovedChildren();
 
   private:
-    //! Copy constructor \see clone()
     QgsLayerTree( const QgsLayerTree &other );
+
+    void init();
+
     void addMissingLayers();
     QgsWeakMapLayerPointerList mCustomLayerOrder;
     bool mHasCustomLayerOrder = false;

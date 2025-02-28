@@ -16,6 +16,7 @@
 #ifndef QGSSYMBOLLAYERREFERENCE_H
 #define QGSSYMBOLLAYERREFERENCE_H
 
+#include "qgis.h"
 #include "qgis_sip.h"
 #include "qgis_core.h"
 #include <QList>
@@ -23,6 +24,8 @@
 #include <QVector>
 
 class QgsVectorLayer;
+
+// TODO QGIS 4 : Remove class QgsSymbolLayerId
 
 /**
  * We may need stable references to symbol layers, when pointers to symbol layers is not usable
@@ -49,6 +52,7 @@ class QgsVectorLayer;
  *
  * \ingroup core
  * \since QGIS 3.12
+ * \deprecated QGIS 3.30. Replaced by QUuid to identify symbol layers.
  */
 class CORE_EXPORT QgsSymbolLayerId
 {
@@ -58,21 +62,18 @@ class CORE_EXPORT QgsSymbolLayerId
     /**
      * QgsSymbolLayerId constructor with a symbol key and a unique symbol layer index
      */
-    QgsSymbolLayerId( QString key, int index )
+    QgsSymbolLayerId( const QString &key, int index )
       : mSymbolKey( key ), mIndexPath( { index } )
     {}
 
     /**
      * QgsSymbolLayerId constructor with a symbol key and an index path
      */
-    QgsSymbolLayerId( QString key, const QVector<int> &indexPath )
+    QgsSymbolLayerId( const QString &key, const QVector<int> &indexPath )
       : mSymbolKey( key ), mIndexPath( { indexPath } )
     {}
 
-    //! Default copy constructor
     QgsSymbolLayerId( const QgsSymbolLayerId &other ) = default;
-
-    //! Default assignment operator
     QgsSymbolLayerId &operator=( const QgsSymbolLayerId &other ) = default;
 
     /**
@@ -85,7 +86,8 @@ class CORE_EXPORT QgsSymbolLayerId
      */
     QVector<int> symbolLayerIndexPath() const { return mIndexPath; }
 
-    //! Equality operator
+    // TODO c++20 - replace with = default
+
     bool operator==( const QgsSymbolLayerId &other ) const
     {
       return ( mSymbolKey == other.mSymbolKey && mIndexPath == other.mIndexPath );
@@ -98,6 +100,20 @@ class CORE_EXPORT QgsSymbolLayerId
              mIndexPath < other.mIndexPath
              : mSymbolKey < other.mSymbolKey;
     }
+
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+
+    QStringList pathString;
+    for ( int path : sipCpp->symbolLayerIndexPath() )
+    {
+      pathString.append( QString::number( path ) );
+    }
+    QString str = QStringLiteral( "<QgsSymbolLayerId: %1 (%2)>" ).arg( sipCpp->symbolKey(), pathString.join( ',' ) );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
 
   private:
     //! Symbol unique identifier (legend key)
@@ -117,12 +133,27 @@ class CORE_EXPORT QgsSymbolLayerId
 class CORE_EXPORT QgsSymbolLayerReference
 {
   public:
-    //! Default constructor
+
     QgsSymbolLayerReference() = default;
 
-    //! Constructor
-    QgsSymbolLayerReference( const QString &layerId, const QgsSymbolLayerId &symbolLayer )
-      : mLayerId( layerId ), mSymbolLayerId( symbolLayer )
+    /**
+     * Constructor
+     * \param layerId layer id
+     * \param symbolLayer symbol layer id
+     * \deprecated QGIS 3.30
+     */
+    Q_DECL_DEPRECATED QgsSymbolLayerReference( const QString &layerId, const QgsSymbolLayerId &symbolLayer ) SIP_DEPRECATED
+  : mLayerId( layerId ), mDeprecatedSymbolLayerId( symbolLayer )
+    {}
+
+    /**
+     * Constructor
+     * \param layerId layer id
+     * \param symbolLayerId symbol layer id
+     * \since QGIS 3.30
+     */
+    QgsSymbolLayerReference( const QString &layerId, const QString &symbolLayerId )
+      : mLayerId( layerId ), mSymbolLayerId( symbolLayerId )
     {}
 
     /**
@@ -132,19 +163,44 @@ class CORE_EXPORT QgsSymbolLayerReference
 
     /**
      * The symbol layer's id
+     * \deprecated QGIS 3.30. Use symbolLayerIdV2() instead.
      */
-    QgsSymbolLayerId symbolLayerId() const { return mSymbolLayerId; }
+    Q_DECL_DEPRECATED QgsSymbolLayerId symbolLayerId() const SIP_DEPRECATED { return mDeprecatedSymbolLayerId; }
 
-    //! Comparison operator
+    /**
+     * The symbol layer's id
+     * \since QGIS 3.30
+     */
+    QString symbolLayerIdV2() const { return mSymbolLayerId; }
+
     bool operator==( const QgsSymbolLayerReference &other ) const
     {
-      return mLayerId == other.mLayerId &&
-             mSymbolLayerId == other.mSymbolLayerId;
+      return mLayerId == other.mLayerId
+             && mSymbolLayerId == other.mSymbolLayerId
+             && mDeprecatedSymbolLayerId == other.mDeprecatedSymbolLayerId;
     }
+
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+
+    QStringList pathString;
+    for ( int path : sipCpp->symbolLayerId().symbolLayerIndexPath() )
+    {
+      pathString.append( QString::number( path ) );
+    }
+    QString str = QStringLiteral( "<QgsSymbolLayerReference: %1 - %2>" ).arg( sipCpp->layerId(), sipCpp->symbolLayerIdV2() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
 
   private:
     QString mLayerId;
-    QgsSymbolLayerId mSymbolLayerId;
+
+    // TODO QGIS 4 : remove mDeprecatedSymbolLayerId
+    QgsSymbolLayerId mDeprecatedSymbolLayerId;
+
+    QString mSymbolLayerId;
 };
 
 inline uint qHash( const QgsSymbolLayerId &id )
@@ -154,7 +210,7 @@ inline uint qHash( const QgsSymbolLayerId &id )
 
 inline uint qHash( const QgsSymbolLayerReference &r )
 {
-  return qHash( r.layerId() ) ^ qHash( r.symbolLayerId() );
+  return qHash( r.layerId() ) ^ qHash( r.symbolLayerIdV2() );
 }
 
 typedef QList<QgsSymbolLayerReference> QgsSymbolLayerReferenceList;

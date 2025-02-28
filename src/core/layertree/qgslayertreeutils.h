@@ -35,7 +35,6 @@ class QgsProject;
  * \ingroup core
  * \brief Assorted functions for dealing with layer trees.
  *
- * \since QGIS 2.4
  */
 class CORE_EXPORT QgsLayerTreeUtils
 {
@@ -53,8 +52,14 @@ class CORE_EXPORT QgsLayerTreeUtils
     //! Convert QString to Qt::CheckState
     static Qt::CheckState checkStateFromXml( const QString &txt );
 
-    //! Returns TRUE if any of the layers is editable
-    static bool layersEditable( const QList<QgsLayerTreeLayer *> &layerNodes );
+    /**
+     * Returns TRUE if any of the specified layers is editable.
+     *
+     * The \a ignoreLayersWhichCannotBeToggled argument can be used to control whether layers which cannot have their
+     * edit states toggled by users should be ignored or not (since QGIS 3.22).
+     */
+    static bool layersEditable( const QList<QgsLayerTreeLayer *> &layerNodes, bool ignoreLayersWhichCannotBeToggled = false );
+
     //! Returns TRUE if any of the layers is modified
     static bool layersModified( const QList<QgsLayerTreeLayer *> &layerNodes );
 
@@ -63,7 +68,7 @@ class CORE_EXPORT QgsLayerTreeUtils
 
     /**
      * Stores in a layer's originalXmlProperties the layer properties information
-     * \since 3.6
+     * \since QGIS 3.6
      */
     static void storeOriginalLayersProperties( QgsLayerTreeGroup *group, const QDomDocument *doc );
 
@@ -123,6 +128,24 @@ class CORE_EXPORT QgsLayerTreeUtils
      * \since QGIS 3.8
      */
     static QgsLayerTreeGroup *firstGroupWithoutCustomProperty( QgsLayerTreeGroup *group, const QString &property );
+
+    /**
+     * Inserts a \a layer within a given \a group at an optimal index position by insuring a given layer
+     * type will always sit on top of or below other types. From top to bottom, the stacking logic is
+     * as follow:
+     *
+     * - vector points
+     * - vector lines
+     * - vector polygons
+     * - point clouds
+     * - meshes
+     * - rasters
+     * - base maps
+     *
+     * A base map is defined as a non-gdal provider raster layer (e.g. XYZ raster layer, vector tile layer, etc.)
+     * \since QGIS 3.28
+     */
+    static QgsLayerTreeLayer *insertLayerAtOptimalPlacement( QgsLayerTreeGroup *group, QgsMapLayer *layer );
 };
 
 #endif // QGSLAYERTREEUTILS_H

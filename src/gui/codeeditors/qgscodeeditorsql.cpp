@@ -13,9 +13,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "qgsapplication.h"
 #include "qgscodeeditorsql.h"
-#include "qgssymbollayerutils.h"
+#include "moc_qgscodeeditorsql.cpp"
 
 #include <QWidget>
 #include <QString>
@@ -29,9 +28,21 @@ QgsCodeEditorSQL::QgsCodeEditorSQL( QWidget *parent )
   {
     setTitle( tr( "SQL Editor" ) );
   }
-  setFoldingVisible( false );
   setAutoCompletionCaseSensitivity( false );
   QgsCodeEditorSQL::initializeLexer(); // avoid cppcheck warning by explicitly specifying namespace
+}
+
+Qgis::ScriptLanguage QgsCodeEditorSQL::language() const
+{
+  return Qgis::ScriptLanguage::Sql;
+}
+
+QgsCodeEditorSQL::~QgsCodeEditorSQL()
+{
+  if ( mApis )
+  {
+    mApis->cancelPreparation();
+  }
 }
 
 void QgsCodeEditorSQL::initializeLexer()
@@ -71,14 +82,14 @@ void QgsCodeEditorSQL::initializeLexer()
 
 void QgsCodeEditorSQL::setFields( const QgsFields &fields )
 {
-  mFieldNames.clear();
+  QStringList fieldNames;
 
-  for ( const QgsField &field : fields )
+  for ( const QgsField &field : std::as_const( fields ) )
   {
-    mFieldNames << field.name();
+    fieldNames.push_back( field.name() );
   }
 
-  updateApis();
+  setFieldNames( fieldNames );
 }
 
 void QgsCodeEditorSQL::updateApis()
@@ -90,6 +101,33 @@ void QgsCodeEditorSQL::updateApis()
     mApis->add( fieldName );
   }
 
+  for ( const QString &keyword : std::as_const( mExtraKeywords ) )
+  {
+    mApis->add( keyword );
+  }
+
   mApis->prepare();
   mSqlLexer->setAPIs( mApis );
+}
+
+QStringList QgsCodeEditorSQL::extraKeywords() const
+{
+  return mExtraKeywords.values();
+}
+
+void QgsCodeEditorSQL::setExtraKeywords( const QStringList &extraKeywords )
+{
+  mExtraKeywords = qgis::listToSet( extraKeywords );
+  updateApis();
+}
+
+QStringList QgsCodeEditorSQL::fieldNames() const
+{
+  return mFieldNames.values();
+}
+
+void QgsCodeEditorSQL::setFieldNames( const QStringList &fieldNames )
+{
+  mFieldNames = qgis::listToSet( fieldNames );
+  updateApis();
 }

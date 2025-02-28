@@ -32,7 +32,7 @@ QString QgsSwapXYAlgorithm::displayName() const
 
 QStringList QgsSwapXYAlgorithm::tags() const
 {
-  return QObject::tr( "invert,flip,swap,latitude,longitude" ).split( ',' );
+  return QObject::tr( "invert,flip,swap,switch,latitude,longitude" ).split( ',' );
 }
 
 QString QgsSwapXYAlgorithm::group() const
@@ -63,20 +63,20 @@ QgsSwapXYAlgorithm *QgsSwapXYAlgorithm::createInstance() const
 
 bool QgsSwapXYAlgorithm::supportInPlaceEdit( const QgsMapLayer *l ) const
 {
-  const QgsVectorLayer *layer = qobject_cast< const QgsVectorLayer * >( l );
+  const QgsVectorLayer *layer = qobject_cast<const QgsVectorLayer *>( l );
   if ( !layer )
     return false;
 
-  if ( ! QgsProcessingFeatureBasedAlgorithm::supportInPlaceEdit( layer ) )
+  if ( !QgsProcessingFeatureBasedAlgorithm::supportInPlaceEdit( layer ) )
     return false;
 
   return layer->isSpatial();
 }
 
-QgsProcessingFeatureSource::Flag QgsSwapXYAlgorithm::sourceFlags() const
+Qgis::ProcessingFeatureSourceFlags QgsSwapXYAlgorithm::sourceFlags() const
 {
   // this algorithm doesn't care about invalid geometries
-  return QgsProcessingFeatureSource::FlagSkipGeometryValidityChecks;
+  return Qgis::ProcessingFeatureSourceFlag::SkipGeometryValidityChecks;
 }
 
 QgsFeatureList QgsSwapXYAlgorithm::processFeature( const QgsFeature &f, QgsProcessingContext &, QgsProcessingFeedback * )
@@ -85,8 +85,8 @@ QgsFeatureList QgsSwapXYAlgorithm::processFeature( const QgsFeature &f, QgsProce
   QgsFeature feature = f;
   if ( feature.hasGeometry() )
   {
-    QgsGeometry geom = feature.geometry();
-    std::unique_ptr< QgsAbstractGeometry > swappedGeom( geom.constGet()->clone() );
+    const QgsGeometry geom = feature.geometry();
+    std::unique_ptr<QgsAbstractGeometry> swappedGeom( geom.constGet()->clone() );
     swappedGeom->swapXy();
     feature.setGeometry( QgsGeometry( std::move( swappedGeom ) ) );
     list << feature;

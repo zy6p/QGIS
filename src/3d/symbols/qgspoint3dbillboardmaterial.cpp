@@ -23,14 +23,12 @@
 #include <Qt3DRender/QNoDepthMask>
 #include <QUrl>
 
-#include "qgslogger.h"
 #include "qgspoint3dbillboardmaterial.h"
+#include "moc_qgspoint3dbillboardmaterial.cpp"
 #include "qgsterraintextureimage_p.h"
-#include "qgsmarkersymbollayer.h"
 #include "qgssymbollayerutils.h"
-#include "qgssettings.h"
-#include "qgs3dmapsettings.h"
 #include "qgsmarkersymbol.h"
+#include "qgs3drendercontext.h"
 
 QgsPoint3DBillboardMaterial::QgsPoint3DBillboardMaterial()
   : mSize( new Qt3DRender::QParameter( "BB_SIZE", QSizeF( 100, 100 ), this ) )
@@ -84,6 +82,8 @@ QgsPoint3DBillboardMaterial::QgsPoint3DBillboardMaterial()
   setEffect( effect );
 }
 
+QgsPoint3DBillboardMaterial::~QgsPoint3DBillboardMaterial() = default;
+
 void QgsPoint3DBillboardMaterial::setSize( const QSizeF size )
 {
   mSize->setValue( size );
@@ -107,38 +107,40 @@ QSizeF QgsPoint3DBillboardMaterial::windowSize() const
 void QgsPoint3DBillboardMaterial::setTexture2DFromImage( QImage image, double size )
 {
   // Create texture image
-  QgsRectangle randomExtent = QgsRectangle( rand(), rand(), rand(), rand() );
+  const QgsRectangle randomExtent = QgsRectangle( rand(), rand(), rand(), rand() );
   QgsTerrainTextureImage *billboardTextureImage = new QgsTerrainTextureImage( image, randomExtent, QStringLiteral( "billboard material." ) );
 
   setTexture2DFromTextureImage( billboardTextureImage );
   setSize( QSizeF( size + size, size + size ) );
 }
 
-void QgsPoint3DBillboardMaterial::useDefaultSymbol( const Qgs3DMapSettings &map, bool selected )
+void QgsPoint3DBillboardMaterial::useDefaultSymbol( const Qgs3DRenderContext &context, bool selected )
 {
   // Default texture
-  std::unique_ptr< QgsMarkerSymbol> defaultSymbol( static_cast<QgsMarkerSymbol *>( QgsSymbol::defaultSymbol( QgsWkbTypes::PointGeometry ) ) );
-  setTexture2DFromSymbol( defaultSymbol.get(), map, selected );
+  const std::unique_ptr<QgsMarkerSymbol> defaultSymbol( static_cast<QgsMarkerSymbol *>( QgsSymbol::defaultSymbol( Qgis::GeometryType::Point ) ) );
+  setTexture2DFromSymbol( defaultSymbol.get(), context, selected );
 }
 
-void QgsPoint3DBillboardMaterial::setTexture2DFromSymbol( QgsMarkerSymbol *markerSymbol, const Qgs3DMapSettings &map, bool selected )
+void QgsPoint3DBillboardMaterial::setTexture2DFromSymbol( QgsMarkerSymbol *markerSymbol, const Qgs3DRenderContext &context, bool selected )
 {
-  QgsRenderContext context;
-  context.setSelectionColor( map.selectionColor() );
-  context.setScaleFactor( map.outputDpi() / 25.4 );
-  double pixelSize = context.convertToPainterUnits( markerSymbol->size( context ),  markerSymbol->sizeUnit() );
+  QgsRenderContext context2D;
+  context2D.setSelectionColor( context.selectionColor() );
+  context2D.setScaleFactor( context.outputDpi() / 25.4 );
+  context2D.setFlag( Qgis::RenderContextFlag::Antialiasing );
+  context2D.setFlag( Qgis::RenderContextFlag::HighQualityImageTransforms );
+  const double pixelSize = context2D.convertToPainterUnits( markerSymbol->size( context2D ), markerSymbol->sizeUnit() );
 
   // This number is an max estimation ratio between stroke width and symbol size.
-  double strokeRatio = 0.5;
+  const double strokeRatio = 0.5;
   // Minimum extra width, just in case the size is small, but the stroke is quite big.
   // 10 mm is quite big based on Raymond's experiece.
   // 10 mm has around 37 pixel in 96 dpi, round up become 40.
-  double minimumExtraSize = 40;
-  double extraPixel = minimumExtraSize > pixelSize * strokeRatio ? minimumExtraSize : pixelSize * strokeRatio;
-  int pixelWithExtra = std::ceil( pixelSize + extraPixel );
-  QPixmap symbolPixmap = QgsSymbolLayerUtils::symbolPreviewPixmap( markerSymbol, QSize( pixelWithExtra, pixelWithExtra ), 0, &context, selected );
-  QImage symbolImage = symbolPixmap.toImage();
-  QImage flippedSymbolImage = symbolImage.mirrored();
+  const double minimumExtraSize = 40;
+  const double extraPixel = minimumExtraSize > pixelSize * strokeRatio ? minimumExtraSize : pixelSize * strokeRatio;
+  const int pixelWithExtra = std::ceil( pixelSize + extraPixel );
+  const QPixmap symbolPixmap = QgsSymbolLayerUtils::symbolPreviewPixmap( markerSymbol, QSize( pixelWithExtra, pixelWithExtra ), 0, &context2D, selected );
+  const QImage symbolImage = symbolPixmap.toImage();
+  const QImage flippedSymbolImage = symbolImage.mirrored();
   setTexture2DFromImage( flippedSymbolImage, pixelWithExtra );
 }
 

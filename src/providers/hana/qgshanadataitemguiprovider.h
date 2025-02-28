@@ -26,21 +26,21 @@ class QgsHanaDataItemGuiProvider : public QObject, public QgsDataItemGuiProvider
 {
     Q_OBJECT
   public:
-
     QString name() override { return QStringLiteral( "SAP HANA" ); }
 
-    void populateContextMenu( QgsDataItem *item, QMenu *menu,
-                              const QList<QgsDataItem *> &selectedItems, QgsDataItemGuiContext context ) override;
+    void populateContextMenu( QgsDataItem *item, QMenu *menu, const QList<QgsDataItem *> &selectedItems, QgsDataItemGuiContext context ) override;
 
     bool deleteLayer( QgsLayerItem *item, QgsDataItemGuiContext context ) override;
 
     bool acceptDrop( QgsDataItem *item, QgsDataItemGuiContext context ) override;
     bool handleDrop( QgsDataItem *item, QgsDataItemGuiContext context, const QMimeData *data, Qt::DropAction action ) override;
 
+    QWidget *createParamWidget( QgsDataItem *root, QgsDataItemGuiContext ) override;
+
   private:
     static void newConnection( QgsDataItem *item );
     static void editConnection( QgsDataItem *item );
-    static void deleteConnection( QgsDataItem *item );
+    static void duplicateConnection( QgsDataItem *item );
     static void refreshConnection( QgsDataItem *item );
     static void createSchema( QgsDataItem *item, QgsDataItemGuiContext context );
     static void deleteSchema( QgsHanaSchemaItem *schemaItem, QgsDataItemGuiContext context );

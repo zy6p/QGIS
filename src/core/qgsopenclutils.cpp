@@ -14,6 +14,7 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsopenclutils.h"
+#include "moc_qgsopenclutils.cpp"
 #include "qgssettings.h"
 #include "qgsmessagelog.h"
 #include "qgslogger.h"
@@ -25,8 +26,16 @@
 #include <QDebug>
 
 #ifdef Q_OS_WIN
+#if defined(UNICODE) && !defined(_UNICODE)
+#define _UNICODE
+#endif
 #include <windows.h>
 #include <tchar.h>
+#endif
+
+#if defined(_MSC_VER)
+#include <windows.h>
+#include <excpt.h>
 #endif
 
 QLatin1String QgsOpenClUtils::SETTINGS_GLOBAL_ENABLED_KEY = QLatin1String( "OpenClEnabled" );
@@ -42,13 +51,13 @@ const std::vector<cl::Device> QgsOpenClUtils::devices()
   std::vector<cl::Platform> platforms;
   cl::Platform::get( &platforms );
   std::vector<cl::Device> existingDevices;
-  for ( auto &p : platforms )
+  for ( const auto &p : platforms )
   {
-    std::string platver = p.getInfo<CL_PLATFORM_VERSION>();
+    const std::string platver = p.getInfo<CL_PLATFORM_VERSION>();
     QgsMessageLog::logMessage( QObject::tr( "Found OpenCL platform %1: %2" )
                                .arg( QString::fromStdString( platver ),
                                      QString::fromStdString( p.getInfo<CL_PLATFORM_NAME>() ) ),
-                               LOGMESSAGE_TAG );
+                               LOGMESSAGE_TAG, Qgis::MessageLevel::Info );
     if ( platver.find( "OpenCL " ) != std::string::npos )
     {
       std::vector<cl::Device> _devices;
@@ -62,14 +71,16 @@ const std::vector<cl::Device> QgsOpenClUtils::devices()
         QgsMessageLog::logMessage( QObject::tr( "Error %1 on platform %3 searching for OpenCL device: %2" )
                                    .arg( errorText( e.err() ),
                                          QString::fromStdString( e.what() ),
-                                         QString::fromStdString( p.getInfo<CL_PLATFORM_NAME>() ) ), LOGMESSAGE_TAG );
+                                         QString::fromStdString( p.getInfo<CL_PLATFORM_NAME>() ) ),
+                                   LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
       }
       if ( _devices.size() > 0 )
       {
         for ( unsigned long i = 0; i < _devices.size(); i++ )
         {
           QgsMessageLog::logMessage( QObject::tr( "Found OpenCL device: %1" )
-                                     .arg( deviceId( _devices[i] ) ), LOGMESSAGE_TAG );
+                                     .arg( deviceId( _devices[i] ) ),
+                                     LOGMESSAGE_TAG, Qgis::MessageLevel::Info );
           existingDevices.push_back( _devices[i] );
         }
       }
@@ -93,36 +104,44 @@ void QgsOpenClUtils::init()
     {
       QgsMessageLog::logMessage( QObject::tr( "Error loading OpenCL library: %1" )
                                  .arg( openCLLib.errorString() ),
-                                 LOGMESSAGE_TAG, Qgis::Critical );
+                                 LOGMESSAGE_TAG, Qgis::MessageLevel::Critical );
       return;
     }
 
 #ifdef Q_OS_WIN
-    HMODULE hModule = GetModuleHandle( "OpenCL.dll" );
+#ifdef _UNICODE
+#define _T(x) L##x
+#else
+#define _T(x) x
+#endif
+    HMODULE hModule = GetModuleHandle( _T( "OpenCL.dll" ) );
     if ( hModule )
     {
       TCHAR pszFileName[1024];
       if ( GetModuleFileName( hModule, pszFileName, 1024 ) < 1024 )
       {
-        QgsMessageLog::logMessage( QObject::tr( "Found OpenCL library filename %1" ).arg( pszFileName ), LOGMESSAGE_TAG );
+        QgsMessageLog::logMessage( QObject::tr( "Found OpenCL library filename %1" )
+                                   .arg( pszFileName ),
+                                   LOGMESSAGE_TAG, Qgis::MessageLevel::Info );
 
         DWORD dwUseless;
         DWORD dwLen = GetFileVersionInfoSize( pszFileName, &dwUseless );
         if ( dwLen )
         {
-          LPTSTR lpVI = ( LPSTR ) malloc( dwLen );
+          LPTSTR lpVI = ( LPTSTR ) malloc( dwLen * sizeof( TCHAR ) );
           if ( lpVI )
           {
-            if ( GetFileVersionInfo( pszFileName, NULL, dwLen, lpVI ) )
+            if ( GetFileVersionInfo( pszFileName, 0, dwLen, lpVI ) )
             {
               VS_FIXEDFILEINFO *lpFFI;
-              if ( VerQueryValue( lpVI, "\\", ( LPVOID * ) &lpFFI, ( UINT * ) &dwUseless ) )
+              if ( VerQueryValue( lpVI, _T( "\\" ), ( LPVOID * ) &lpFFI, ( UINT * ) &dwUseless ) )
               {
                 QgsMessageLog::logMessage( QObject::tr( "OpenCL Product version: %1.%2.%3.%4" )
                                            .arg( lpFFI->dwProductVersionMS >> 16 )
                                            .arg( lpFFI->dwProductVersionMS & 0xffff )
                                            .arg( lpFFI->dwProductVersionLS >> 16 )
-                                           .arg( lpFFI->dwProductVersionLS & 0xffff ), LOGMESSAGE_TAG );
+                                           .arg( lpFFI->dwProductVersionLS & 0xffff ),
+                                           LOGMESSAGE_TAG, Qgis::MessageLevel::Info );
               }
 
               struct LANGANDCODEPAGE
@@ -156,13 +175,26 @@ void QgsOpenClUtils::init()
                                      .arg( lpTranslate[0].wCodePage, 4, 16, QLatin1Char( '0' ) )
                                      .arg( d );
 
-                  QgsDebugMsg( QString( "d:%1 subBlock:%2" ).arg( d ).arg( subBlock ) );
+                  QgsDebugMsgLevel( QString( "d:%1 subBlock:%2" ).arg( d ).arg( subBlock ), 2 );
 
-                  BOOL r = VerQueryValue( lpVI, subBlock.toUtf8(), ( LPVOID * )&lpBuffer, ( UINT * )&dwUseless );
+                  BOOL r = VerQueryValue( lpVI,
+#ifdef UNICODE
+                                          subBlock.toStdWString().c_str(),
+#else
+                                          subBlock.toUtf8(),
+#endif
+                                          ( LPVOID * )&lpBuffer, ( UINT * )&dwUseless );
 
                   if ( r && lpBuffer && lpBuffer != INVALID_HANDLE_VALUE && dwUseless < 1023 )
                   {
-                    QgsMessageLog::logMessage( QObject::tr( "Found OpenCL version info %1: %2" ).arg( d ).arg( QString::fromLocal8Bit( lpBuffer ) ), LOGMESSAGE_TAG );
+                    QgsMessageLog::logMessage( QObject::tr( "Found OpenCL version info %1: %2" )
+                                               .arg( d )
+#ifdef UNICODE
+                                               .arg( QString::fromUtf16( ( const ushort * ) lpBuffer ) ),
+#else
+                                               .arg( QString::fromLocal8Bit( lpBuffer ) ),
+#endif
+                                               LOGMESSAGE_TAG, Qgis::MessageLevel::Info );
                   }
                 }
               }
@@ -174,12 +206,12 @@ void QgsOpenClUtils::init()
       }
       else
       {
-        QgsMessageLog::logMessage( QObject::tr( "No module handle to OpenCL library" ) );
+        QgsMessageLog::logMessage( QObject::tr( "No module handle to OpenCL library" ), LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
       }
     }
     else
     {
-      QgsMessageLog::logMessage( QObject::tr( "No module handle to OpenCL library" ) );
+      QgsMessageLog::logMessage( QObject::tr( "No module handle to OpenCL library" ), LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
     }
 #endif
 
@@ -191,7 +223,7 @@ void QgsOpenClUtils::init()
     {
       QgsMessageLog::logMessage( QObject::tr( "Error %1 initializing OpenCL device: %2" )
                                  .arg( errorText( e.err() ), QString::fromStdString( e.what() ) ),
-                                 LOGMESSAGE_TAG, Qgis::Critical );
+                                 LOGMESSAGE_TAG, Qgis::MessageLevel::Critical );
     }
 
   } );
@@ -234,7 +266,7 @@ QString QgsOpenClUtils::deviceInfo( const Info infoType, cl::Device device )
         return QString::number( device.getInfo<CL_DEVICE_IMAGE2D_MAX_WIDTH>() );
       case Info::Type:
       {
-        unsigned long type( device.getInfo<CL_DEVICE_TYPE>() );
+        const unsigned long type( device.getInfo<CL_DEVICE_TYPE>() );
         int mappedType;
         switch ( type )
         {
@@ -247,7 +279,7 @@ QString QgsOpenClUtils::deviceInfo( const Info infoType, cl::Device device )
           default:
             mappedType = QgsOpenClUtils::HardwareType::Other;
         }
-        QMetaEnum metaEnum = QMetaEnum::fromType<QgsOpenClUtils::HardwareType>();
+        const QMetaEnum metaEnum = QMetaEnum::fromType<QgsOpenClUtils::HardwareType>();
         return metaEnum.valueToKey( mappedType );
       }
       case Info::Name:
@@ -281,7 +313,7 @@ QString QgsOpenClUtils::activePlatformVersion()
   QString version;
   if ( cl::Platform::getDefault()() )
   {
-    std::string platver = cl::Platform::getDefault().getInfo<CL_PLATFORM_VERSION>();
+    const std::string platver = cl::Platform::getDefault().getInfo<CL_PLATFORM_VERSION>();
     if ( platver.find( "OpenCL " ) != std::string::npos )
     {
       version = QString::fromStdString( platver.substr( 7 ) ).split( ' ' ).first();
@@ -309,13 +341,41 @@ QString QgsOpenClUtils::deviceId( const cl::Device device )
          .arg( deviceInfo( QgsOpenClUtils::Info::Type, device ) );
 }
 
+#if defined(_MSC_VER)
+static void emitLogMessageForSEHException( int exceptionCode )
+{
+  QgsMessageLog::logMessage( QObject::tr( "Unexpected exception of code %1 occurred while searching for OpenCL device. Note that the application may become unreliable and may need to be restarted." ).arg( exceptionCode ),
+                             QgsOpenClUtils::LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
+}
+#endif
+
 bool QgsOpenClUtils::activate( const QString &preferredDeviceId )
+{
+#if defined(_MSC_VER)
+  // Try to capture hard crashes such as https://github.com/qgis/QGIS/issues/59617
+  __try
+  {
+    // We cannot combine together __try and try in the same function.
+    return activateInternal( preferredDeviceId );
+  }
+  __except ( EXCEPTION_EXECUTE_HANDLER )
+  {
+    emitLogMessageForSEHException( GetExceptionCode() );
+    return false;
+  }
+#else
+  return activateInternal( preferredDeviceId );
+#endif
+}
+
+bool QgsOpenClUtils::activateInternal( const QString &preferredDeviceId )
 {
   if ( deviceId( activeDevice() ) == preferredDeviceId )
   {
     sAvailable = true;
     return false;
   }
+
   try
   {
     std::vector<cl::Platform> platforms;
@@ -323,12 +383,12 @@ bool QgsOpenClUtils::activate( const QString &preferredDeviceId )
     cl::Platform plat;
     cl::Device dev;
     bool deviceFound = false;
-    for ( auto &p : platforms )
+    for ( const auto &p : platforms )
     {
       if ( deviceFound )
         break;
-      std::string platver = p.getInfo<CL_PLATFORM_VERSION>();
-      QgsDebugMsg( QStringLiteral( "Found OpenCL platform %1: %2" ).arg( QString::fromStdString( platver ), QString::fromStdString( p.getInfo<CL_PLATFORM_NAME>() ) ) );
+      const std::string platver = p.getInfo<CL_PLATFORM_VERSION>();
+      QgsDebugMsgLevel( QStringLiteral( "Found OpenCL platform %1: %2" ).arg( QString::fromStdString( platver ), QString::fromStdString( p.getInfo<CL_PLATFORM_NAME>() ) ), 2 );
       if ( platver.find( "OpenCL " ) != std::string::npos )
       {
         std::vector<cl::Device> devices;
@@ -383,31 +443,31 @@ bool QgsOpenClUtils::activate( const QString &preferredDeviceId )
           }
           if ( ! deviceFound )
           {
-            QgsMessageLog::logMessage( QObject::tr( "No OpenCL device could be found." ), LOGMESSAGE_TAG, Qgis::Warning );
+            QgsMessageLog::logMessage( QObject::tr( "No OpenCL device could be found." ), LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
           }
         }
         catch ( cl::Error &e )
         {
-          QgsDebugMsg( QStringLiteral( "Error %1 on platform %3 searching for OpenCL device: %2" )
-                       .arg( errorText( e.err() ),
-                             QString::fromStdString( e.what() ),
-                             QString::fromStdString( p.getInfo<CL_PLATFORM_NAME>() ) ) );
+          QgsDebugError( QStringLiteral( "Error %1 on platform %3 searching for OpenCL device: %2" )
+                         .arg( errorText( e.err() ),
+                               QString::fromStdString( e.what() ),
+                               QString::fromStdString( p.getInfo<CL_PLATFORM_NAME>() ) ) );
         }
 
       }
     }
     if ( ! plat() )
     {
-      QgsMessageLog::logMessage( QObject::tr( "No OpenCL platform found." ), LOGMESSAGE_TAG, Qgis::Warning );
+      QgsMessageLog::logMessage( QObject::tr( "No OpenCL platform found." ), LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
       sAvailable = false;
     }
     else
     {
-      cl::Platform newP = cl::Platform::setDefault( plat );
+      const cl::Platform newP = cl::Platform::setDefault( plat );
       if ( newP != plat )
       {
         QgsMessageLog::logMessage( QObject::tr( "Error setting default platform." ),
-                                   LOGMESSAGE_TAG, Qgis::Warning );
+                                   LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
         sAvailable = false;
       }
       else
@@ -415,7 +475,7 @@ bool QgsOpenClUtils::activate( const QString &preferredDeviceId )
         cl::Device::setDefault( dev );
         QgsMessageLog::logMessage( QObject::tr( "Active OpenCL device: %1" )
                                    .arg( QString::fromStdString( dev.getInfo<CL_DEVICE_NAME>() ) ),
-                                   LOGMESSAGE_TAG, Qgis::Success );
+                                   LOGMESSAGE_TAG, Qgis::MessageLevel::Success );
         sAvailable = true;
       }
     }
@@ -425,9 +485,10 @@ bool QgsOpenClUtils::activate( const QString &preferredDeviceId )
   {
     QgsMessageLog::logMessage( QObject::tr( "Error %1 searching for OpenCL device: %2" )
                                .arg( errorText( e.err() ), QString::fromStdString( e.what() ) ),
-                               LOGMESSAGE_TAG, Qgis::Warning );
+                               LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
     sAvailable = false;
   }
+
   return sAvailable;
 }
 
@@ -491,14 +552,14 @@ QString QgsOpenClUtils::sourceFromPath( const QString &path )
   }
   else
   {
-    QgsMessageLog::logMessage( QObject::tr( "Could not load OpenCL program from path %1." ).arg( path ), LOGMESSAGE_TAG, Qgis::Warning );
+    QgsMessageLog::logMessage( QObject::tr( "Could not load OpenCL program from path %1." ).arg( path ), LOGMESSAGE_TAG, Qgis::MessageLevel::Warning );
   }
   return source_str;
 }
 
 QString QgsOpenClUtils::sourceFromBaseName( const QString &baseName )
 {
-  QString path = QStringLiteral( "%1/%2.cl" ).arg( sourcePath(), baseName );
+  const QString path = QStringLiteral( "%1/%2.cl" ).arg( sourcePath(), baseName );
   return sourceFromPath( path );
 }
 
@@ -621,7 +682,7 @@ cl::CommandQueue QgsOpenClUtils::commandQueue()
   else  // legacy
   {
     cl::Device device( QgsOpenClUtils::activeDevice() );
-    cl_command_queue_properties properties = 0;
+    const cl_command_queue_properties properties = 0;
     Q_NOWARN_DEPRECATED_PUSH
     cl_command_queue queue = clCreateCommandQueue( context(), device(),  properties, nullptr );
     Q_NOWARN_DEPRECATED_POP
@@ -658,7 +719,7 @@ cl::Program QgsOpenClUtils::buildProgram( const QString &source, QgsOpenClUtils:
     // OpenCL version for compatibility with older hardware, but it's up to
     // llvm to support latest CL versions
     bool ok;
-    float version( QgsOpenClUtils::activePlatformVersion().toFloat( &ok ) );
+    const float version( QgsOpenClUtils::activePlatformVersion().toFloat( &ok ) );
     if ( ok && version < 2.0f )
     {
       program.build( QStringLiteral( "-cl-std=CL%1 -I\"%2\"" )
@@ -676,17 +737,17 @@ cl::Program QgsOpenClUtils::buildProgram( const QString &source, QgsOpenClUtils:
     QString build_log( buildLog( e ) );
     if ( build_log.isEmpty() )
       build_log = QObject::tr( "Build logs not available!" );
-    QString err = QObject::tr( "Error building OpenCL program: %1" )
-                  .arg( build_log );
-    QgsMessageLog::logMessage( err, LOGMESSAGE_TAG, Qgis::Critical );
+    const QString err = QObject::tr( "Error building OpenCL program: %1" )
+                        .arg( build_log );
+    QgsMessageLog::logMessage( err, LOGMESSAGE_TAG, Qgis::MessageLevel::Critical );
     if ( exceptionBehavior == Throw )
       throw e;
   }
   catch ( cl::Error &e )
   {
-    QString err = QObject::tr( "Error %1 building OpenCL program in %2" )
-                  .arg( errorText( e.err() ), QString::fromStdString( e.what() ) );
-    QgsMessageLog::logMessage( err, LOGMESSAGE_TAG, Qgis::Critical );
+    const QString err = QObject::tr( "Error %1 building OpenCL program in %2" )
+                        .arg( errorText( e.err() ), QString::fromStdString( e.what() ) );
+    QgsMessageLog::logMessage( err, LOGMESSAGE_TAG, Qgis::MessageLevel::Critical );
     throw e;
   }
   return program;

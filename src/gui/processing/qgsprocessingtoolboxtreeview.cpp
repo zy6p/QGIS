@@ -14,23 +14,24 @@
  ***************************************************************************/
 
 #include "qgsprocessingtoolboxtreeview.h"
+#include "moc_qgsprocessingtoolboxtreeview.cpp"
 #include "qgsprocessingtoolboxmodel.h"
+
+#include <QKeyEvent>
 
 ///@cond PRIVATE
 
-QgsProcessingToolboxTreeView::QgsProcessingToolboxTreeView( QWidget *parent,
-    QgsProcessingRegistry *registry,
-    QgsProcessingRecentAlgorithmLog *recentLog )
+QgsProcessingToolboxTreeView::QgsProcessingToolboxTreeView( QWidget *parent, QgsProcessingRegistry *registry, QgsProcessingRecentAlgorithmLog *recentLog, QgsProcessingFavoriteAlgorithmManager *favoriteManager )
   : QTreeView( parent )
 {
-  mModel = new QgsProcessingToolboxProxyModel( this, registry, recentLog );
+  mModel = new QgsProcessingToolboxProxyModel( this, registry, recentLog, favoriteManager );
   mToolboxModel = mModel->toolboxModel();
   setModel( mModel );
 }
 
-void QgsProcessingToolboxTreeView::setRegistry( QgsProcessingRegistry *registry, QgsProcessingRecentAlgorithmLog *recentLog )
+void QgsProcessingToolboxTreeView::setRegistry( QgsProcessingRegistry *registry, QgsProcessingRecentAlgorithmLog *recentLog, QgsProcessingFavoriteAlgorithmManager *favoriteManager )
 {
-  QgsProcessingToolboxProxyModel *newModel = new QgsProcessingToolboxProxyModel( this, registry, recentLog );
+  QgsProcessingToolboxProxyModel *newModel = new QgsProcessingToolboxProxyModel( this, registry, recentLog, favoriteManager );
   mToolboxModel = newModel->toolboxModel();
   setModel( newModel );
   mModel->deleteLater();
@@ -55,7 +56,7 @@ void QgsProcessingToolboxTreeView::setFilterString( const QString &filter )
     if ( !selectedAlgorithm() )
     {
       // if previously selected item was hidden, auto select the first visible algorithm
-      QModelIndex firstVisibleIndex = findFirstVisibleAlgorithm( QModelIndex() );
+      const QModelIndex firstVisibleIndex = findFirstVisibleAlgorithm( QModelIndex() );
       if ( firstVisibleIndex.isValid() )
         selectionModel()->setCurrentIndex( firstVisibleIndex, QItemSelectionModel::ClearAndSelect );
     }
@@ -68,7 +69,7 @@ void QgsProcessingToolboxTreeView::setFilterString( const QString &filter )
 
 const QgsProcessingAlgorithm *QgsProcessingToolboxTreeView::algorithmForIndex( const QModelIndex &index )
 {
-  QModelIndex sourceIndex = mModel->mapToSource( index );
+  const QModelIndex sourceIndex = mModel->mapToSource( index );
   if ( mToolboxModel->isAlgorithm( sourceIndex ) )
     return mToolboxModel->algorithmForIndex( sourceIndex );
   else
@@ -79,7 +80,7 @@ const QgsProcessingAlgorithm *QgsProcessingToolboxTreeView::selectedAlgorithm()
 {
   if ( selectionModel()->hasSelection() )
   {
-    QModelIndex index = selectionModel()->selectedIndexes().at( 0 );
+    const QModelIndex index = selectionModel()->selectedIndexes().at( 0 );
     return algorithmForIndex( index );
   }
   else
@@ -108,7 +109,7 @@ QModelIndex QgsProcessingToolboxTreeView::findFirstVisibleAlgorithm( const QMode
   for ( int r = 0; r < mModel->rowCount( parent ); ++r )
   {
     QModelIndex proxyIndex = mModel->index( r, 0, parent );
-    QModelIndex sourceIndex = mModel->mapToSource( proxyIndex );
+    const QModelIndex sourceIndex = mModel->mapToSource( proxyIndex );
     if ( mToolboxModel->isAlgorithm( sourceIndex ) )
       return proxyIndex;
 
@@ -117,6 +118,14 @@ QModelIndex QgsProcessingToolboxTreeView::findFirstVisibleAlgorithm( const QMode
       return index;
   }
   return QModelIndex();
+}
+
+void QgsProcessingToolboxTreeView::keyPressEvent( QKeyEvent *event )
+{
+  if ( event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter )
+    emit doubleClicked( currentIndex() );
+  else
+    QTreeView::keyPressEvent( event );
 }
 
 ///@endcond

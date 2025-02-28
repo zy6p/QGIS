@@ -16,6 +16,7 @@
 
 
 #include "qgsstylegroupselectiondialog.h"
+#include "moc_qgsstylegroupselectiondialog.cpp"
 #include "qgsstyle.h"
 #include "qgsgui.h"
 
@@ -51,7 +52,7 @@ QgsStyleGroupSelectionDialog::QgsStyleGroupSelectionDialog( QgsStyle *style, QWi
   tags->setEditable( false );
   tags->setFlags( tags->flags() & ~Qt::ItemIsSelectable );
   buildTagTree( tags );
-  tags->setText( tr( "Tags" ) );//set title later
+  tags->setText( tr( "Tags" ) ); //set title later
   setBold( tags );
   model->appendRow( tags );
 
@@ -60,7 +61,7 @@ QgsStyleGroupSelectionDialog::QgsStyleGroupSelectionDialog( QgsStyle *style, QWi
   tag->setEditable( false );
   tag->setFlags( tag->flags() & ~Qt::ItemIsSelectable );
   setBold( tag );
-  QgsSymbolGroupMap sgMap = mStyle->smartgroupsListMap();
+  const QgsSymbolGroupMap sgMap = mStyle->smartgroupsListMap();
   QgsSymbolGroupMap::const_iterator i = sgMap.constBegin();
   while ( i != sgMap.constEnd() )
   {
@@ -74,7 +75,7 @@ QgsStyleGroupSelectionDialog::QgsStyleGroupSelectionDialog( QgsStyle *style, QWi
   model->appendRow( tag );
 
   // expand things in the group tree
-  int rows = model->rowCount( model->indexFromItem( model->invisibleRootItem() ) );
+  const int rows = model->rowCount( model->indexFromItem( model->invisibleRootItem() ) );
   for ( int i = 0; i < rows; i++ )
   {
     groupTree->setExpanded( model->indexFromItem( model->item( i ) ), true );

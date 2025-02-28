@@ -39,7 +39,7 @@ QStringList QgsMapSettingsUtils::containsAdvancedEffects( const QgsMapSettings &
       {
         if ( flags & EffectsCheckFlag::IgnoreGeoPdfSupportedEffects )
         {
-          layerHasAdvancedBlendMode = !QgsAbstractGeoPdfExporter::compositionModeSupported( layer->blendMode() );
+          layerHasAdvancedBlendMode = !QgsAbstractGeospatialPdfExporter::compositionModeSupported( layer->blendMode() );
         }
         else
         {
@@ -72,32 +72,32 @@ QStringList QgsMapSettingsUtils::containsAdvancedEffects( const QgsMapSettings &
     }
   }
 
-  return qgis::setToList( layers );
+  return QStringList( layers.constBegin(), layers.constEnd() );
 }
 
 void QgsMapSettingsUtils::worldFileParameters( const QgsMapSettings &mapSettings, double &a, double &b, double &c, double &d, double &e, double &f )
 {
   QgsMapSettings ms = mapSettings;
 
-  double rotation = ms.rotation();
-  double alpha = rotation / 180 * M_PI;
+  const double rotation = ms.rotation();
+  const double alpha = rotation / 180 * M_PI;
 
   // reset rotation to 0 to calculate world file parameters
   ms.setRotation( 0 );
 
-  double xOrigin = ms.visibleExtent().xMinimum() + ( ms.mapUnitsPerPixel() / 2 );
-  double yOrigin = ms.visibleExtent().yMaximum() - ( ms.mapUnitsPerPixel() / 2 );
+  const double xOrigin = ms.visibleExtent().xMinimum() + ( ms.mapUnitsPerPixel() / 2 );
+  const double yOrigin = ms.visibleExtent().yMaximum() - ( ms.mapUnitsPerPixel() / 2 );
 
-  double xCenter = ms.visibleExtent().center().x();
-  double yCenter = ms.visibleExtent().center().y();
+  const double xCenter = ms.visibleExtent().center().x();
+  const double yCenter = ms.visibleExtent().center().y();
 
   // scaling matrix
   double s[6];
-  s[0] = ms.mapUnitsPerPixel();
+  s[0] = ms.mapUnitsPerPixel() / ms.devicePixelRatio();
   s[1] = 0;
   s[2] = xOrigin;
   s[3] = 0;
-  s[4] = -ms.mapUnitsPerPixel();
+  s[4] = -ms.mapUnitsPerPixel() / ms.devicePixelRatio();
   s[5] = yOrigin;
 
   // rotation matrix

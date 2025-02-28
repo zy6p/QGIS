@@ -17,8 +17,10 @@
 #include "qgsgeocodercontext.h"
 #include "qgslogger.h"
 #include "qgsnetworkaccessmanager.h"
+#include "qgssetrequestinitiator_p.h"
 #include "qgsblockingnetworkrequest.h"
 #include "qgsreadwritelocker.h"
+#include "qgscoordinatetransform.h"
 #include <QUrl>
 #include <QUrlQuery>
 #include <QNetworkRequest>
@@ -28,7 +30,7 @@
 QReadWriteLock QgsGoogleMapsGeocoder::sMutex;
 
 typedef QMap< QUrl, QList< QgsGeocoderResult > > CachedGeocodeResult;
-Q_GLOBAL_STATIC( CachedGeocodeResult, sCachedResults )
+Q_GLOBAL_STATIC( CachedGeocodeResult, sCachedResultsGM )
 
 
 QgsGoogleMapsGeocoder::QgsGoogleMapsGeocoder( const QString &apiKey, const QString &regionBias )
@@ -48,24 +50,24 @@ QgsGeocoderInterface::Flags QgsGoogleMapsGeocoder::flags() const
 QgsFields QgsGoogleMapsGeocoder::appendedFields() const
 {
   QgsFields fields;
-  fields.append( QgsField( QStringLiteral( "location_type" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "formatted_address" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "place_id" ), QVariant::String ) );
+  fields.append( QgsField( QStringLiteral( "location_type" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "formatted_address" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "place_id" ), QMetaType::Type::QString ) );
 
   // add more?
-  fields.append( QgsField( QStringLiteral( "street_number" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "route" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "locality" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "administrative_area_level_2" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "administrative_area_level_1" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "country" ), QVariant::String ) );
-  fields.append( QgsField( QStringLiteral( "postal_code" ), QVariant::String ) );
+  fields.append( QgsField( QStringLiteral( "street_number" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "route" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "locality" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "administrative_area_level_2" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "administrative_area_level_1" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "country" ), QMetaType::Type::QString ) );
+  fields.append( QgsField( QStringLiteral( "postal_code" ), QMetaType::Type::QString ) );
   return fields;
 }
 
-QgsWkbTypes::Type QgsGoogleMapsGeocoder::wkbType() const
+Qgis::WkbType QgsGoogleMapsGeocoder::wkbType() const
 {
-  return QgsWkbTypes::Point;
+  return Qgis::WkbType::Point;
 }
 
 QList<QgsGeocoderResult> QgsGoogleMapsGeocoder::geocodeString( const QString &string, const QgsGeocoderContext &context, QgsFeedback *feedback ) const
@@ -74,7 +76,7 @@ QList<QgsGeocoderResult> QgsGoogleMapsGeocoder::geocodeString( const QString &st
   if ( !context.areaOfInterest().isEmpty() )
   {
     QgsGeometry g = context.areaOfInterest();
-    QgsCoordinateTransform ct( context.areaOfInterestCrs(), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ), context.transformContext() );
+    const QgsCoordinateTransform ct( context.areaOfInterestCrs(), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ), context.transformContext() );
     try
     {
       g.transform( ct );
@@ -82,15 +84,15 @@ QList<QgsGeocoderResult> QgsGoogleMapsGeocoder::geocodeString( const QString &st
     }
     catch ( QgsCsException & )
     {
-      QgsDebugMsg( "Could not transform geocode bounds to WGS84" );
+      QgsDebugError( "Could not transform geocode bounds to WGS84" );
     }
   }
 
   const QUrl url = requestUrl( string, bounds );
 
   QgsReadWriteLocker locker( sMutex, QgsReadWriteLocker::Read );
-  auto it = sCachedResults()->constFind( url );
-  if ( it != sCachedResults()->constEnd() )
+  const auto it = sCachedResultsGM()->constFind( url );
+  if ( it != sCachedResultsGM()->constEnd() )
   {
     return *it;
   }
@@ -108,7 +110,7 @@ QList<QgsGeocoderResult> QgsGoogleMapsGeocoder::geocodeString( const QString &st
 
   // Parse data
   QJsonParseError err;
-  QJsonDocument doc = QJsonDocument::fromJson( newReq.reply().content(), &err );
+  const QJsonDocument doc = QJsonDocument::fromJson( newReq.reply().content(), &err );
   if ( doc.isNull() )
   {
     return QList<QgsGeocoderResult>() << QgsGeocoderResult::errorResult( err.errorString() );
@@ -140,7 +142,7 @@ QList<QgsGeocoderResult> QgsGoogleMapsGeocoder::geocodeString( const QString &st
   const QVariantList results = res.value( QStringLiteral( "results" ) ).toList();
   if ( results.empty() )
   {
-    sCachedResults()->insert( url, QList<QgsGeocoderResult>() );
+    sCachedResultsGM()->insert( url, QList<QgsGeocoderResult>() );
     return QList<QgsGeocoderResult>();
   }
 
@@ -150,7 +152,7 @@ QList<QgsGeocoderResult> QgsGoogleMapsGeocoder::geocodeString( const QString &st
   {
     matches << jsonToResult( result.toMap() );
   }
-  sCachedResults()->insert( url, matches );
+  sCachedResultsGM()->insert( url, matches );
 
   return matches;
 }
@@ -183,7 +185,7 @@ QUrl QgsGoogleMapsGeocoder::requestUrl( const QString &address, const QgsRectang
     // Qt5 does URL encoding from some reason (of the FILTER parameter for example)
     modifiedUrlString = QUrl::fromPercentEncoding( modifiedUrlString.toUtf8() );
     modifiedUrlString.replace( QLatin1String( "fake_qgis_http_endpoint/" ), QLatin1String( "fake_qgis_http_endpoint_" ) );
-    QgsDebugMsg( QStringLiteral( "Get %1" ).arg( modifiedUrlString ) );
+    QgsDebugMsgLevel( QStringLiteral( "Get %1" ).arg( modifiedUrlString ), 2 );
     modifiedUrlString = modifiedUrlString.mid( QStringLiteral( "http://" ).size() );
     QString args = modifiedUrlString.mid( modifiedUrlString.indexOf( '?' ) );
     if ( modifiedUrlString.size() > 150 )
@@ -212,7 +214,7 @@ QUrl QgsGoogleMapsGeocoder::requestUrl( const QString &address, const QgsRectang
     }
 #endif
     modifiedUrlString = modifiedUrlString.mid( 0, modifiedUrlString.indexOf( '?' ) ) + args;
-    QgsDebugMsg( QStringLiteral( "Get %1 (after laundering)" ).arg( modifiedUrlString ) );
+    QgsDebugMsgLevel( QStringLiteral( "Get %1 (after laundering)" ).arg( modifiedUrlString ), 2 );
     res = QUrl::fromLocalFile( modifiedUrlString );
   }
 

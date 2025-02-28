@@ -13,11 +13,13 @@
  *                                                                         *
  ***************************************************************************/
 #include "qgsbrowserguimodel.h"
+#include "moc_qgsbrowserguimodel.cpp"
 #include "qgslogger.h"
 #include "qgsdataitemguiproviderregistry.h"
 #include "qgsdataitemguiprovider.h"
 #include "qgsgui.h"
 #include "qgsmessagebar.h"
+#include "qgsdataitem.h"
 
 QgsBrowserGuiModel::QgsBrowserGuiModel( QObject *parent )
   : QgsBrowserModel( parent )
@@ -30,6 +32,13 @@ QgsDataItemGuiContext QgsBrowserGuiModel::createDataItemContext() const
   context.setMessageBar( mMessageBar );
   return context;
 }
+
+struct QgsBrowserGuiModelCachedAcceptDropValue
+{
+    bool acceptDrop;
+    int numberOfProviders;
+};
+Q_DECLARE_METATYPE( QgsBrowserGuiModelCachedAcceptDropValue )
 
 Qt::ItemFlags QgsBrowserGuiModel::flags( const QModelIndex &index ) const
 {
@@ -46,7 +55,7 @@ Qt::ItemFlags QgsBrowserGuiModel::flags( const QModelIndex &index ) const
   }
 
   Q_NOWARN_DEPRECATED_PUSH
-  bool legacyAcceptDrop = ptr->acceptDrop();
+  const bool legacyAcceptDrop = ptr->acceptDrop();
   Q_NOWARN_DEPRECATED_POP
 
   if ( legacyAcceptDrop )
@@ -54,15 +63,43 @@ Qt::ItemFlags QgsBrowserGuiModel::flags( const QModelIndex &index ) const
     flags |= Qt::ItemIsDropEnabled;
   else
   {
-    // new support
+    // Cache the value of acceptDrop(), as it can be slow to evaluate.
+    // e.g. for a OGR datasource, this requires to open it. And this method
+    // is called each time the browser is redrawn.
+    // We cache the number of providers too, to be able to invalidate the
+    // cached value if new providers are installed.
+    QVariant cachedProperty = ptr->property( "_qgs_accept_drop_cached" );
     const QList<QgsDataItemGuiProvider *> providers = QgsGui::dataItemGuiProviderRegistry()->providers();
-    for ( QgsDataItemGuiProvider *provider : providers )
+    bool refreshAcceptDrop = true;
+    if ( cachedProperty.isValid() )
     {
-      if ( provider->acceptDrop( ptr, createDataItemContext() ) )
+      QgsBrowserGuiModelCachedAcceptDropValue cached = cachedProperty.value<QgsBrowserGuiModelCachedAcceptDropValue>();
+      if ( cached.numberOfProviders == providers.size() )
       {
-        flags |= Qt::ItemIsDropEnabled;
-        break;
+        refreshAcceptDrop = false;
+        if ( cached.acceptDrop )
+          flags |= Qt::ItemIsDropEnabled;
       }
+    }
+
+    if ( refreshAcceptDrop )
+    {
+      // new support
+      for ( QgsDataItemGuiProvider *provider : providers )
+      {
+        if ( provider->acceptDrop( ptr, createDataItemContext() ) )
+        {
+          flags |= Qt::ItemIsDropEnabled;
+          break;
+        }
+      }
+
+      QgsBrowserGuiModelCachedAcceptDropValue cached;
+      cached.acceptDrop = ( flags & Qt::ItemIsDropEnabled ) != 0;
+      cached.numberOfProviders = providers.size();
+      QVariant var;
+      var.setValue( cached );
+      ptr->setProperty( "_qgs_accept_drop_cached", var );
     }
   }
   return flags;
@@ -78,7 +115,7 @@ bool QgsBrowserGuiModel::dropMimeData( const QMimeData *data, Qt::DropAction act
   }
 
   Q_NOWARN_DEPRECATED_PUSH
-  bool legacyAcceptDrop = destItem->acceptDrop();
+  const bool legacyAcceptDrop = destItem->acceptDrop();
   Q_NOWARN_DEPRECATED_POP
 
   // legacy support for data items
@@ -112,7 +149,8 @@ bool QgsBrowserGuiModel::setData( const QModelIndex &index, const QVariant &valu
     return false;
   }
 
-  if ( !( item->capabilities2() & QgsDataItem::Rename ) )
+  if ( !( item->capabilities2() & Qgis::BrowserItemCapability::Rename )
+       && !( item->capabilities2() & Qgis::BrowserItemCapability::ItemRepresentsFile ) )
     return false;
 
   switch ( role )

@@ -24,9 +24,9 @@ QString QgsLoadLayerAlgorithm::name() const
   return QStringLiteral( "loadlayer" );
 }
 
-QgsProcessingAlgorithm::Flags QgsLoadLayerAlgorithm::flags() const
+Qgis::ProcessingAlgorithmFlags QgsLoadLayerAlgorithm::flags() const
 {
-  return FlagHideFromToolbox | FlagNotAvailableInStandaloneTool;
+  return Qgis::ProcessingAlgorithmFlag::HideFromToolbox | Qgis::ProcessingAlgorithmFlag::NotAvailableInStandaloneTool;
 }
 
 QString QgsLoadLayerAlgorithm::displayName() const
@@ -69,7 +69,7 @@ void QgsLoadLayerAlgorithm::initAlgorithm( const QVariantMap & )
 QVariantMap QgsLoadLayerAlgorithm::processAlgorithm( const QVariantMap &parameters, QgsProcessingContext &context, QgsProcessingFeedback * )
 {
   QgsMapLayer *layer = parameterAsLayer( parameters, QStringLiteral( "INPUT" ), context );
-  QString name = parameterAsString( parameters, QStringLiteral( "NAME" ), context );
+  const QString name = parameterAsString( parameters, QStringLiteral( "NAME" ), context );
 
   if ( !layer )
     throw QgsProcessingException( QObject::tr( "Invalid input layer" ) );

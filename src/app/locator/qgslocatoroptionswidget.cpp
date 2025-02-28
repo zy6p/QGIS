@@ -21,6 +21,7 @@
 #include <QHBoxLayout>
 
 #include "qgslocatoroptionswidget.h"
+#include "moc_qgslocatoroptionswidget.cpp"
 
 #include "qgsapplication.h"
 #include "qgslocatorwidget.h"
@@ -32,7 +33,6 @@ QgsLocatorOptionsWidget::QgsLocatorOptionsWidget( QgsLocatorWidget *locator, QWi
   , mLocatorWidget( locator )
   , mLocator( locator->locator() )
 {
-
   mModel = new QgsLocatorFiltersModel( mLocator, this );
   setModel( mModel );
 
@@ -46,7 +46,7 @@ QgsLocatorOptionsWidget::QgsLocatorOptionsWidget( QgsLocatorWidget *locator, QWi
   // add the config button
   for ( int row = 0; row < mModel->rowCount(); ++row )
   {
-    QModelIndex index = mModel->index( row, QgsLocatorFiltersModel::Config );
+    const QModelIndex index = mModel->index( row, QgsLocatorFiltersModel::Config );
     QWidget *bt = mModel->configButton( index, this );
     if ( bt )
     {
@@ -65,7 +65,7 @@ void QgsLocatorOptionsWidget::dataChanged( const QModelIndex &topLeft, const QMo
 {
   for ( int row = topLeft.row(); row < bottomRight.row(); ++row )
   {
-    QModelIndex index = mModel->index( row, QgsLocatorFiltersModel::Config );
+    const QModelIndex index = mModel->index( row, QgsLocatorFiltersModel::Config );
     if ( !indexWidget( index ) )
     {
       QWidget *bt = mModel->configButton( index, this );
@@ -102,13 +102,13 @@ QWidget *QgsLocatorFiltersModel::configButton( const QModelIndex &index, QWidget
   {
     // use a layout to get the button center aligned
     QWidget *w = new QWidget( parent );
-    QToolButton *bt = new QToolButton( );
+    QToolButton *bt = new QToolButton();
     QHBoxLayout *layout = new QHBoxLayout();
     layout->setContentsMargins( 0, 0, 0, 0 );
     layout->addWidget( bt );
     w->setLayout( layout );
 
-    connect( bt, &QToolButton::clicked, this, [ = ]() {filter->openConfigWidget( bt );} );
+    connect( bt, &QToolButton::clicked, this, [=]() { filter->openConfigWidget( bt ); } );
     bt->setMaximumSize( mIconSize, mIconSize );
     bt->setSizePolicy( QSizePolicy::Preferred, QSizePolicy::Preferred );
     bt->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/propertyicons/settings.svg" ) ) );
@@ -140,8 +140,7 @@ QVariant QgsLocatorFiltersModel::data( const QModelIndex &index, int role ) cons
 {
   if ( index.parent().isValid() )
     return QVariant();
-  if ( !index.isValid() || index.row() < 0 || index.column() < 0 ||
-       index.row() >= rowCount( QModelIndex() ) || index.column() >= columnCount( QModelIndex() ) )
+  if ( !index.isValid() || index.row() < 0 || index.column() < 0 || index.row() >= rowCount( QModelIndex() ) || index.column() >= columnCount( QModelIndex() ) )
     return QVariant();
 
   switch ( role )
@@ -196,9 +195,8 @@ QVariant QgsLocatorFiltersModel::data( const QModelIndex &index, int role ) cons
 
     case Qt::TextAlignmentRole:
       if ( index.column() == Config )
-        return Qt::AlignCenter;
+        return static_cast<Qt::Alignment::Int>( Qt::AlignCenter );
       break;
-
   }
 
   return QVariant();
@@ -206,8 +204,7 @@ QVariant QgsLocatorFiltersModel::data( const QModelIndex &index, int role ) cons
 
 bool QgsLocatorFiltersModel::setData( const QModelIndex &index, const QVariant &value, int role )
 {
-  if ( !index.isValid() || index.parent().isValid() || index.row() < 0 || index.column() < 0 ||
-       index.row() >= rowCount( QModelIndex() ) || index.column() >= columnCount( QModelIndex() ) )
+  if ( !index.isValid() || index.parent().isValid() || index.row() < 0 || index.column() < 0 || index.row() >= rowCount( QModelIndex() ) || index.column() >= columnCount( QModelIndex() ) )
     return false;
 
   switch ( role )
@@ -223,7 +220,7 @@ bool QgsLocatorFiltersModel::setData( const QModelIndex &index, const QVariant &
 
         case Prefix:
         {
-          QString prefix = value.toString();
+          const QString prefix = value.toString();
           if ( !prefix.isEmpty() )
           {
             mPrefixes.insert( filterForIndex( index ), prefix );
@@ -242,7 +239,7 @@ bool QgsLocatorFiltersModel::setData( const QModelIndex &index, const QVariant &
 
     case Qt::CheckStateRole:
     {
-      bool checked = static_cast< Qt::CheckState >( value.toInt() ) == Qt::Checked;
+      const bool checked = static_cast<Qt::CheckState>( value.toInt() ) == Qt::Checked;
       switch ( index.column() )
       {
         case Name:
@@ -270,8 +267,7 @@ bool QgsLocatorFiltersModel::setData( const QModelIndex &index, const QVariant &
 
 Qt::ItemFlags QgsLocatorFiltersModel::flags( const QModelIndex &index ) const
 {
-  if ( !index.isValid() || index.parent().isValid() || index.row() < 0 || index.column() < 0 ||
-       index.row() >= rowCount( QModelIndex() ) || index.column() >= columnCount( QModelIndex() ) )
+  if ( !index.isValid() || index.parent().isValid() || index.row() < 0 || index.column() < 0 || index.row() >= rowCount( QModelIndex() ) || index.column() >= columnCount( QModelIndex() ) )
     return QAbstractTableModel::flags( index );
 
   Qt::ItemFlags flags = QAbstractTableModel::flags( index );
@@ -322,34 +318,34 @@ QVariant QgsLocatorFiltersModel::headerData( int section, Qt::Orientation orient
 
 void QgsLocatorFiltersModel::commitChanges()
 {
-  QHash< QgsLocatorFilter *, QString >::const_iterator itp = mPrefixes.constBegin();
+  QHash<QgsLocatorFilter *, QString>::const_iterator itp = mPrefixes.constBegin();
   for ( ; itp != mPrefixes.constEnd(); ++itp )
   {
     QgsLocatorFilter *filter = itp.key();
-    QString activePrefix = itp.value();
+    const QString activePrefix = itp.value();
     if ( !activePrefix.isEmpty() && activePrefix != filter->prefix() )
     {
       filter->setActivePrefix( activePrefix );
-      QgsLocator::settingsLocatorFilterPrefix.setValue( activePrefix, filter->name() );
+      QgsLocator::settingsLocatorFilterPrefix->setValue( activePrefix, filter->name() );
     }
     else
     {
       filter->setActivePrefix( QString() );
-      QgsLocator::settingsLocatorFilterPrefix.remove( filter->name() );
+      QgsLocator::settingsLocatorFilterPrefix->remove( filter->name() );
     }
   }
-  QHash< QgsLocatorFilter *, bool >::const_iterator it = mEnabledChanges.constBegin();
+  QHash<QgsLocatorFilter *, bool>::const_iterator it = mEnabledChanges.constBegin();
   for ( ; it != mEnabledChanges.constEnd(); ++it )
   {
     QgsLocatorFilter *filter = it.key();
-    QgsLocator::settingsLocatorFilterEnabled.setValue( it.value(), filter->name() );
+    QgsLocator::settingsLocatorFilterEnabled->setValue( it.value(), filter->name() );
     filter->setEnabled( it.value() );
   }
   it = mDefaultChanges.constBegin();
   for ( ; it != mDefaultChanges.constEnd(); ++it )
   {
     QgsLocatorFilter *filter = it.key();
-    QgsLocator::settingsLocatorFilterDefault.setValue( it.value(), filter->name() );
+    QgsLocator::settingsLocatorFilterDefault->setValue( it.value(), filter->name() );
     filter->setUseWithoutPrefix( it.value() );
   }
 }

@@ -17,13 +17,11 @@
 
 #include "qgspainteffect.h"
 #include "qgsimageoperation.h"
-#include "qgslogger.h"
 #include "qgsrendercontext.h"
 #include "qgssymbollayerutils.h"
-#include <QPicture>
+#include "qgspainting.h"
 
-Q_GUI_EXPORT extern int qt_defaultDpiX();
-Q_GUI_EXPORT extern int qt_defaultDpiY();
+#include <QPicture>
 
 QgsPaintEffect::QgsPaintEffect( const QgsPaintEffect &other )
   : mEnabled( other.enabled() )
@@ -34,12 +32,8 @@ QgsPaintEffect::QgsPaintEffect( const QgsPaintEffect &other )
 
 QgsPaintEffect::~QgsPaintEffect()
 {
-  if ( mOwnsImage )
-  {
-    delete mSourceImage;
-  }
-  delete mEffectPainter;
-  delete mTempPicture;
+  // ensure painter is destroyed before picture it may be drawing on, just in case
+  mEffectPainter.reset();
 }
 
 void QgsPaintEffect::setEnabled( const bool enabled )
@@ -72,17 +66,16 @@ bool QgsPaintEffect::readProperties( const QDomElement &element )
     return false;
   }
 
-  QVariantMap props = QgsSymbolLayerUtils::parseProperties( element );
+  const QVariantMap props = QgsSymbolLayerUtils::parseProperties( element );
   readProperties( props );
   return true;
 }
 
-void QgsPaintEffect::render( QPicture &picture, QgsRenderContext &context )
+void QgsPaintEffect::render( const QPicture &picture, QgsRenderContext &context )
 {
   //set source picture
-  mPicture = &picture;
-  delete mSourceImage;
-  mSourceImage = nullptr;
+  mPicture = picture;
+  mSourceImage = QImage();
 
   draw( context );
 }
@@ -92,14 +85,13 @@ void QgsPaintEffect::begin( QgsRenderContext &context )
   //temporarily replace painter and direct paint operations for context to a QPicture
   mPrevPainter = context.painter();
 
-  delete mTempPicture;
-  mTempPicture = new QPicture();
+  mTempPicture = std::make_unique< QPicture >();
 
-  delete mEffectPainter;
-  mEffectPainter = new QPainter();
-  mEffectPainter->begin( mTempPicture );
+  mEffectPainter = std::make_unique< QPainter >();
+  mEffectPainter->begin( mTempPicture.get() );
 
-  context.setPainter( mEffectPainter );
+  context.setPainterFlagsUsingContext( mEffectPainter.get() );
+  context.setPainter( mEffectPainter.get() );
 }
 
 void QgsPaintEffect::end( QgsRenderContext &context )
@@ -108,8 +100,7 @@ void QgsPaintEffect::end( QgsRenderContext &context )
     return;
 
   mEffectPainter->end();
-  delete mEffectPainter;
-  mEffectPainter = nullptr;
+  mEffectPainter.reset();
 
   //restore previous painter for context
   context.setPainter( mPrevPainter );
@@ -124,46 +115,43 @@ void QgsPaintEffect::end( QgsRenderContext &context )
   render( *mTempPicture, context );
 
   //clean up
-  delete mTempPicture;
-  mTempPicture = nullptr;
+  mTempPicture.reset();
 }
 
 void QgsPaintEffect::drawSource( QPainter &painter )
 {
   if ( requiresQPainterDpiFix )
   {
-    QgsScopedQPainterState painterState( &painter );
-    fixQPictureDpi( &painter );
-    painter.drawPicture( 0, 0, *mPicture );
+    QgsPainting::drawPicture( &painter, QPointF( 0, 0 ), mPicture );
   }
   else
   {
-    painter.drawPicture( 0, 0, *mPicture );
+    painter.drawPicture( 0, 0, mPicture );
   }
 }
 
-QImage *QgsPaintEffect::sourceAsImage( QgsRenderContext &context )
+QImage QgsPaintEffect::sourceAsImage( QgsRenderContext &context )
 {
   //have we already created a source image? if so, return it
-  if ( mSourceImage )
+  if ( !mSourceImage.isNull() )
   {
     return mSourceImage;
   }
 
-  if ( !mPicture )
-    return nullptr;
+  if ( mPicture.isNull() )
+    return QImage();
 
   //else create it
   //TODO - test with premultiplied image for speed
-  QRectF bounds = imageBoundingRect( context );
-  mSourceImage = new QImage( bounds.width(), bounds.height(), QImage::Format_ARGB32 );
-  mSourceImage->fill( Qt::transparent );
-  QPainter imagePainter( mSourceImage );
+  const QRectF bounds = imageBoundingRect( context );
+  mSourceImage = QImage( static_cast< int >( std::ceil( bounds.width() ) ),
+                         static_cast< int >( std::ceil( bounds.height() ) ), QImage::Format_ARGB32 );
+  mSourceImage.fill( Qt::transparent );
+  QPainter imagePainter( &mSourceImage );
   imagePainter.setRenderHint( QPainter::Antialiasing );
   imagePainter.translate( -bounds.left(), -bounds.top() );
-  imagePainter.drawPicture( 0, 0, *mPicture );
+  imagePainter.drawPicture( 0, 0, mPicture );
   imagePainter.end();
-  mOwnsImage = true;
   return mSourceImage;
 }
 
@@ -180,17 +168,12 @@ QRectF QgsPaintEffect::boundingRect( const QRectF &rect, const QgsRenderContext 
 
 void QgsPaintEffect::fixQPictureDpi( QPainter *painter ) const
 {
-  // QPicture makes an assumption that we drawing to it with system DPI.
-  // Then when being drawn, it scales the painter. The following call
-  // negates the effect. There is no way of setting QPicture's DPI.
-  // See QTBUG-20361
-  painter->scale( static_cast< double >( qt_defaultDpiX() ) / painter->device()->logicalDpiX(),
-                  static_cast< double >( qt_defaultDpiY() ) / painter->device()->logicalDpiY() );
+  QgsPainting::applyScaleFixForQPictureDpi( painter );
 }
 
 QRectF QgsPaintEffect::imageBoundingRect( const QgsRenderContext &context ) const
 {
-  return boundingRect( mPicture->boundingRect(), context );
+  return boundingRect( mPicture.boundingRect(), context );
 }
 
 
@@ -220,9 +203,9 @@ void QgsDrawSourceEffect::draw( QgsRenderContext &context )
   else
   {
     //rasterize source and apply modifications
-    QImage image = sourceAsImage( context )->copy();
-    QgsImageOperation::multiplyOpacity( image, mOpacity );
-    QgsScopedQPainterState painterState( painter );
+    QImage image = sourceAsImage( context ).copy();
+    QgsImageOperation::multiplyOpacity( image, mOpacity, context.feedback() );
+    const QgsScopedQPainterState painterState( painter );
     painter->setCompositionMode( mBlendMode );
     painter->drawImage( imageOffset( context ), image );
   }
@@ -246,14 +229,14 @@ QVariantMap QgsDrawSourceEffect::properties() const
 void QgsDrawSourceEffect::readProperties( const QVariantMap &props )
 {
   bool ok;
-  QPainter::CompositionMode mode = static_cast< QPainter::CompositionMode >( props.value( QStringLiteral( "blend_mode" ) ).toInt( &ok ) );
+  const QPainter::CompositionMode mode = static_cast< QPainter::CompositionMode >( props.value( QStringLiteral( "blend_mode" ) ).toInt( &ok ) );
   if ( ok )
   {
     mBlendMode = mode;
   }
   if ( props.contains( QStringLiteral( "transparency" ) ) )
   {
-    double transparency = props.value( QStringLiteral( "transparency" ) ).toDouble( &ok );
+    const double transparency = props.value( QStringLiteral( "transparency" ) ).toDouble( &ok );
     if ( ok )
     {
       mOpacity = 1.0 - transparency;
@@ -261,7 +244,7 @@ void QgsDrawSourceEffect::readProperties( const QVariantMap &props )
   }
   else
   {
-    double opacity = props.value( QStringLiteral( "opacity" ) ).toDouble( &ok );
+    const double opacity = props.value( QStringLiteral( "opacity" ) ).toDouble( &ok );
     if ( ok )
     {
       mOpacity = opacity;

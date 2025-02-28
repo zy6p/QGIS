@@ -15,6 +15,7 @@
 
 #include "qgsapplication.h"
 #include "qgsbookmarkmodel.h"
+#include "moc_qgsbookmarkmodel.cpp"
 #include "qgsbookmarkmanager.h"
 
 #include <QIcon>
@@ -49,21 +50,24 @@ QVariant QgsBookmarkManagerModel::data( const QModelIndex &index, int role ) con
   if ( !index.isValid() )
     return QVariant();
 
-  QgsBookmark b = bookmarkForIndex( index );
+  const QgsBookmark b = bookmarkForIndex( index );
   const int managerCount = mManager->bookmarks().count();
 
   switch ( role )
   {
-    case RoleExtent:
+    case static_cast< int >( CustomRole::Extent ):
       return b.extent();
 
-    case RoleName:
+    case static_cast< int >( CustomRole::Rotation ):
+      return b.rotation();
+
+    case static_cast< int >( CustomRole::Name ):
       return b.name();
 
-    case RoleId:
+    case static_cast< int >( CustomRole::Id ):
       return b.id();
 
-    case RoleGroup:
+    case static_cast< int >( CustomRole::Group ):
       return b.group();
 
     case Qt::DecorationRole:
@@ -86,6 +90,8 @@ QVariant QgsBookmarkManagerModel::data( const QModelIndex &index, int role ) con
           return b.extent().xMaximum();
         case ColumnYMax:
           return b.extent().yMaximum();
+        case ColumnRotation:
+          return b.rotation();
         case ColumnCrs:
           return b.extent().crs().authid();
         case ColumnStore:
@@ -176,6 +182,9 @@ bool QgsBookmarkManagerModel::setData( const QModelIndex &index, const QVariant 
             return false;
           break;
         }
+        case ColumnRotation:
+          b.setRotation( value.toDouble() );
+          break;
         case ColumnCrs:
         {
           QgsCoordinateReferenceSystem crs;
@@ -214,11 +223,9 @@ bool QgsBookmarkManagerModel::setData( const QModelIndex &index, const QVariant 
   return false;
 }
 
-bool QgsBookmarkManagerModel::insertRows( int, int count, const QModelIndex &parent )
+bool QgsBookmarkManagerModel::insertRows( int, int count, const QModelIndex & )
 {
   // append
-  int oldCount = mManager->bookmarks().count();
-  beginInsertRows( parent, oldCount, oldCount + count );
   bool result = true;
   for ( int i = 0; i < count; ++i )
   {
@@ -228,16 +235,13 @@ bool QgsBookmarkManagerModel::insertRows( int, int count, const QModelIndex &par
     mBlocked = false;
     result &= res;
   }
-  endInsertRows();
   return result;
 }
 
-bool QgsBookmarkManagerModel::removeRows( int row, int count, const QModelIndex &parent )
+bool QgsBookmarkManagerModel::removeRows( int row, int count, const QModelIndex & )
 {
-  beginRemoveRows( parent, row, row + count );
-
-  QList< QgsBookmark > appBookmarks = mManager->bookmarks();
-  QList< QgsBookmark > projectBookmarks = mProjectManager->bookmarks();
+  const QList< QgsBookmark > appBookmarks = mManager->bookmarks();
+  const QList< QgsBookmark > projectBookmarks = mProjectManager->bookmarks();
   for ( int r = row + count - 1; r >= row; --r )
   {
     if ( r >= appBookmarks.count() )
@@ -245,7 +249,6 @@ bool QgsBookmarkManagerModel::removeRows( int row, int count, const QModelIndex 
     else
       mManager->removeBookmark( appBookmarks.at( r ).id() );
   }
-  endRemoveRows();
   return true;
 }
 
@@ -267,6 +270,8 @@ QVariant QgsBookmarkManagerModel::headerData( int section, Qt::Orientation orien
         return tr( "xMax" );
       case ColumnYMax:
         return tr( "yMax" );
+      case ColumnRotation:
+        return tr( "Rotation" );
       case ColumnCrs:
         return tr( "CRS" );
       case ColumnStore:
@@ -303,7 +308,7 @@ void QgsBookmarkManagerModel::bookmarkAboutToBeRemoved( const QString &id )
 
   QgsBookmarkManager *manager = qobject_cast< QgsBookmarkManager * >( sender() );
 
-  QList< QgsBookmark > bookmarks = manager->bookmarks();
+  const QList< QgsBookmark > bookmarks = manager->bookmarks();
   bool found = false;
   int i = 0;
   for ( i = 0; i < bookmarks.count(); ++i )
@@ -338,7 +343,7 @@ void QgsBookmarkManagerModel::bookmarkChanged( const QString &id )
     return;
 
   QgsBookmarkManager *manager = qobject_cast< QgsBookmarkManager * >( sender() );
-  QList< QgsBookmark > bookmarks = manager->bookmarks();
+  const QList< QgsBookmark > bookmarks = manager->bookmarks();
   bool found = false;
   int i = 0;
   for ( i = 0; i < bookmarks.count(); ++i )

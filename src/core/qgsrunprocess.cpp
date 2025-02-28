@@ -19,6 +19,7 @@
  ***************************************************************************/
 
 #include "qgsrunprocess.h"
+#include "moc_qgsrunprocess.cpp"
 
 #include "qgslogger.h"
 #include "qgsmessageoutput.h"
@@ -36,16 +37,14 @@ QgsRunProcess::QgsRunProcess( const QString &action, bool capture )
 {
   // Make up a string from the command and arguments that we'll use
   // for display purposes
-  QgsDebugMsg( "Running command: " + action );
+  QgsDebugMsgLevel( "Running command: " + action, 2 );
 
   mCommand = action;
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
   QStringList arguments = QProcess::splitCommand( action );
   const QString command = arguments.value( 0 );
   if ( !arguments.isEmpty() )
     arguments.removeFirst();
-#endif
 
   mProcess = new QProcess;
 
@@ -74,19 +73,11 @@ QgsRunProcess::QgsRunProcess( const QString &action, bool capture )
     }
 
     // start the process!
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-    mProcess->start( action );
-#else
     mProcess->start( command, arguments );
-#endif
   }
   else
   {
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-    if ( ! mProcess->startDetached( action ) ) // let the program run by itself
-#else
-    if ( ! mProcess->startDetached( command, arguments ) ) // let the program run by itself
-#endif
+    if ( ! QProcess::startDetached( command, arguments ) ) // let the program run by itself
     {
       QMessageBox::critical( nullptr, tr( "Action" ),
                              tr( "Unable to run command\n%1" ).arg( action ),
@@ -111,9 +102,9 @@ void QgsRunProcess::die()
 
 void QgsRunProcess::stdoutAvailable()
 {
-  QByteArray bytes( mProcess->readAllStandardOutput() );
+  const QByteArray bytes( mProcess->readAllStandardOutput() );
   QTextCodec *codec = QTextCodec::codecForLocale();
-  QString line( codec->toUnicode( bytes ) );
+  const QString line( codec->toUnicode( bytes ) );
 
   // Add the new output to the dialog box
   mOutput->appendMessage( line );
@@ -121,9 +112,9 @@ void QgsRunProcess::stdoutAvailable()
 
 void QgsRunProcess::stderrAvailable()
 {
-  QByteArray bytes( mProcess->readAllStandardOutput() );
+  const QByteArray bytes( mProcess->readAllStandardOutput() );
   QTextCodec *codec = QTextCodec::codecForLocale();
-  QString line( codec->toUnicode( bytes ) );
+  const QString line( codec->toUnicode( bytes ) );
 
   // Add the new output to the dialog box, but color it red
   mOutput->appendMessage( "<font color=red>" + line + "</font>" );
@@ -179,67 +170,19 @@ void QgsRunProcess::processError( QProcess::ProcessError err )
   }
   else
   {
-    QgsDebugMsg( "Got error: " + QString( "%d" ).arg( err ) );
+    QgsDebugError( "Got error: " + QString( "%d" ).arg( err ) );
   }
 }
 
 QStringList QgsRunProcess::splitCommand( const QString &command )
 {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
   return QProcess::splitCommand( command );
-#else
-  // taken from Qt 5.15's implementation
-  QStringList args;
-  QString tmp;
-  int quoteCount = 0;
-  bool inQuote = false;
-
-  // handle quoting. tokens can be surrounded by double quotes
-  // "hello world". three consecutive double quotes represent
-  // the quote character itself.
-  for ( int i = 0; i < command.size(); ++i )
-  {
-    if ( command.at( i ) == QLatin1Char( '"' ) )
-    {
-      ++quoteCount;
-      if ( quoteCount == 3 )
-      {
-        // third consecutive quote
-        quoteCount = 0;
-        tmp += command.at( i );
-      }
-      continue;
-    }
-    if ( quoteCount )
-    {
-      if ( quoteCount == 1 )
-        inQuote = !inQuote;
-      quoteCount = 0;
-    }
-    if ( !inQuote && command.at( i ).isSpace() )
-    {
-      if ( !tmp.isEmpty() )
-      {
-        args += tmp;
-        tmp.clear();
-      }
-    }
-    else
-    {
-      tmp += command.at( i );
-    }
-  }
-  if ( !tmp.isEmpty() )
-    args += tmp;
-
-  return args;
-#endif
 }
 #else
 QgsRunProcess::QgsRunProcess( const QString &action, bool )
 {
   Q_UNUSED( action )
-  QgsDebugMsg( "Skipping command: " + action );
+  QgsDebugError( "Skipping command: " + action );
 }
 
 QgsRunProcess::~QgsRunProcess()
@@ -274,14 +217,14 @@ int QgsBlockingProcess::run( QgsFeedback *feedback )
   QProcess::ExitStatus exitStatus = QProcess::NormalExit;
   QProcess::ProcessError error = QProcess::UnknownError;
 
-  std::function<void()> runFunction = [ this, &result, &exitStatus, &error, feedback]()
+  const std::function<void()> runFunction = [ this, &result, &exitStatus, &error, feedback]()
   {
     // this function will always be run in worker threads -- either the blocking call is being made in a worker thread,
     // or the blocking call has been made from the main thread and we've fired up a new thread for this function
     Q_ASSERT( QThread::currentThread() != QgsApplication::instance()->thread() );
 
     QProcess p;
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     p.setProcessEnvironment( env );
 
     QEventLoop loop;
@@ -311,12 +254,12 @@ int QgsBlockingProcess::run( QgsFeedback *feedback )
 
     connect( &p, &QProcess::readyReadStandardOutput, &p, [&p, this]
     {
-      QByteArray ba = p.readAllStandardOutput();
+      const QByteArray ba = p.readAllStandardOutput();
       mStdoutHandler( ba );
     } );
     connect( &p, &QProcess::readyReadStandardError, &p, [&p, this]
     {
-      QByteArray ba = p.readAllStandardError();
+      const QByteArray ba = p.readAllStandardError();
       mStderrHandler( ba );
     } );
     p.start( mProcess, mArguments, QProcess::Unbuffered | QProcess::ReadWrite );
@@ -337,7 +280,7 @@ int QgsBlockingProcess::run( QgsFeedback *feedback )
 
   if ( requestMadeFromMainThread )
   {
-    std::unique_ptr<ProcessThread> processThread = std::make_unique<ProcessThread>( runFunction );
+    auto processThread = std::make_unique<ProcessThread>( runFunction );
     processThread->start();
     // wait for thread to gracefully exit
     processThread->wait();

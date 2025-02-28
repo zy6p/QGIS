@@ -33,8 +33,6 @@ class GUI_EXPORT QgsPluginManagerInterface : public QObject
     Q_OBJECT
 
   public:
-
-    //! Constructor
     QgsPluginManagerInterface() = default;
 
     //! remove Python plugins from the metadata registry (c++ plugins stay)
@@ -59,7 +57,7 @@ class GUI_EXPORT QgsPluginManagerInterface : public QObject
     virtual void showPluginManager( int tabIndex = -1 ) = 0;
 
     //! show the given message in the Plugin Manager internal message bar
-    virtual void pushMessage( const QString &text, Qgis::MessageLevel level = Qgis::Info, int duration = -1 ) = 0;
+    virtual void pushMessage( const QString &text, Qgis::MessageLevel level = Qgis::MessageLevel::Info, int duration = -1 ) = 0;
 };
 
 #endif

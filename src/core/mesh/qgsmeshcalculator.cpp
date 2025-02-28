@@ -19,9 +19,11 @@
 #include <limits>
 #include <memory>
 
+#include "qgsfeedback.h"
 #include "qgsmeshcalcnode.h"
 #include "qgsmeshcalculator.h"
 #include "qgsmeshcalcutils.h"
+#include "qgsmeshlayer.h"
 #include "qgsmeshmemorydataprovider.h"
 #include "qgsmeshvirtualdatasetgroup.h"
 #include "qgis.h"
@@ -164,7 +166,7 @@ QgsMeshCalculator::Result QgsMeshCalculator::expressionIsValid(
   if ( !layer || !layer->dataProvider() )
     return InputLayerError;
 
-  QgsMeshDatasetGroupMetadata::DataType dataType = QgsMeshCalcUtils::determineResultDataType( layer, calcNode->usedDatasetGroupNames() );
+  const QgsMeshDatasetGroupMetadata::DataType dataType = QgsMeshCalcUtils::determineResultDataType( layer, calcNode->usedDatasetGroupNames() );
 
   requiredCapability = dataType == QgsMeshDatasetGroupMetadata::DataOnFaces ? QgsMeshDriverMetadata::MeshDriverCapability::CanWriteFaceDatasets :
                        QgsMeshDriverMetadata::MeshDriverCapability::CanWriteVertexDatasets;
@@ -218,16 +220,16 @@ QgsMeshCalculator::Result QgsMeshCalculator::processCalculation( QgsFeedback *fe
   }
 
   //open output dataset
-  QgsMeshCalcUtils dsu( mMeshLayer, calcNode->usedDatasetGroupNames(), mStartTime, mEndTime );
+  const QgsMeshCalcUtils dsu( mMeshLayer, calcNode->usedDatasetGroupNames(), mStartTime, mEndTime );
   if ( !dsu.isValid() )
   {
     return InvalidDatasets;
   }
 
-  std::unique_ptr<QgsMeshMemoryDatasetGroup> outputGroup = std::make_unique<QgsMeshMemoryDatasetGroup> ( mOutputGroupName, dsu.outputType() );
+  auto outputGroup = std::make_unique<QgsMeshMemoryDatasetGroup> ( mOutputGroupName, dsu.outputType() );
 
   // calculate
-  bool ok = calcNode->calculate( dsu, *outputGroup );
+  const bool ok = calcNode->calculate( dsu, *outputGroup );
   if ( !ok )
   {
     return EvaluateError;

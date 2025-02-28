@@ -19,6 +19,7 @@
 #include "qgsfield.h"
 #include "qgsvectorlayer.h"
 #include "qgsapplication.h"
+#include "qgsvariantutils.h"
 
 const QString QgsDateTimeFieldFormatter::DATE_FORMAT = QStringLiteral( "yyyy-MM-dd" );
 const QString QgsDateTimeFieldFormatter::TIME_FORMAT = QStringLiteral( "HH:mm:ss" );
@@ -27,6 +28,8 @@ const QString QgsDateTimeFieldFormatter::DATETIME_FORMAT = QStringLiteral( "yyyy
 const QString QgsDateTimeFieldFormatter::QT_ISO_FORMAT = QStringLiteral( "Qt ISO Date" );
 // but QDateTimeEdit::setDisplayFormat only accepts string formats, so use with time zone by default
 const QString QgsDateTimeFieldFormatter::DISPLAY_FOR_ISO_FORMAT = QStringLiteral( "yyyy-MM-dd HH:mm:ss+t" );
+QString QgsDateTimeFieldFormatter::DATE_DISPLAY_FORMAT = QStringLiteral( "yyyy-MM-dd" );
+QString QgsDateTimeFieldFormatter::DATETIME_DISPLAY_FORMAT = QStringLiteral( "yyyy-MM-dd HH:mm:ss" );
 
 
 QString QgsDateTimeFieldFormatter::id() const
@@ -40,20 +43,36 @@ QString QgsDateTimeFieldFormatter::representValue( QgsVectorLayer *layer, int fi
 
   QString result;
 
-  if ( value.isNull() )
+  if ( QgsVariantUtils::isNull( value ) )
   {
     return QgsApplication::nullRepresentation();
+  }
+
+  if ( fieldIndex < 0 || fieldIndex >= layer->fields().size() )
+  {
+    return value.toString();
   }
 
   const QgsField field = layer->fields().at( fieldIndex );
   const bool fieldIsoFormat = config.value( QStringLiteral( "field_iso_format" ), false ).toBool();
   const QString fieldFormat = config.value( QStringLiteral( "field_format" ), defaultFormat( field.type() ) ).toString();
-  const QString displayFormat = config.value( QStringLiteral( "display_format" ), defaultFormat( field.type() ) ).toString();
+  const QString displayFormat = config.value( QStringLiteral( "display_format" ), defaultDisplayFormat( field.type() ) ).toString();
 
   QDateTime date;
-  if ( static_cast<QMetaType::Type>( value.type() ) == QMetaType::QDate || static_cast<QMetaType::Type>( value.type() ) == QMetaType::QDateTime )
+  bool showTimeZone = false;
+  if ( static_cast<QMetaType::Type>( value.userType() ) == QMetaType::QDate )
   {
     date = value.toDateTime();
+  }
+  else if ( static_cast<QMetaType::Type>( value.userType() ) == QMetaType::QDateTime )
+  {
+    date = value.toDateTime();
+    // we always show time zones for datetime values
+    showTimeZone = true;
+  }
+  else if ( static_cast<QMetaType::Type>( value.userType() ) == QMetaType::QTime )
+  {
+    return  value.toTime().toString( displayFormat );
   }
   else
   {
@@ -69,7 +88,19 @@ QString QgsDateTimeFieldFormatter::representValue( QgsVectorLayer *layer, int fi
 
   if ( date.isValid() )
   {
-    result = date.toString( displayFormat );
+    if ( showTimeZone && displayFormat == QgsDateTimeFieldFormatter::DATETIME_DISPLAY_FORMAT )
+    {
+      // using default display format for datetimes, so ensure we include the timezone
+      result = QStringLiteral( "%1 (%2)" ).arg( date.toString( displayFormat ), date.timeZoneAbbreviation() );
+    }
+    else
+    {
+      // Convert to UTC if the format string includes a Z, as QLocale::toString() doesn't do it
+      if ( displayFormat.indexOf( "Z" ) > 0 )
+        date = date.toUTC();
+
+      result = date.toString( displayFormat );
+    }
   }
   else
   {
@@ -79,17 +110,46 @@ QString QgsDateTimeFieldFormatter::representValue( QgsVectorLayer *layer, int fi
   return result;
 }
 
-QString QgsDateTimeFieldFormatter::defaultFormat( QVariant::Type type )
+QString QgsDateTimeFieldFormatter::defaultFormat( QMetaType::Type type )
 {
   switch ( type )
   {
-    case QVariant::DateTime:
+    case QMetaType::Type::QDateTime:
       return QgsDateTimeFieldFormatter::DATETIME_FORMAT;
-      break;
-    case QVariant::Time:
+    case QMetaType::Type::QTime:
       return QgsDateTimeFieldFormatter::TIME_FORMAT;
-      break;
     default:
       return QgsDateTimeFieldFormatter::DATE_FORMAT;
   }
+}
+
+QString QgsDateTimeFieldFormatter::defaultFormat( QVariant::Type type )
+{
+  return defaultFormat( QgsVariantUtils::variantTypeToMetaType( type ) );
+}
+
+
+QString QgsDateTimeFieldFormatter::defaultDisplayFormat( QMetaType::Type type )
+{
+  switch ( type )
+  {
+    case QMetaType::Type::QDateTime:
+      return QgsDateTimeFieldFormatter::DATETIME_DISPLAY_FORMAT;
+    case QMetaType::Type::QTime:
+      return QgsDateTimeFieldFormatter::TIME_FORMAT;
+    default:
+      return QgsDateTimeFieldFormatter::DATE_DISPLAY_FORMAT;
+  }
+}
+
+QString QgsDateTimeFieldFormatter::defaultDisplayFormat( QVariant::Type type )
+{
+  return defaultDisplayFormat( QgsVariantUtils::variantTypeToMetaType( type ) );
+}
+
+void QgsDateTimeFieldFormatter::applyLocaleChange()
+{
+  QString dateFormat = QLocale().dateFormat( QLocale::FormatType::ShortFormat );
+  QgsDateTimeFieldFormatter::DATETIME_DISPLAY_FORMAT = QString( "%1 %2" ).arg( dateFormat, QgsDateTimeFieldFormatter::TIME_FORMAT );
+  QgsDateTimeFieldFormatter::DATE_DISPLAY_FORMAT = dateFormat;
 }

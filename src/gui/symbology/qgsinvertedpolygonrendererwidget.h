@@ -17,24 +17,22 @@
 
 #include "ui_qgsinvertedpolygonrendererwidgetbase.h"
 #include "qgis_sip.h"
-#include "qgsinvertedpolygonrenderer.h"
 #include "qgsrendererwidget.h"
 #include "qgis_gui.h"
 
 class QMenu;
+class QgsInvertedPolygonRenderer;
 
 /**
  * \ingroup gui
  * \brief A widget used represent options of a QgsInvertedPolygonRenderer
  *
- * \since QGIS 2.4
  */
 class GUI_EXPORT QgsInvertedPolygonRendererWidget : public QgsRendererWidget, private Ui::QgsInvertedPolygonRendererWidgetBase
 {
     Q_OBJECT
 
   public:
-
     /**
      * Static creation method
      * \param layer the layer where this renderer is applied
@@ -50,6 +48,7 @@ class GUI_EXPORT QgsInvertedPolygonRendererWidget : public QgsRendererWidget, pr
      * \param renderer the mask renderer (will not take ownership)
      */
     QgsInvertedPolygonRendererWidget( QgsVectorLayer *layer, QgsStyle *style, QgsFeatureRenderer *renderer );
+    ~QgsInvertedPolygonRendererWidget() override;
 
     QgsFeatureRenderer *renderer() override;
 

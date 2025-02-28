@@ -21,9 +21,13 @@
 #include <QDir>
 
 #include "qgssettings.h"
-#include "qgslogger.h"
+#include "moc_qgssettings.cpp"
+#include "qgsvariantutils.h"
+#include "qgssettingsproxy.h"
 
 Q_GLOBAL_STATIC( QString, sGlobalSettingsPath )
+
+thread_local QgsSettings *sQgsSettingsThreadSettings = nullptr;
 
 bool QgsSettings::setGlobalSettingsPath( const QString &path )
 {
@@ -88,7 +92,7 @@ QgsSettings::~QgsSettings()
 
 void QgsSettings::beginGroup( const QString &prefix, const QgsSettings::Section section )
 {
-  QString pKey = prefixedKey( prefix, section );
+  const QString pKey = prefixedKey( prefix, section );
   mUserSettings->beginGroup( pKey );
   if ( mGlobalSettings )
   {
@@ -115,13 +119,8 @@ QStringList QgsSettings::allKeys() const
   QStringList keys = mUserSettings->allKeys();
   if ( mGlobalSettings )
   {
-    for ( auto &s : mGlobalSettings->allKeys() )
-    {
-      if ( ! keys.contains( s ) )
-      {
-        keys.append( s );
-      }
-    }
+    const QStringList constAllKeys = mGlobalSettings->allKeys();
+    std::copy_if( constAllKeys.constBegin(), constAllKeys.constEnd(), std::back_inserter( keys ), [&keys]( const QString & key ) {return !keys.contains( key );} );
   }
   return keys;
 }
@@ -132,40 +131,40 @@ QStringList QgsSettings::childKeys() const
   QStringList keys = mUserSettings->childKeys();
   if ( mGlobalSettings )
   {
-    for ( auto &s : mGlobalSettings->childKeys() )
-    {
-      if ( ! keys.contains( s ) )
-      {
-        keys.append( s );
-      }
-    }
+    const QStringList constChildKeys = mGlobalSettings->childKeys();
+    std::copy_if( constChildKeys.constBegin(), constChildKeys.constEnd(), std::back_inserter( keys ), [&keys]( const QString & key ) {return !keys.contains( key );} );
   }
   return keys;
 }
 
-QStringList QgsSettings::childGroups() const
+QStringList QgsSettings::childGroups( Qgis::SettingsOrigin origin ) const
 {
-  QStringList keys = mUserSettings->childGroups();
-  if ( mGlobalSettings )
+  switch ( origin )
   {
-    for ( auto &s : mGlobalSettings->childGroups() )
+    case Qgis::SettingsOrigin::Any:
     {
-      if ( ! keys.contains( s ) )
+      QStringList keys = mUserSettings->childGroups();
+      if ( mGlobalSettings )
       {
-        keys.append( s );
+        const QStringList constChildGroups = mGlobalSettings->childGroups();
+        std::copy_if( constChildGroups.constBegin(), constChildGroups.constEnd(), std::back_inserter( keys ), [&keys]( const QString & key ) {return !keys.contains( key );} );
       }
+      return keys;
     }
+
+    case Qgis::SettingsOrigin::Local:
+      return mUserSettings->childGroups();
+
+    case Qgis::SettingsOrigin::Global:
+      return  mGlobalSettings ? mGlobalSettings->childGroups() : QStringList();
   }
-  return keys;
+
+  BUILTIN_UNREACHABLE
 }
+
 QStringList QgsSettings::globalChildGroups() const
 {
-  QStringList keys;
-  if ( mGlobalSettings )
-  {
-    keys = mGlobalSettings->childGroups();
-  }
-  return keys;
+  return childGroups( Qgis::SettingsOrigin::Global );
 }
 
 QString QgsSettings::globalSettingsPath()
@@ -175,8 +174,8 @@ QString QgsSettings::globalSettingsPath()
 
 QVariant QgsSettings::value( const QString &key, const QVariant &defaultValue, const QgsSettings::Section section ) const
 {
-  QString pKey = prefixedKey( key, section );
-  if ( !mUserSettings->value( pKey ).isNull() )
+  const QString pKey = prefixedKey( key, section );
+  if ( !QgsVariantUtils::isNull( mUserSettings->value( pKey ) ) )
   {
     return mUserSettings->value( pKey );
   }
@@ -189,7 +188,7 @@ QVariant QgsSettings::value( const QString &key, const QVariant &defaultValue, c
 
 bool QgsSettings::contains( const QString &key, const QgsSettings::Section section ) const
 {
-  QString pKey = prefixedKey( key, section );
+  const QString pKey = prefixedKey( key, section );
   return mUserSettings->contains( pKey ) ||
          ( mGlobalSettings && mGlobalSettings->contains( pKey ) );
 }
@@ -206,7 +205,7 @@ void QgsSettings::sync()
 
 void QgsSettings::remove( const QString &key, const QgsSettings::Section section )
 {
-  QString pKey = prefixedKey( key, section );
+  const QString pKey = prefixedKey( key, section );
   mUserSettings->remove( pKey );
 }
 
@@ -215,32 +214,35 @@ QString QgsSettings::prefixedKey( const QString &key, const Section section ) co
   QString prefix;
   switch ( section )
   {
-    case Section::Core :
+    case Section::Core:
       prefix = QStringLiteral( "core" );
       break;
-    case Section::Server :
+    case Section::Server:
       prefix = QStringLiteral( "server" );
       break;
-    case Section::Gui :
+    case Section::Gui:
       prefix = QStringLiteral( "gui" );
       break;
-    case Section::Plugins :
+    case Section::Plugins:
       prefix = QStringLiteral( "plugins" );
       break;
-    case Section::Misc :
+    case Section::Misc:
       prefix = QStringLiteral( "misc" );
       break;
-    case Section::Auth :
+    case Section::Auth:
       prefix = QStringLiteral( "auth" );
       break;
-    case Section::App :
+    case Section::App:
       prefix = QStringLiteral( "app" );
       break;
-    case Section::Providers :
+    case Section::Providers:
       prefix = QStringLiteral( "providers" );
       break;
-    case Section::Expressions :
+    case Section::Expressions:
       prefix = QStringLiteral( "expressions" );
+      break;
+    case Section::Gps:
+      prefix = QStringLiteral( "gps" );
       break;
     case Section::NoSection:
       return sanitizeKey( key );
@@ -288,6 +290,17 @@ void QgsSettings::setArrayIndex( int i )
   }
 }
 
+Qgis::SettingsOrigin QgsSettings::origin( const QString &key ) const
+{
+  if ( mGlobalSettings && mGlobalSettings->contains( key ) )
+    return Qgis::SettingsOrigin::Global;
+
+  if ( mUserSettings->contains( key ) )
+    return Qgis::SettingsOrigin::Local;
+
+  return Qgis::SettingsOrigin::Any;
+}
+
 void QgsSettings::setValue( const QString &key, const QVariant &value, const QgsSettings::Section section )
 {
   // TODO: add valueChanged signal
@@ -296,7 +309,7 @@ void QgsSettings::setValue( const QString &key, const QVariant &value, const Qgs
   // The valid check is required because different invalid QVariant types
   // like QVariant(QVariant::String) and QVariant(QVariant::Int))
   // may be considered different and we don't want to store the value in that case.
-  QVariant currentValue = QgsSettings::value( prefixedKey( key, section ) );
+  const QVariant currentValue = QgsSettings::value( prefixedKey( key, section ) );
   if ( ( currentValue.isValid() || value.isValid() ) && ( currentValue != value ) )
   {
     mUserSettings->setValue( prefixedKey( key, section ), value );
@@ -320,4 +333,24 @@ QString QgsSettings::sanitizeKey( const QString &key ) const
 void QgsSettings::clear()
 {
   mUserSettings->clear();
+}
+
+
+void QgsSettings::holdFlush()
+{
+  if ( sQgsSettingsThreadSettings )
+    return;
+
+  sQgsSettingsThreadSettings = new QgsSettings();
+}
+
+void QgsSettings::releaseFlush()
+{
+  delete sQgsSettingsThreadSettings;
+  sQgsSettingsThreadSettings = nullptr;
+}
+
+QgsSettingsProxy QgsSettings::get()
+{
+  return QgsSettingsProxy( sQgsSettingsThreadSettings );
 }

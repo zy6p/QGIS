@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgsauthpkipathsedit.h"
+#include "moc_qgsauthpkipathsedit.cpp"
 #include "ui_qgsauthpkipathsedit.h"
 
 #include <QDateTime>
@@ -34,10 +35,9 @@ QgsAuthPkiPathsEdit::QgsAuthPkiPathsEdit( QWidget *parent )
   : QgsAuthMethodEdit( parent )
 {
   setupUi( this );
-  connect( chkPkiPathsPassShow, &QCheckBox::stateChanged, this, &QgsAuthPkiPathsEdit::chkPkiPathsPassShow_stateChanged );
   connect( btnPkiPathsCert, &QToolButton::clicked, this, &QgsAuthPkiPathsEdit::btnPkiPathsCert_clicked );
   connect( btnPkiPathsKey, &QToolButton::clicked, this, &QgsAuthPkiPathsEdit::btnPkiPathsKey_clicked );
-  connect( cbAddCas, &QCheckBox::stateChanged, this, [ = ]( int state ) {  cbAddRootCa->setEnabled( state == Qt::Checked ); } );
+  connect( cbAddCas, &QCheckBox::stateChanged, this, [=]( int state ) { cbAddRootCa->setEnabled( state == Qt::Checked ); } );
   lblCas->hide();
   twCas->hide();
   cbAddCas->hide();
@@ -47,11 +47,11 @@ QgsAuthPkiPathsEdit::QgsAuthPkiPathsEdit( QWidget *parent )
 bool QgsAuthPkiPathsEdit::validateConfig()
 {
   // required components
-  QString certpath( lePkiPathsCert->text() );
-  QString keypath( lePkiPathsKey->text() );
+  const QString certpath( lePkiPathsCert->text() );
+  const QString keypath( lePkiPathsKey->text() );
 
-  bool certfound = QFile::exists( certpath );
-  bool keyfound = QFile::exists( keypath );
+  const bool certfound = QFile::exists( certpath );
+  const bool keyfound = QFile::exists( keypath );
 
   QgsAuthGuiUtils::fileFound( certpath.isEmpty() || certfound, lePkiPathsCert );
   QgsAuthGuiUtils::fileFound( keypath.isEmpty() || keyfound, lePkiPathsKey );
@@ -63,7 +63,7 @@ bool QgsAuthPkiPathsEdit::validateConfig()
   }
 
   // check for issue date validity, then notify status
-  QSslCertificate cert( QgsAuthCertUtils::certFromFile( certpath ) );
+  const QSslCertificate cert( QgsAuthCertUtils::certFromFile( certpath ) );
 
   if ( cert.isNull() )
   {
@@ -71,15 +71,13 @@ bool QgsAuthPkiPathsEdit::validateConfig()
     return validityChange( false );
   }
 
-  QDateTime startdate( cert.effectiveDate() );
-  QDateTime enddate( cert.expiryDate() );
+  const QDateTime startdate( cert.effectiveDate() );
+  const QDateTime enddate( cert.expiryDate() );
 
-  writePkiMessage( lePkiPathsMsg,
-                   tr( "%1 thru %2" ).arg( startdate.toString(), enddate.toString() ),
-                   ( QgsAuthCertUtils::certIsCurrent( cert ) ? Valid : Invalid ) );
+  writePkiMessage( lePkiPathsMsg, tr( "%1 thru %2" ).arg( startdate.toString(), enddate.toString() ), ( QgsAuthCertUtils::certIsCurrent( cert ) ? Valid : Invalid ) );
 
-  bool certviable = QgsAuthCertUtils::certIsViable( cert );
-  bool showCas( certviable && populateCas() );
+  const bool certviable = QgsAuthCertUtils::certIsViable( cert );
+  const bool showCas( certviable && populateCas() );
   lblCas->setVisible( showCas );
   twCas->setVisible( showCas );
   cbAddCas->setVisible( showCas );
@@ -94,8 +92,8 @@ QgsStringMap QgsAuthPkiPathsEdit::configMap() const
   config.insert( QStringLiteral( "certpath" ), lePkiPathsCert->text() );
   config.insert( QStringLiteral( "keypath" ), lePkiPathsKey->text() );
   config.insert( QStringLiteral( "keypass" ), lePkiPathsKeyPass->text() );
-  config.insert( QStringLiteral( "addcas" ), cbAddCas->isChecked() ? QStringLiteral( "true" ) :  QStringLiteral( "false" ) );
-  config.insert( QStringLiteral( "addrootca" ), cbAddRootCa->isChecked() ? QStringLiteral( "true" ) :  QStringLiteral( "false" ) );
+  config.insert( QStringLiteral( "addcas" ), cbAddCas->isChecked() ? QStringLiteral( "true" ) : QStringLiteral( "false" ) );
+  config.insert( QStringLiteral( "addrootca" ), cbAddRootCa->isChecked() ? QStringLiteral( "true" ) : QStringLiteral( "false" ) );
 
   return config;
 }
@@ -169,23 +167,15 @@ void QgsAuthPkiPathsEdit::clearPkiPathsKeyPath()
   lePkiPathsKey->setStyleSheet( QString() );
 }
 
-
 void QgsAuthPkiPathsEdit::clearPkiPathsKeyPass()
 {
   lePkiPathsKeyPass->clear();
   lePkiPathsKeyPass->setStyleSheet( QString() );
-  chkPkiPathsPassShow->setChecked( false );
-}
-
-void QgsAuthPkiPathsEdit::chkPkiPathsPassShow_stateChanged( int state )
-{
-  lePkiPathsKeyPass->setEchoMode( ( state > 0 ) ? QLineEdit::Normal : QLineEdit::Password );
 }
 
 void QgsAuthPkiPathsEdit::btnPkiPathsCert_clicked()
 {
-  const QString &fn = QgsAuthGuiUtils::getOpenFileName( this, tr( "Open Client Certificate File" ),
-                      tr( "All files (*.*);;PEM (*.pem);;DER (*.der)" ) );
+  const QString &fn = QgsAuthGuiUtils::getOpenFileName( this, tr( "Open Client Certificate File" ), tr( "All files (*.*);;PEM (*.pem);;DER (*.der)" ) );
   if ( !fn.isEmpty() )
   {
     lePkiPathsCert->setText( fn );
@@ -195,8 +185,7 @@ void QgsAuthPkiPathsEdit::btnPkiPathsCert_clicked()
 
 void QgsAuthPkiPathsEdit::btnPkiPathsKey_clicked()
 {
-  const QString &fn = QgsAuthGuiUtils::getOpenFileName( this, tr( "Open Private Key File" ),
-                      tr( "All files (*.*);;PEM (*.pem);;DER (*.der)" ) );
+  const QString &fn = QgsAuthGuiUtils::getOpenFileName( this, tr( "Open Private Key File" ), tr( "All files (*.*);;PEM (*.pem);;DER (*.der)" ) );
   if ( !fn.isEmpty() )
   {
     lePkiPathsKey->setText( fn );
@@ -213,7 +202,6 @@ bool QgsAuthPkiPathsEdit::validityChange( bool curvalid )
   }
   return curvalid;
 }
-
 
 bool QgsAuthPkiPathsEdit::populateCas()
 {
@@ -242,7 +230,7 @@ bool QgsAuthPkiPathsEdit::populateCas()
       item = new QTreeWidgetItem( twCas, QStringList( cert.subjectInfo( QSslCertificate::SubjectInfo::CommonName ) ) );
     }
     item->setIcon( 0, QgsApplication::getThemeIcon( QStringLiteral( "/mIconCertificate.svg" ) ) );
-    item->setToolTip( 0, tr( "<ul><li>Serial #: %1</li><li>Expiry date: %2</li></ul>" ).arg( cert.serialNumber( ), cert.expiryDate().toString( Qt::TextDate ) ) );
+    item->setToolTip( 0, tr( "<ul><li>Serial #: %1</li><li>Expiry date: %2</li></ul>" ).arg( cert.serialNumber(), cert.expiryDate().toString( Qt::TextDate ) ) );
     prevItem = item;
   }
   twCas->expandAll();

@@ -50,15 +50,13 @@ Qgs3DAnimationSettings::Keyframe Qgs3DAnimationSettings::interpolate( float time
       const Keyframe &k1 = mKeyframes.at( i + 1 );
       if ( time >= k0.time && time <= k1.time )
       {
-        float ip = ( time - k0.time ) / ( k1.time - k0.time );
-        float eIp = mEasingCurve.valueForProgress( ip );
-        float eIip = 1.0f - eIp;
+        const float ip = ( time - k0.time ) / ( k1.time - k0.time );
+        const float eIp = mEasingCurve.valueForProgress( ip );
+        const float eIip = 1.0f - eIp;
 
         Keyframe kf;
         kf.time = time;
-        kf.point.set( k0.point.x() * eIip + k1.point.x() * eIp,
-                      k0.point.y() * eIip + k1.point.y() * eIp,
-                      k0.point.z() * eIip + k1.point.z() * eIp );
+        kf.point.set( k0.point.x() * eIip + k1.point.x() * eIp, k0.point.y() * eIip + k1.point.y() * eIp, k0.point.z() * eIip + k1.point.z() * eIp );
         kf.dist = k0.dist * eIip + k1.dist * eIp;
         kf.pitch = k0.pitch * eIip + k1.pitch * eIp;
 
@@ -87,15 +85,13 @@ void Qgs3DAnimationSettings::readXml( const QDomElement &elem )
 
   mKeyframes.clear();
 
-  QDomElement elemKeyframes = elem.firstChildElement( QStringLiteral( "keyframes" ) );
+  const QDomElement elemKeyframes = elem.firstChildElement( QStringLiteral( "keyframes" ) );
   QDomElement elemKeyframe = elemKeyframes.firstChildElement( QStringLiteral( "keyframe" ) );
   while ( !elemKeyframe.isNull() )
   {
     Keyframe kf;
     kf.time = elemKeyframe.attribute( QStringLiteral( "time" ) ).toFloat();
-    kf.point.set( elemKeyframe.attribute( QStringLiteral( "x" ) ).toDouble(),
-                  elemKeyframe.attribute( QStringLiteral( "y" ) ).toDouble(),
-                  elemKeyframe.attribute( QStringLiteral( "z" ) ).toDouble() );
+    kf.point.set( elemKeyframe.attribute( QStringLiteral( "x" ) ).toDouble(), elemKeyframe.attribute( QStringLiteral( "y" ) ).toDouble(), elemKeyframe.attribute( QStringLiteral( "z" ) ).toDouble() );
     kf.dist = elemKeyframe.attribute( QStringLiteral( "dist" ) ).toFloat();
     kf.pitch = elemKeyframe.attribute( QStringLiteral( "pitch" ) ).toFloat();
     kf.yaw = elemKeyframe.attribute( QStringLiteral( "yaw" ) ).toFloat();

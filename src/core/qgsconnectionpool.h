@@ -20,6 +20,8 @@
 
 #include "qgis.h"
 #include "qgsapplication.h"
+#include "qgsfeedback.h"
+
 #include <QCoreApplication>
 #include <QMap>
 #include <QMutex>
@@ -28,7 +30,7 @@
 #include <QTime>
 #include <QTimer>
 #include <QThread>
-
+#include <QElapsedTimer>
 
 #define CONN_POOL_EXPIRATION_TIME           60    // in seconds
 #define CONN_POOL_SPARE_CONNECTIONS          2    // number of spare connections in case all the base connections are used but we have a nested request with the risk of a deadlock
@@ -68,6 +70,9 @@ class QgsConnectionPoolGroup
       QTime lastUsedTime;
     };
 
+    /**
+     * Constructor for QgsConnectionPoolGroup, with the specified connection info.
+     */
     QgsConnectionPoolGroup( const QString &ci )
       : connInfo( ci )
       , sem( QgsApplication::instance()->maxConcurrentConnectionsPerPool() + CONN_POOL_SPARE_CONNECTIONS )
@@ -82,9 +87,7 @@ class QgsConnectionPoolGroup
       }
     }
 
-    //! QgsConnectionPoolGroup cannot be copied
     QgsConnectionPoolGroup( const QgsConnectionPoolGroup &other ) = delete;
-    //! QgsConnectionPoolGroup cannot be copied
     QgsConnectionPoolGroup &operator=( const QgsConnectionPoolGroup &other ) = delete;
 
     /**
@@ -288,9 +291,12 @@ class QgsConnectionPool
      * If \a timeout is a negative value the calling thread will be blocked
      * until a connection becomes available. This is the default behavior.
      *
+     * The optional \a feedback argument can be used to cancel the request
+     * before the connection is acquired.
+     *
      * \returns initialized connection or NULLPTR if unsuccessful
      */
-    T acquireConnection( const QString &connInfo, int timeout = -1, bool requestMayBeNested = false )
+    T acquireConnection( const QString &connInfo, int timeout = -1, bool requestMayBeNested = false, QgsFeedback *feedback = nullptr )
     {
       mMutex.lock();
       typename T_Groups::iterator it = mGroups.find( connInfo );
@@ -301,7 +307,25 @@ class QgsConnectionPool
       T_Group *group = *it;
       mMutex.unlock();
 
-      return group->acquire( timeout, requestMayBeNested );
+      if ( feedback )
+      {
+        QElapsedTimer timer;
+        timer.start();
+
+        while ( !feedback->isCanceled() )
+        {
+          if ( T conn = group->acquire( 300, requestMayBeNested ) )
+            return conn;
+
+          if ( timeout > 0 && timer.elapsed() >= timeout )
+            return nullptr;
+        }
+        return nullptr;
+      }
+      else
+      {
+        return group->acquire( timeout, requestMayBeNested );
+      }
     }
 
     //! Release an existing connection so it will get back into the pool and can be reused
@@ -319,7 +343,7 @@ class QgsConnectionPool
     /**
      * Invalidates all connections to the specified resource.
      * The internal state of certain handles (for instance OGR) are altered
-     * when a dataset is modified. Consquently, all open handles need to be
+     * when a dataset is modified. Consequently, all open handles need to be
      * invalidated when such datasets are changed to ensure the handles are
      * refreshed. See the OGR provider for an example where this is needed.
      */

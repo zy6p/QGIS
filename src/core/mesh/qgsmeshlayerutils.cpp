@@ -18,6 +18,8 @@
 #include <limits>
 #include <QTime>
 #include <QDateTime>
+#include <QRegularExpression>
+#include <QRegularExpressionMatch>
 
 #include "qgsmeshlayerutils.h"
 #include "qgsmeshtimesettings.h"
@@ -84,11 +86,11 @@ QgsMeshDataBlock QgsMeshLayerUtils::datasetValues(
   }
   else
   {
-    const QgsMesh3dAveragingMethod *averagingMethod = meshLayer->rendererSettings().averagingMethod();
+    const QgsMesh3DAveragingMethod *averagingMethod = meshLayer->rendererSettings().averagingMethod();
     if ( !averagingMethod )
       return block;
 
-    QgsMesh3dDataBlock block3d = meshLayer->dataset3dValues( index, valueIndex, count );
+    const QgsMesh3DDataBlock block3d = meshLayer->dataset3dValues( index, valueIndex, count );
     if ( !block3d.isValid() )
       return block;
 
@@ -115,13 +117,13 @@ QVector<QgsVector> QgsMeshLayerUtils::griddedVectorValues( const QgsMeshLayer *m
   if ( !triangularMesh || !nativeMesh )
     return vectors;
 
-  QgsMeshDatasetGroupMetadata meta = meshLayer->datasetGroupMetadata( index );
+  const QgsMeshDatasetGroupMetadata meta = meshLayer->datasetGroupMetadata( index );
   if ( !meta.isVector() )
     return vectors;
 
   // extract vector dataset
-  bool vectorDataOnVertices = meta.dataType() == QgsMeshDatasetGroupMetadata::DataOnVertices;
-  int datacount = vectorDataOnVertices ? nativeMesh->vertices.count() : nativeMesh->faces.count();
+  const bool vectorDataOnVertices = meta.dataType() == QgsMeshDatasetGroupMetadata::DataOnVertices;
+  const int datacount = vectorDataOnVertices ? nativeMesh->vertices.count() : nativeMesh->faces.count();
   const QgsMeshDataBlock vals = QgsMeshLayerUtils::datasetValues( meshLayer, index, 0, datacount );
 
   const QgsMeshDataBlock isFacesActive = meshLayer->areFacesActive( index, 0, nativeMesh->faceCount() );
@@ -142,12 +144,12 @@ QVector<QgsVector> QgsMeshLayerUtils::griddedVectorValues( const QgsMeshLayer *m
 
   for ( int iy = 0; iy < size.height(); ++iy )
   {
-    double y = minCorner.y() + iy * ySpacing;
+    const double y = minCorner.y() + iy * ySpacing;
     for ( int ix = 0; ix < size.width(); ++ix )
     {
-      double x = minCorner.x() + ix * xSpacing;
-      QgsPoint point( x, y );
-      int faceIndex = triangularMesh->faceIndexForPoint_v2( point );
+      const double x = minCorner.x() + ix * xSpacing;
+      const QgsPoint point( x, y );
+      const int faceIndex = triangularMesh->faceIndexForPoint_v2( point );
       int nativeFaceIndex = -1;
       if ( faceIndex != -1 )
         nativeFaceIndex = triangularMesh->trianglesToNativeFaces().at( faceIndex );
@@ -186,12 +188,12 @@ QVector<QgsVector> QgsMeshLayerUtils::griddedVectorValues( const QgsMeshLayer *m
 QVector<double> QgsMeshLayerUtils::calculateMagnitudes( const QgsMeshDataBlock &block )
 {
   Q_ASSERT( QgsMeshDataBlock::ActiveFlagInteger != block.type() );
-  int count = block.count();
+  const int count = block.count();
   QVector<double> ret( count );
 
   for ( int i = 0; i < count; ++i )
   {
-    double mag = block.value( i ).scalar();
+    const double mag = block.value( i ).scalar();
     ret[i] = mag;
   }
   return ret;
@@ -199,20 +201,21 @@ QVector<double> QgsMeshLayerUtils::calculateMagnitudes( const QgsMeshDataBlock &
 
 QgsRectangle QgsMeshLayerUtils::boundingBoxToScreenRectangle(
   const QgsMapToPixel &mtp,
-  const QgsRectangle &bbox
+  const QgsRectangle &bbox,
+  double devicePixelRatio
 )
 {
-  const QgsPointXY topLeft = mtp.transform( bbox.xMinimum(), bbox.yMaximum() );
-  const QgsPointXY topRight = mtp.transform( bbox.xMaximum(), bbox.yMaximum() );
-  const QgsPointXY bottomLeft = mtp.transform( bbox.xMinimum(), bbox.yMinimum() );
-  const QgsPointXY bottomRight = mtp.transform( bbox.xMaximum(), bbox.yMinimum() );
+  const QgsPointXY topLeft = mtp.transform( bbox.xMinimum(), bbox.yMaximum() ) * devicePixelRatio;
+  const QgsPointXY topRight = mtp.transform( bbox.xMaximum(), bbox.yMaximum() ) * devicePixelRatio;
+  const QgsPointXY bottomLeft = mtp.transform( bbox.xMinimum(), bbox.yMinimum() ) * devicePixelRatio;
+  const QgsPointXY bottomRight = mtp.transform( bbox.xMaximum(), bbox.yMinimum() ) * devicePixelRatio;
 
-  double xMin = std::min( {topLeft.x(), topRight.x(), bottomLeft.x(), bottomRight.x()} );
-  double xMax = std::max( {topLeft.x(), topRight.x(), bottomLeft.x(), bottomRight.x()} );
-  double yMin = std::min( {topLeft.y(), topRight.y(), bottomLeft.y(), bottomRight.y()} );
-  double yMax = std::max( {topLeft.y(), topRight.y(), bottomLeft.y(), bottomRight.y()} );
+  const double xMin = std::min( {topLeft.x(), topRight.x(), bottomLeft.x(), bottomRight.x()} );
+  const double xMax = std::max( {topLeft.x(), topRight.x(), bottomLeft.x(), bottomRight.x()} );
+  const double yMin = std::min( {topLeft.y(), topRight.y(), bottomLeft.y(), bottomRight.y()} );
+  const double yMax = std::max( {topLeft.y(), topRight.y(), bottomLeft.y(), bottomRight.y()} );
 
-  QgsRectangle ret( xMin, yMin, xMax, yMax );
+  const QgsRectangle ret( xMin, yMin, xMax, yMax );
   return ret;
 }
 
@@ -223,9 +226,10 @@ void QgsMeshLayerUtils::boundingBoxToScreenRectangle(
   int &leftLim,
   int &rightLim,
   int &bottomLim,
-  int &topLim )
+  int &topLim,
+  double devicePixelRatio )
 {
-  const QgsRectangle screenBBox = boundingBoxToScreenRectangle( mtp, bbox );
+  const QgsRectangle screenBBox = boundingBoxToScreenRectangle( mtp, bbox, devicePixelRatio );
 
   bottomLim = std::max( int( screenBBox.yMinimum() ), 0 );
   topLim = std::min( int( screenBBox.yMaximum() ), outputSize.height() - 1 );
@@ -246,21 +250,21 @@ static bool E3T_physicalToBarycentric( const QgsPointXY &pA, const QgsPointXY &p
                                        double &lam1, double &lam2, double &lam3 )
 {
   // Compute vectors
-  double xa = pA.x();
-  double ya = pA.y();
-  double v0x = pC.x() - xa ;
-  double v0y = pC.y() - ya ;
-  double v1x = pB.x() - xa ;
-  double v1y = pB.y() - ya ;
-  double v2x = pP.x() - xa ;
-  double v2y = pP.y() - ya ;
+  const double xa = pA.x();
+  const double ya = pA.y();
+  const double v0x = pC.x() - xa ;
+  const double v0y = pC.y() - ya ;
+  const double v1x = pB.x() - xa ;
+  const double v1y = pB.y() - ya ;
+  const double v2x = pP.x() - xa ;
+  const double v2y = pP.y() - ya ;
 
   // Compute dot products
-  double dot00 = v0x * v0x + v0y * v0y;
-  double dot01 = v0x * v1x + v0y * v1y;
-  double dot02 = v0x * v2x + v0y * v2y;
-  double dot11 = v1x * v1x + v1y * v1y;
-  double dot12 = v1x * v2x + v1y * v2y;
+  const double dot00 = v0x * v0x + v0y * v0y;
+  const double dot01 = v0x * v1x + v0y * v1y;
+  const double dot02 = v0x * v2x + v0y * v2y;
+  const double dot11 = v1x * v1x + v1y * v1y;
+  const double dot12 = v1x * v2x + v1y * v2y;
 
   // Compute barycentric coordinates
   double invDenom =  dot00 * dot11 - dot01 * dot01;
@@ -285,6 +289,13 @@ static bool E3T_physicalToBarycentric( const QgsPointXY &pA, const QgsPointXY &p
   return true;
 }
 
+bool QgsMeshLayerUtils::calculateBarycentricCoordinates(
+  const QgsPointXY &pA, const QgsPointXY &pB, const QgsPointXY &pC, const QgsPointXY &pP,
+  double &lam1, double &lam2, double &lam3 )
+{
+  return E3T_physicalToBarycentric( pA, pB, pC, pP, lam1, lam2, lam3 );
+}
+
 double QgsMeshLayerUtils::interpolateFromVerticesData( const QgsPointXY &p1, const QgsPointXY &p2, const QgsPointXY &p3,
     double val1, double val2, double val3, const QgsPointXY &pt )
 {
@@ -293,6 +304,22 @@ double QgsMeshLayerUtils::interpolateFromVerticesData( const QgsPointXY &p1, con
     return std::numeric_limits<double>::quiet_NaN();
 
   return lam1 * val3 + lam2 * val2 + lam3 * val1;
+}
+
+double QgsMeshLayerUtils::interpolateZForPoint( const QgsTriangularMesh &mesh, double x, double y )
+{
+  const QgsPointXY point( x, y );
+  const int faceIndex = mesh.faceIndexForPoint_v2( point );
+  if ( faceIndex < 0 || faceIndex >= mesh.triangles().count() )
+    return std::numeric_limits<float>::quiet_NaN();
+
+  const QgsMeshFace &face = mesh.triangles().at( faceIndex );
+
+  const QgsPoint p1 = mesh.vertices().at( face.at( 0 ) );
+  const QgsPoint p2 = mesh.vertices().at( face.at( 1 ) );
+  const QgsPoint p3 = mesh.vertices().at( face.at( 2 ) );
+
+  return QgsMeshLayerUtils::interpolateFromVerticesData( p1, p2, p3, p1.z(), p2.z(), p3.z(), point );
 }
 
 double QgsMeshLayerUtils::interpolateFromVerticesData( double fraction, double val1, double val2 )
@@ -379,7 +406,7 @@ QVector<double> QgsMeshLayerUtils::interpolateFromFacesData( const QVector<doubl
 
 QVector<double> QgsMeshLayerUtils::interpolateFromFacesData( const QVector<double> &valuesOnFaces, const QgsMesh &nativeMesh, const QgsMeshDataBlock &active, QgsMeshRendererScalarSettings::DataResamplingMethod method )
 {
-  int vertexCount = nativeMesh.vertexCount();
+  const int vertexCount = nativeMesh.vertexCount();
   Q_UNUSED( method );
   assert( method == QgsMeshRendererScalarSettings::NeighbourAverage );
 
@@ -391,14 +418,14 @@ QVector<double> QgsMeshLayerUtils::interpolateFromFacesData( const QVector<doubl
   {
     if ( active.active( i ) )
     {
-      double val = valuesOnFaces[ i ];
+      const double val = valuesOnFaces[ i ];
       if ( !std::isnan( val ) )
       {
         // assign for all vertices
         const QgsMeshFace &face = nativeMesh.faces.at( i );
         for ( int j = 0; j < face.size(); ++j )
         {
-          int vertexIndex = face[j];
+          const int vertexIndex = face[j];
           res[vertexIndex] += val;
           count[vertexIndex] += 1;
         }
@@ -471,15 +498,15 @@ QVector<double> QgsMeshLayerUtils::calculateMagnitudeOnVertices( const QgsMeshLa
     return ret;
 
   const QgsMeshDatasetGroupMetadata metadata = meshLayer->datasetGroupMetadata( index );
-  bool scalarDataOnVertices = metadata.dataType() == QgsMeshDatasetGroupMetadata::DataOnVertices;
+  const bool scalarDataOnVertices = metadata.dataType() == QgsMeshDatasetGroupMetadata::DataOnVertices;
 
   // populate scalar values
-  int datacount = scalarDataOnVertices ? nativeMesh->vertices.count() : nativeMesh->faces.count();
-  QgsMeshDataBlock vals = QgsMeshLayerUtils::datasetValues(
-                            meshLayer,
-                            index,
-                            0,
-                            datacount );
+  const int datacount = scalarDataOnVertices ? nativeMesh->vertices.count() : nativeMesh->faces.count();
+  const QgsMeshDataBlock vals = QgsMeshLayerUtils::datasetValues(
+                                  meshLayer,
+                                  index,
+                                  0,
+                                  datacount );
 
   QgsMeshDataBlock activeFace;
   if ( !activeFaceFlagValues )
@@ -500,7 +527,7 @@ QVector<double> QgsMeshLayerUtils::calculateMagnitudeOnVertices( const QgsMesh &
     const QgsMeshRendererScalarSettings::DataResamplingMethod method )
 {
   QVector<double> ret;
-  bool scalarDataOnVertices = groupMetadata.dataType() == QgsMeshDatasetGroupMetadata::DataOnVertices;
+  const bool scalarDataOnVertices = groupMetadata.dataType() == QgsMeshDatasetGroupMetadata::DataOnVertices;
 
   if ( datasetValues.isValid() )
   {
@@ -539,7 +566,7 @@ QgsRectangle QgsMeshLayerUtils::triangleBoundingBox( const QgsPointXY &p1, const
   yMin = ( ( yMin < p3.y() ) ? yMin : p3.y() );
   yMax = ( ( yMax > p3.y() ) ? yMax : p3.y() );
 
-  QgsRectangle bbox( xMin,  yMin,  xMax,  yMax );
+  const QgsRectangle bbox( xMin,  yMin,  xMax,  yMax );
   return bbox;
 }
 
@@ -549,9 +576,9 @@ QString QgsMeshLayerUtils::formatTime( double hours, const QDateTime &referenceT
 
   if ( referenceTime.isValid() )
   {
-    QString format( settings.absoluteTimeFormat() );
+    const QString format( settings.absoluteTimeFormat() );
     QDateTime dateTime( referenceTime );
-    qint64 seconds = static_cast<qint64>( hours * 3600.0 );
+    const qint64 seconds = static_cast<qint64>( hours * 3600.0 );
     dateTime = dateTime.addSecs( seconds );
     ret = dateTime.toString( format );
     if ( ret.isEmpty() ) // error
@@ -561,16 +588,16 @@ QString QgsMeshLayerUtils::formatTime( double hours, const QDateTime &referenceT
   {
     QString format( settings.relativeTimeFormat() );
     format = format.trimmed();
-    int totalHours = static_cast<int>( hours );
+    const int totalHours = static_cast<int>( hours );
 
     if ( format == QLatin1String( "hh:mm:ss.zzz" ) )
     {
-      int ms = static_cast<int>( hours * 3600.0 * 1000 );
-      int seconds = ms / 1000;
-      int z = ms % 1000;
+      const int ms = static_cast<int>( hours * 3600.0 * 1000 );
+      const int seconds = ms / 1000;
+      const int z = ms % 1000;
       int m = seconds / 60;
-      int s = seconds % 60;
-      int h = m / 60;
+      const int s = seconds % 60;
+      const int h = m / 60;
       m = m % 60;
       ret = QStringLiteral( "%1:%2:%3.%4" ).
             arg( h, 2, 10, QLatin1Char( '0' ) ).
@@ -580,10 +607,10 @@ QString QgsMeshLayerUtils::formatTime( double hours, const QDateTime &referenceT
     }
     else if ( format == QLatin1String( "hh:mm:ss" ) )
     {
-      int seconds = static_cast<int>( hours * 3600.0 );
+      const int seconds = static_cast<int>( hours * 3600.0 );
       int m = seconds / 60;
-      int s = seconds % 60;
-      int h = m / 60;
+      const int s = seconds % 60;
+      const int h = m / 60;
       m = m % 60;
       ret = QStringLiteral( "%1:%2:%3" ).
             arg( h, 2, 10, QLatin1Char( '0' ) ).
@@ -593,12 +620,12 @@ QString QgsMeshLayerUtils::formatTime( double hours, const QDateTime &referenceT
     }
     else if ( format == QLatin1String( "d hh:mm:ss" ) )
     {
-      int seconds = static_cast<int>( hours * 3600.0 );
+      const int seconds = static_cast<int>( hours * 3600.0 );
       int m = seconds / 60;
-      int s = seconds % 60;
+      const int s = seconds % 60;
       int h = m / 60;
       m = m % 60;
-      int d = totalHours / 24;
+      const int d = totalHours / 24;
       h = totalHours % 24;
       ret = QStringLiteral( "%1 d %2:%3:%4" ).
             arg( d ).
@@ -608,20 +635,20 @@ QString QgsMeshLayerUtils::formatTime( double hours, const QDateTime &referenceT
     }
     else if ( format == QLatin1String( "d hh" ) )
     {
-      int d = totalHours / 24;
-      int h = totalHours % 24;
+      const int d = totalHours / 24;
+      const int h = totalHours % 24;
       ret = QStringLiteral( "%1 d %2" ).
             arg( d ).
             arg( h );
     }
     else if ( format == QLatin1String( "d" ) )
     {
-      int d = totalHours / 24;
+      const int d = totalHours / 24;
       ret = QString::number( d );
     }
     else if ( format == QLatin1String( "ss" ) )
     {
-      int seconds = static_cast<int>( hours * 3600.0 );
+      const int seconds = static_cast<int>( hours * 3600.0 );
       ret = QString::number( seconds );
     }
     else     // "hh"
@@ -639,9 +666,14 @@ QVector<QVector3D> QgsMeshLayerUtils::calculateNormals( const QgsTriangularMesh 
   {
     for ( int i = 0; i < 3; i++ )
     {
-      int index( face.at( i ) );
-      int index1( face.at( ( i + 1 ) % 3 ) );
-      int index2( face.at( ( i + 2 ) % 3 ) );
+      const int index( face.at( i ) );
+      const int index1( face.at( ( i + 1 ) % 3 ) );
+      const int index2( face.at( ( i + 2 ) % 3 ) );
+
+      if ( std::isnan( verticalMagnitude[index] ) ||
+           std::isnan( verticalMagnitude[index1] ) ||
+           std::isnan( verticalMagnitude[index2] ) )
+        continue;
 
       const QgsMeshVertex &vert( triangularMesh.vertices().at( index ) );
       const QgsMeshVertex &otherVert1( triangularMesh.vertices().at( index1 ) );
@@ -658,18 +690,31 @@ QVector<QVector3D> QgsMeshLayerUtils::calculateNormals( const QgsTriangularMesh 
         adjustRelative2 = otherVert2.z();
       }
 
-      QVector3D v1( float( otherVert1.x() - vert.x() ),
-                    float( otherVert1.y() - vert.y() ),
-                    float( verticalMagnitude[index1] - verticalMagnitude[index] + adjustRelative1 - adjustRelative ) );
-      QVector3D v2( float( otherVert2.x() - vert.x() ),
-                    float( otherVert2.y() - vert.y() ),
-                    float( verticalMagnitude[index2] - verticalMagnitude[index] + adjustRelative2 - adjustRelative ) );
+      const QVector3D v1( float( otherVert1.x() - vert.x() ),
+                          float( otherVert1.y() - vert.y() ),
+                          float( verticalMagnitude[index1] - verticalMagnitude[index] + adjustRelative1 - adjustRelative ) );
+      const QVector3D v2( float( otherVert2.x() - vert.x() ),
+                          float( otherVert2.y() - vert.y() ),
+                          float( verticalMagnitude[index2] - verticalMagnitude[index] + adjustRelative2 - adjustRelative ) );
 
       normals[index] += QVector3D::crossProduct( v1, v2 );
     }
   }
 
   return normals;
+}
+
+bool QgsMeshLayerUtils::haveSameParentQuantity( const QgsMeshLayer *layer, const QgsMeshDatasetIndex &index1, const QgsMeshDatasetIndex &index2 )
+{
+  const QgsMeshDatasetGroupMetadata metadata1 = layer->datasetGroupMetadata( index1 );
+  if ( metadata1.parentQuantityName().isEmpty() )
+    return false;
+
+  const QgsMeshDatasetGroupMetadata metadata2 = layer->datasetGroupMetadata( index2 );
+  if ( metadata2.parentQuantityName().isEmpty() )
+    return false;
+
+  return metadata1.parentQuantityName().compare( metadata2.parentQuantityName(), Qt::CaseInsensitive ) == 0;
 }
 
 ///@endcond

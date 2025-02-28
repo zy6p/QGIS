@@ -35,59 +35,71 @@ QString QgsProcessingParameterDxfLayers::type() const
 bool QgsProcessingParameterDxfLayers::checkValueIsAcceptable( const QVariant &input, QgsProcessingContext *context ) const
 {
   if ( !input.isValid() )
-    return mFlags & FlagOptional;
+    return mFlags & Qgis::ProcessingParameterFlag::Optional;
 
-  if ( qobject_cast< QgsVectorLayer * >( qvariant_cast<QObject *>( input ) ) )
+  QgsMapLayer *mapLayer = nullptr;
+  QgsVectorLayer *vectorLayer = input.value<QgsVectorLayer *>();
+  if ( vectorLayer )
   {
-    return true;
+    return vectorLayer->isSpatial();
   }
 
-  if ( input.type() == QVariant::String )
+  if ( input.userType() == QMetaType::Type::QString )
   {
     if ( input.toString().isEmpty() )
-      return mFlags & FlagOptional;
+      return mFlags & Qgis::ProcessingParameterFlag::Optional;
 
     if ( !context )
       return true;
 
-    QgsMapLayer *mapLayer = QgsProcessingUtils::mapLayerFromString( input.toString(), *context );
-    return mapLayer && ( mapLayer->type() == QgsMapLayerType::VectorLayer );
+    mapLayer = QgsProcessingUtils::mapLayerFromString( input.toString(), *context );
+    return mapLayer && ( mapLayer->type() == Qgis::LayerType::Vector && mapLayer->isSpatial() );
   }
-  else if ( input.type() == QVariant::List )
+  else if ( input.userType() == QMetaType::Type::QVariantList )
   {
     if ( input.toList().isEmpty() )
-      return mFlags & FlagOptional;;
+      return mFlags & Qgis::ProcessingParameterFlag::Optional;
 
     const QVariantList layerList = input.toList();
     for ( const QVariant &variantLayer : layerList )
     {
-      if ( qobject_cast< QgsVectorLayer * >( qvariant_cast<QObject *>( variantLayer ) ) )
-        continue;
-
-      if ( variantLayer.type() == QVariant::String )
+      vectorLayer = input.value<QgsVectorLayer *>();
+      if ( vectorLayer )
       {
-        if ( !context )
-          return true;
-
-        QgsMapLayer *mapLayer = QgsProcessingUtils::mapLayerFromString( variantLayer.toString(), *context );
-        if ( !mapLayer || mapLayer->type() != QgsMapLayerType::VectorLayer )
+        if ( vectorLayer->isSpatial() )
+          continue;
+        else
           return false;
       }
-      else if ( variantLayer.type() == QVariant::Map )
-      {
-        QVariantMap layerMap = variantLayer.toMap();
 
-        if ( !layerMap.contains( QStringLiteral( "layer" ) ) && !layerMap.contains( QStringLiteral( "attributeIndex" ) ) )
+      if ( variantLayer.userType() == QMetaType::Type::QString )
+      {
+        if ( !context )
+          return true;
+
+        mapLayer = QgsProcessingUtils::mapLayerFromString( variantLayer.toString(), *context );
+        if ( !mapLayer || mapLayer->type() != Qgis::LayerType::Vector || !mapLayer->isSpatial() )
+          return false;
+      }
+      else if ( variantLayer.userType() == QMetaType::Type::QVariantMap )
+      {
+        const QVariantMap layerMap = variantLayer.toMap();
+
+        if ( !layerMap.contains( QStringLiteral( "layer" ) ) &&
+             !layerMap.contains( QStringLiteral( "attributeIndex" ) ) &&
+             !layerMap.contains( QStringLiteral( "overriddenLayerName" ) ) &&
+             !layerMap.contains( QStringLiteral( "buildDataDefinedBlocks" ) ) &&
+             !layerMap.contains( QStringLiteral( "dataDefinedBlocksMaximumNumberOfClasses" ) ) )
           return false;
 
         if ( !context )
           return true;
 
-        QgsMapLayer *mapLayer = QgsProcessingUtils::mapLayerFromString( layerMap.value( QStringLiteral( "layer" ) ).toString(), *context );
-        if ( !mapLayer || mapLayer->type() != QgsMapLayerType::VectorLayer )
+        mapLayer = QgsProcessingUtils::mapLayerFromString( layerMap.value( QStringLiteral( "layer" ) ).toString(), *context );
+        if ( !mapLayer || mapLayer->type() != Qgis::LayerType::Vector || !mapLayer->isSpatial() )
           return false;
 
-        QgsVectorLayer *vectorLayer = static_cast<QgsVectorLayer *>( mapLayer );
+        vectorLayer = static_cast<QgsVectorLayer *>( mapLayer );
 
         if ( !vectorLayer )
           return false;
@@ -102,18 +114,24 @@ bool QgsProcessingParameterDxfLayers::checkValueIsAcceptable( const QVariant &in
     }
     return true;
   }
-  else if ( input.type() == QVariant::StringList )
+  else if ( input.userType() == QMetaType::Type::QStringList )
   {
     const auto constToStringList = input.toStringList();
     if ( constToStringList.isEmpty() )
-      return mFlags & FlagOptional;
+      return mFlags & Qgis::ProcessingParameterFlag::Optional;
 
     if ( !context )
       return true;
 
     for ( const QString &v : constToStringList )
     {
-      if ( !QgsProcessingUtils::mapLayerFromString( v, *context ) )
+      mapLayer = QgsProcessingUtils::mapLayerFromString( v, *context );
+      if ( !mapLayer )
+        return false;
+
+      if ( mapLayer->type() == Qgis::LayerType::Vector && mapLayer->isSpatial() )
+        continue;
+      else
         return false;
     }
     return true;
@@ -130,10 +148,17 @@ QString QgsProcessingParameterDxfLayers::valueAsPythonString( const QVariant &va
   {
     QStringList layerDefParts;
     layerDefParts << QStringLiteral( "'layer': " ) + QgsProcessingUtils::stringToPythonLiteral( QgsProcessingUtils::normalizeLayerSource( layer.layer()->source() ) );
+
     if ( layer.layerOutputAttributeIndex() >= -1 )
       layerDefParts << QStringLiteral( "'attributeIndex': " ) + QgsProcessingUtils::variantToPythonLiteral( layer.layerOutputAttributeIndex() );
 
-    QString layerDef = QStringLiteral( "{%1}" ).arg( layerDefParts.join( ',' ) );
+    layerDefParts << QStringLiteral( "'overriddenLayerName': " ) + QgsProcessingUtils::stringToPythonLiteral( layer.overriddenName() );
+
+    layerDefParts << QStringLiteral( "'buildDataDefinedBlocks': " ) + QgsProcessingUtils::variantToPythonLiteral( layer.buildDataDefinedBlocks() );
+
+    layerDefParts << QStringLiteral( "'dataDefinedBlocksMaximumNumberOfClasses': " ) + QgsProcessingUtils::variantToPythonLiteral( layer.dataDefinedBlocksMaximumNumberOfClasses() );
+
+    const QString layerDef = QStringLiteral( "{%1}" ).arg( layerDefParts.join( ',' ) );
     parts << layerDef;
   }
   return parts.join( ',' ).prepend( '[' ).append( ']' );
@@ -143,13 +168,24 @@ QString QgsProcessingParameterDxfLayers::asPythonString( QgsProcessing::PythonOu
 {
   switch ( outputType )
   {
-    case QgsProcessing::PythonQgsProcessingAlgorithmSubclass:
+    case QgsProcessing::PythonOutputType::PythonQgsProcessingAlgorithmSubclass:
     {
-      QString code = QStringLiteral( "QgsProcessingParameterDxfLayers('%1', '%2')" ).arg( name(), description() );
+      QString code = QStringLiteral( "QgsProcessingParameterDxfLayers('%1', %2)" )
+                     .arg( name(), QgsProcessingUtils::stringToPythonLiteral( description() ) );
       return code;
     }
   }
   return QString();
+}
+
+QString QgsProcessingParameterDxfLayers::valueAsString( const QVariant &value, QgsProcessingContext &context, bool &ok ) const
+{
+  return valueAsStringPrivate( value, context, ok, ValueAsStringFlag::AllowMapLayerValues );
+}
+
+QVariant QgsProcessingParameterDxfLayers::valueAsJsonObject( const QVariant &value, QgsProcessingContext &context ) const
+{
+  return valueAsJsonObjectPrivate( value, context, ValueAsStringFlag::AllowMapLayerValues );
 }
 
 QList<QgsDxfExport::DxfLayer> QgsProcessingParameterDxfLayers::parameterAsLayers( const QVariant &layersVariant, QgsProcessingContext &context )
@@ -161,29 +197,29 @@ QList<QgsDxfExport::DxfLayer> QgsProcessingParameterDxfLayers::parameterAsLayers
     layers << QgsDxfExport::DxfLayer( layer );
   }
 
-  if ( layersVariant.type() == QVariant::String )
+  if ( layersVariant.userType() == QMetaType::Type::QString )
   {
     QgsMapLayer *mapLayer = QgsProcessingUtils::mapLayerFromString( layersVariant.toString(), context );
     layers << QgsDxfExport::DxfLayer( static_cast<QgsVectorLayer *>( mapLayer ) );
   }
-  else if ( layersVariant.type() == QVariant::List )
+  else if ( layersVariant.userType() == QMetaType::Type::QVariantList )
   {
     const QVariantList layersVariantList = layersVariant.toList();
     for ( const QVariant &layerItem : layersVariantList )
     {
-      if ( layerItem.type() == QVariant::Map )
+      if ( layerItem.userType() == QMetaType::Type::QVariantMap )
       {
-        QVariantMap layerVariantMap = layerItem.toMap();
+        const QVariantMap layerVariantMap = layerItem.toMap();
         layers << variantMapAsLayer( layerVariantMap, context );
       }
-      else if ( layerItem.type() == QVariant::String )
+      else if ( layerItem.userType() == QMetaType::Type::QString )
       {
         QgsMapLayer *mapLayer = QgsProcessingUtils::mapLayerFromString( layerItem.toString(), context );
         layers << QgsDxfExport::DxfLayer( static_cast<QgsVectorLayer *>( mapLayer ) );
       }
     }
   }
-  else if ( layersVariant.type() == QVariant::StringList )
+  else if ( layersVariant.userType() == QMetaType::Type::QStringList )
   {
     const auto layersStringList = layersVariant.toStringList();
     for ( const QString &layerItem : layersStringList )
@@ -198,7 +234,7 @@ QList<QgsDxfExport::DxfLayer> QgsProcessingParameterDxfLayers::parameterAsLayers
 
 QgsDxfExport::DxfLayer QgsProcessingParameterDxfLayers::variantMapAsLayer( const QVariantMap &layerVariantMap, QgsProcessingContext &context )
 {
-  QVariant layerVariant = layerVariantMap[ QStringLiteral( "layer" ) ];
+  const QVariant layerVariant = layerVariantMap[ QStringLiteral( "layer" ) ];
 
   QgsVectorLayer *inputLayer = nullptr;
   if ( ( inputLayer = qobject_cast< QgsVectorLayer * >( qvariant_cast<QObject *>( layerVariant ) ) ) )
@@ -214,7 +250,11 @@ QgsDxfExport::DxfLayer QgsProcessingParameterDxfLayers::variantMapAsLayer( const
     // bad
   }
 
-  QgsDxfExport::DxfLayer dxfLayer( inputLayer, layerVariantMap[ QStringLiteral( "attributeIndex" ) ].toInt() );
+  QgsDxfExport::DxfLayer dxfLayer( inputLayer,
+                                   layerVariantMap[ QStringLiteral( "attributeIndex" ) ].toInt(),
+                                   layerVariantMap[ QStringLiteral( "buildDataDefinedBlocks" ) ].toBool(),
+                                   layerVariantMap[ QStringLiteral( "dataDefinedBlocksMaximumNumberOfClasses" ) ].toInt(),
+                                   layerVariantMap[ QStringLiteral( "overriddenLayerName" ) ].toString() );
   return dxfLayer;
 }
 
@@ -226,5 +266,8 @@ QVariantMap QgsProcessingParameterDxfLayers::layerAsVariantMap( const QgsDxfExpo
 
   vm[ QStringLiteral( "layer" )] = layer.layer()->id();
   vm[ QStringLiteral( "attributeIndex" ) ] = layer.layerOutputAttributeIndex();
+  vm[ QStringLiteral( "overriddenLayerName" ) ] = layer.overriddenName();
+  vm[ QStringLiteral( "buildDataDefinedBlocks" ) ] = layer.buildDataDefinedBlocks();
+  vm[ QStringLiteral( "dataDefinedBlocksMaximumNumberOfClasses" ) ] = layer.dataDefinedBlocksMaximumNumberOfClasses();
   return vm;
 }

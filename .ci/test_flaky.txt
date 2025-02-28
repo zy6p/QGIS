@@ -1,12 +1,6 @@
 # flaky
-qgis_filedownloader
-qgis_wcsprovidertest
+test_gui_filedownloader
+test_provider_wcsprovider
 PyQgsWFSProviderGUI
-qgis_ziplayertest
-
-# Flaky, the ms odbc driver crashes a lot on the ubuntu docker image. Retest when
-# the docker base image is upgraded
-PyQgsMssqlProvider
-
-# Crashes randomly from time to time on CI in the OCI library
-PyQgsOracleProvider
+# See https://github.com/qgis/QGIS/issues/48927
+test_core_tiledownloadmanager

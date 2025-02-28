@@ -19,7 +19,6 @@
 #include "qgsgeometryengine.h"
 #include "qgslogger.h"
 #include "qgsspatialindex.h"
-#include "qgsmessagelog.h"
 #include "qgsproject.h"
 #include "qgsexception.h"
 #include "qgsexpressioncontextutils.h"
@@ -29,10 +28,8 @@
 QgsMemoryFeatureIterator::QgsMemoryFeatureIterator( QgsMemoryFeatureSource *source, bool ownSource, const QgsFeatureRequest &request )
   : QgsAbstractFeatureIteratorFromSource<QgsMemoryFeatureSource>( source, ownSource, request )
 {
-  if ( mRequest.destinationCrs().isValid() && mRequest.destinationCrs() != mSource->mCrs )
-  {
-    mTransform = QgsCoordinateTransform( mSource->mCrs, mRequest.destinationCrs(), mRequest.transformContext() );
-  }
+  mTransform = mRequest.calculateTransform( mSource->mCrs );
+
   try
   {
     mFilterRect = filterRectToSourceCrs( mTransform );
@@ -50,11 +47,29 @@ QgsMemoryFeatureIterator::QgsMemoryFeatureIterator( QgsMemoryFeatureSource *sour
     mSubsetExpression->prepare( mSource->expressionContext() );
   }
 
-  if ( !mFilterRect.isNull() && mRequest.flags() & QgsFeatureRequest::ExactIntersect )
+  // prepare spatial filter geometries for optimal speed
+  switch ( mRequest.spatialFilterType() )
   {
-    mSelectRectGeom = QgsGeometry::fromRect( mFilterRect );
-    mSelectRectEngine.reset( QgsGeometry::createGeometryEngine( mSelectRectGeom.constGet() ) );
-    mSelectRectEngine->prepareGeometry();
+    case Qgis::SpatialFilterType::NoFilter:
+      break;
+
+    case Qgis::SpatialFilterType::BoundingBox:
+      if ( !mFilterRect.isNull() && ( mRequest.flags() & Qgis::FeatureRequestFlag::ExactIntersect ) )
+      {
+        mSelectRectGeom = QgsGeometry::fromRect( mFilterRect );
+        mSelectRectEngine.reset( QgsGeometry::createGeometryEngine( mSelectRectGeom.constGet() ) );
+        mSelectRectEngine->prepareGeometry();
+      }
+      break;
+
+    case Qgis::SpatialFilterType::DistanceWithin:
+      if ( !mRequest.referenceGeometry().isEmpty() )
+      {
+        mDistanceWithinGeom = mRequest.referenceGeometry();
+        mDistanceWithinEngine.reset( QgsGeometry::createGeometryEngine( mDistanceWithinGeom.constGet() ) );
+        mDistanceWithinEngine->prepareGeometry();
+      }
+      break;
   }
 
   // if there's spatial index, use it!
@@ -65,17 +80,18 @@ QgsMemoryFeatureIterator::QgsMemoryFeatureIterator( QgsMemoryFeatureSource *sour
     mFeatureIdList = mSource->mSpatialIndex->intersects( mFilterRect );
     QgsDebugMsgLevel( "Features returned by spatial index: " + QString::number( mFeatureIdList.count() ), 2 );
   }
-  else if ( mRequest.filterType() == QgsFeatureRequest::FilterFid )
+  else if ( mRequest.filterType() == Qgis::FeatureRequestFilterType::Fid )
   {
     mUsingFeatureIdList = true;
-    QgsFeatureMap::const_iterator it = mSource->mFeatures.constFind( mRequest.filterFid() );
+    const QgsFeatureMap::const_iterator it = mSource->mFeatures.constFind( mRequest.filterFid() );
     if ( it != mSource->mFeatures.constEnd() )
       mFeatureIdList.append( mRequest.filterFid() );
   }
-  else if ( mRequest.filterType() == QgsFeatureRequest::FilterFids )
+  else if ( mRequest.filterType() == Qgis::FeatureRequestFilterType::Fids )
   {
     mUsingFeatureIdList = true;
-    mFeatureIdList = qgis::setToList( mRequest.filterFids() );
+    const QgsFeatureIds filterFids = mRequest.filterFids();
+    mFeatureIdList = QList<QgsFeatureId>( filterFids.begin(), filterFids.end() );
   }
   else
   {
@@ -109,16 +125,15 @@ bool QgsMemoryFeatureIterator::nextFeatureUsingList( QgsFeature &feature )
   bool hasFeature = false;
 
   // option 1: we have a list of features to traverse
-  QgsFeature candidate;
   while ( mFeatureIdListIterator != mFeatureIdList.constEnd() )
   {
-    candidate = mSource->mFeatures.value( *mFeatureIdListIterator );
+    feature = mSource->mFeatures.value( *mFeatureIdListIterator );
     if ( !mFilterRect.isNull() )
     {
-      if ( mRequest.flags() & QgsFeatureRequest::ExactIntersect )
+      if ( mRequest.spatialFilterType() == Qgis::SpatialFilterType::BoundingBox && ( mRequest.flags() & Qgis::FeatureRequestFlag::ExactIntersect ) )
       {
         // do exact check in case we're doing intersection
-        if ( candidate.hasGeometry() && mSelectRectEngine->intersects( candidate.geometry().constGet() ) )
+        if ( feature.hasGeometry() && mSelectRectEngine->intersects( feature.geometry().constGet() ) )
           hasFeature = true;
       }
       else if ( mSource->mSpatialIndex )
@@ -129,39 +144,43 @@ bool QgsMemoryFeatureIterator::nextFeatureUsingList( QgsFeature &feature )
       else
       {
         // do bounding box check if we aren't using a spatial index
-        if ( candidate.hasGeometry() && candidate.geometry().boundingBoxIntersects( mFilterRect ) )
+        if ( feature.hasGeometry() && feature.geometry().boundingBoxIntersects( mFilterRect ) )
           hasFeature = true;
       }
     }
     else
       hasFeature = true;
 
+    if ( hasFeature )
+      feature.setFields( mSource->mFields ); // allow name-based attribute lookups
+
     if ( hasFeature && mSubsetExpression )
     {
-      mSource->expressionContext()->setFeature( candidate );
+      mSource->expressionContext()->setFeature( feature );
       if ( !mSubsetExpression->evaluate( mSource->expressionContext() ).toBool() )
         hasFeature = false;
     }
 
     if ( hasFeature )
+    {
+      // geometry must be in destination crs before we can perform distance within check
+      geometryToDestinationCrs( feature, mTransform );
+    }
+
+    if ( hasFeature && mRequest.spatialFilterType() == Qgis::SpatialFilterType::DistanceWithin )
+    {
+      hasFeature = mDistanceWithinEngine->distance( feature.geometry().constGet() ) <= mRequest.distanceWithin();
+    }
+
+    ++mFeatureIdListIterator;
+    if ( hasFeature )
       break;
-
-    ++mFeatureIdListIterator;
   }
 
-  // copy feature
-  if ( hasFeature )
+  feature.setValid( hasFeature );
+  if ( !hasFeature )
   {
-    feature = candidate;
-    ++mFeatureIdListIterator;
-  }
-  else
     close();
-
-  if ( hasFeature )
-  {
-    feature.setFields( mSource->mFields ); // allow name-based attribute lookups
-    geometryToDestinationCrs( feature, mTransform );
   }
 
   return hasFeature;
@@ -175,6 +194,8 @@ bool QgsMemoryFeatureIterator::nextFeatureTraverseAll( QgsFeature &feature )
   // option 2: traversing the whole layer
   while ( mSelectIterator != mSource->mFeatures.constEnd() )
   {
+    hasFeature = false;
+    feature = *mSelectIterator;
     if ( mFilterRect.isNull() )
     {
       // selection rect empty => using all features
@@ -182,44 +203,54 @@ bool QgsMemoryFeatureIterator::nextFeatureTraverseAll( QgsFeature &feature )
     }
     else
     {
-      if ( mRequest.flags() & QgsFeatureRequest::ExactIntersect )
+      if ( mRequest.spatialFilterType() == Qgis::SpatialFilterType::BoundingBox && ( mRequest.flags() & Qgis::FeatureRequestFlag::ExactIntersect ) )
       {
         // using exact test when checking for intersection
-        if ( mSelectIterator->hasGeometry() && mSelectRectEngine->intersects( mSelectIterator->geometry().constGet() ) )
+        if ( feature.hasGeometry() && mSelectRectEngine->intersects( feature.geometry().constGet() ) )
           hasFeature = true;
       }
       else
       {
         // check just bounding box against rect when not using intersection
-        if ( mSelectIterator->hasGeometry() && mSelectIterator->geometry().boundingBox().intersects( mFilterRect ) )
+        if ( feature.hasGeometry() && feature.geometry().boundingBox().intersects( mFilterRect ) )
           hasFeature = true;
       }
     }
 
-    if ( mSubsetExpression )
+    if ( hasFeature && mSubsetExpression )
     {
-      mSource->expressionContext()->setFeature( *mSelectIterator );
+      mSource->expressionContext()->setFeature( feature );
       if ( !mSubsetExpression->evaluate( mSource->expressionContext() ).toBool() )
         hasFeature = false;
     }
 
     if ( hasFeature )
-      break;
+    {
+      // geometry must be in destination crs before we can perform distance within check
+      geometryToDestinationCrs( feature, mTransform );
+    }
+
+    if ( hasFeature && mRequest.spatialFilterType() == Qgis::SpatialFilterType::DistanceWithin )
+    {
+      hasFeature = mDistanceWithinEngine->distance( feature.geometry().constGet() ) <= mRequest.distanceWithin();
+    }
 
     ++mSelectIterator;
+    if ( hasFeature )
+      break;
   }
 
   // copy feature
   if ( hasFeature )
   {
-    feature = mSelectIterator.value();
-    ++mSelectIterator;
     feature.setValid( true );
     feature.setFields( mSource->mFields ); // allow name-based attribute lookups
-    geometryToDestinationCrs( feature, mTransform );
   }
   else
+  {
+    feature.setValid( false );
     close();
+  }
 
   return hasFeature;
 }
@@ -273,7 +304,7 @@ QgsExpressionContext *QgsMemoryFeatureSource::expressionContext()
     mExpressionContext = std::make_unique< QgsExpressionContext >(
                            QList<QgsExpressionContextScope *>()
                            << QgsExpressionContextUtils::globalScope()
-                           << QgsExpressionContextUtils::projectScope( QgsProject::instance() ) );
+                           << QgsExpressionContextUtils::projectScope( QgsProject::instance() ) ); // skip-keyword-check
     mExpressionContext->setFields( mFields );
   }
   return mExpressionContext.get();

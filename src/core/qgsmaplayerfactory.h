@@ -20,8 +20,12 @@
 
 #include "qgis_core.h"
 #include "qgis.h"
+#include "qgscoordinatetransformcontext.h"
 
 #include <QString>
+
+class QgsMapLayer;
+
 
 /**
  * \ingroup core
@@ -43,14 +47,60 @@ class CORE_EXPORT QgsMapLayerFactory
      *
      * \see typeToString()
      */
-    static QgsMapLayerType typeFromString( const QString &string, bool &ok SIP_OUT );
+    static Qgis::LayerType typeFromString( const QString &string, bool &ok SIP_OUT );
 
     /**
      * Converts a map layer \a type to a string value.
      *
      * \see typeFromString()
      */
-    static QString typeToString( QgsMapLayerType type );
+    static QString typeToString( Qgis::LayerType type );
+
+    /**
+     * Setting options for loading layers.
+     *
+     * \since QGIS 3.22
+     */
+    struct LayerOptions
+    {
+
+      /**
+       * Constructor for LayerOptions with \a transformContext.
+       */
+      explicit LayerOptions( const QgsCoordinateTransformContext &transformContext )
+        : transformContext( transformContext )
+      {}
+
+      //! Transform context
+      QgsCoordinateTransformContext transformContext;
+
+      //! Set to TRUE if the default layer style should be loaded
+      bool loadDefaultStyle = true;
+
+      /**
+       * Controls whether the stored styles will be all loaded.
+       *
+       * If TRUE and the layer's provider supports style stored in the
+       * data source all the available styles will be loaded in addition
+       * to the default one.
+       *
+       * If FALSE (the default), the layer's provider will only load
+       * the default style.
+       *
+       * \since QGIS 3.30
+       */
+      bool loadAllStoredStyles = false;
+    };
+
+    /**
+     * Creates a map layer, given a \a uri, \a name, layer \a type and \a provider name.
+     *
+     * Caller takes ownership of the returned layer.
+     *
+     * \since QGIS 3.22
+     */
+    static QgsMapLayer *createLayer( const QString &uri, const QString &name, Qgis::LayerType type, const LayerOptions &options,
+                                     const QString &provider = QString() ) SIP_FACTORY;
 
 };
 

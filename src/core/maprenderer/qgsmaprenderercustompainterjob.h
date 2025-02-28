@@ -28,7 +28,7 @@
  *
  * \since QGIS 3.10
  */
-class CORE_EXPORT QgsMapRendererAbstractCustomPainterJob : public QgsMapRendererJob
+class CORE_EXPORT QgsMapRendererAbstractCustomPainterJob : public QgsMapRendererJob SIP_ABSTRACT
 {
     Q_OBJECT
   public:
@@ -58,7 +58,6 @@ class CORE_EXPORT QgsMapRendererAbstractCustomPainterJob : public QgsMapRenderer
  * is not an option because of some technical limitations (e.g. printing to printer on some
  * platforms).
  *
- * \since QGIS 2.4
  */
 class CORE_EXPORT QgsMapRendererCustomPainterJob : public QgsMapRendererAbstractCustomPainterJob
 {
@@ -67,7 +66,6 @@ class CORE_EXPORT QgsMapRendererCustomPainterJob : public QgsMapRendererAbstract
     QgsMapRendererCustomPainterJob( const QgsMapSettings &settings, QPainter *painter );
     ~QgsMapRendererCustomPainterJob() override;
 
-    void start() override;
     void cancel() override;
     void cancelWithoutBlocking() override;
     void waitForFinished() override;
@@ -76,7 +74,7 @@ class CORE_EXPORT QgsMapRendererCustomPainterJob : public QgsMapRendererAbstract
     QgsLabelingResults *takeLabelingResults() SIP_TRANSFER override;
 
     //! \note not available in Python bindings
-    const LayerRenderJobs &jobs() const { return mLayerJobs; } SIP_SKIP
+    const std::vector< LayerRenderJob > &jobs() const SIP_SKIP { return mLayerJobs; }
 
     /**
      * Wait for the job to be finished - and keep the thread's event loop running while waiting.
@@ -128,11 +126,14 @@ class CORE_EXPORT QgsMapRendererCustomPainterJob : public QgsMapRendererAbstract
      */
     void renderPrepared();
 
+
   private slots:
     void futureFinished();
 
   private:
     static void staticRender( QgsMapRendererCustomPainterJob *self ); // function to be used within the thread
+
+    void startPrivate() override;
 
     // these methods are called within worker thread
     void doRender();
@@ -143,13 +144,13 @@ class CORE_EXPORT QgsMapRendererCustomPainterJob : public QgsMapRendererAbstract
     std::unique_ptr< QgsLabelingEngine > mLabelingEngineV2;
 
     bool mActive;
-    LayerRenderJobs mLayerJobs;
+    std::vector< LayerRenderJob > mLayerJobs;
     LabelRenderJob mLabelJob;
     bool mRenderSynchronously = false;
     bool mPrepared = false;
     bool mPrepareOnly = false;
 
-    LayerRenderJobs mSecondPassLayerJobs;
+    std::vector< LayerRenderJob > mSecondPassLayerJobs;
 };
 
 

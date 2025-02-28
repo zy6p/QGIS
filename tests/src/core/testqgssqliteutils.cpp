@@ -31,17 +31,16 @@ class TestQgsSqliteUtils : public QObject
     Q_OBJECT
 
   public:
-
     TestQgsSqliteUtils() = default;
 
 
   private slots:
 
     // init / cleanup
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init() {}// will be called before each testfunction is executed.
-    void cleanup() {}// will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init() {}          // will be called before each testfunction is executed.
+    void cleanup() {}       // will be called after every testfunction.
     // void initStyles();
 
     void testPrintfAscii();
@@ -70,8 +69,6 @@ void TestQgsSqliteUtils::initTestCase()
   QCoreApplication::setOrganizationName( QStringLiteral( "QGIS" ) );
   QCoreApplication::setOrganizationDomain( QStringLiteral( "qgis.org" ) );
   QCoreApplication::setApplicationName( QStringLiteral( "QGIS-TEST" ) );
-
-
 }
 
 void TestQgsSqliteUtils::cleanupTestCase()
@@ -81,18 +78,18 @@ void TestQgsSqliteUtils::cleanupTestCase()
 
 void TestQgsSqliteUtils::testPrintfAscii()
 {
-  QString tag( "Meteor" );
-  QString query( qgs_sqlite3_mprintf( "SELECT id FROM tag WHERE LOWER(name)='%q'", tag.toUtf8().toLower().constData() ) );
+  const QString tag( "Meteor" );
+  const QString query( qgs_sqlite3_mprintf( "SELECT id FROM tag WHERE LOWER(name)='%q'", tag.toUtf8().toLower().constData() ) );
   QCOMPARE( query, QString( "SELECT id FROM tag WHERE LOWER(name)='%1'" ).arg( tag.toLower() ) );
 }
 
 
 void TestQgsSqliteUtils::testPrintfUtf8()
 {
-  QString tag( "МЕТЕОР" );
+  const QString tag( "МЕТЕОР" );
   QCOMPARE( tag.toLower(), QString( "метеор" ) );
-  QString lowerTag( tag.toLower() );
-  QString query( qgs_sqlite3_mprintf( "SELECT id FROM tag WHERE LOWER(name)='%q'", lowerTag.toUtf8().constData() ) );
+  const QString lowerTag( tag.toLower() );
+  const QString query( qgs_sqlite3_mprintf( "SELECT id FROM tag WHERE LOWER(name)='%q'", lowerTag.toUtf8().constData() ) );
   QCOMPARE( query, QString( "SELECT id FROM tag WHERE LOWER(name)='%1'" ).arg( lowerTag ) );
 }
 

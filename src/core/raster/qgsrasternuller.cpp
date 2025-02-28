@@ -62,7 +62,7 @@ int QgsRasterNuller::bandCount() const
 Qgis::DataType QgsRasterNuller::dataType( int bandNo ) const
 {
   if ( mInput ) return mInput->dataType( bandNo );
-  return Qgis::UnknownDataType;
+  return Qgis::DataType::UnknownDataType;
 }
 
 QgsRasterBlock *QgsRasterNuller::block( int bandNo, QgsRectangle  const &extent, int width, int height, QgsRasterBlockFeedback *feedback )
@@ -85,7 +85,7 @@ QgsRasterBlock *QgsRasterNuller::block( int bandNo, QgsRectangle  const &extent,
     return inputBlock.release();
   }
 
-  std::unique_ptr< QgsRasterBlock > outputBlock( new QgsRasterBlock( inputBlock->dataType(), width, height ) );
+  auto outputBlock = std::make_unique<QgsRasterBlock>( inputBlock->dataType(), width, height );
   if ( mHasOutputNoData.value( bandNo - 1 ) || inputBlock->hasNoDataValue() )
   {
     double noDataValue;
@@ -105,7 +105,7 @@ QgsRasterBlock *QgsRasterNuller::block( int bandNo, QgsRectangle  const &extent,
   {
     for ( int j = 0; j < width; j++ )
     {
-      double value = inputBlock->valueAndNoData( i, j, isNoData );
+      const double value = inputBlock->valueAndNoData( i, j, isNoData );
 
       if ( QgsRasterRange::contains( value, mNoData.value( bandNo - 1 ) ) )
       {

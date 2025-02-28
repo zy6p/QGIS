@@ -16,6 +16,7 @@
 
 
 #include "qgsauthcertificateinfo.h"
+#include "moc_qgsauthcertificateinfo.cpp"
 #include "ui_qgsauthcertificateinfo.h"
 
 #include <QtCrypto>
@@ -31,28 +32,7 @@
 #include "qgsauthmanager.h"
 #include "qgslogger.h"
 
-
-static void setItemBold_( QTreeWidgetItem *item )
-{
-  item->setFirstColumnSpanned( true );
-  QFont secf( item->font( 0 ) );
-  secf.setBold( true );
-  item->setFont( 0, secf );
-}
-
-static void removeChildren_( QTreeWidgetItem *item )
-{
-  const auto constTakeChildren = item->takeChildren();
-  for ( QTreeWidgetItem *child : constTakeChildren )
-  {
-    delete child;
-  }
-}
-
-QgsAuthCertInfo::QgsAuthCertInfo( const QSslCertificate &cert,
-                                  bool manageCertTrust,
-                                  QWidget *parent,
-                                  const QList<QSslCertificate> &connectionCAs )
+QgsAuthCertInfo::QgsAuthCertInfo( const QSslCertificate &cert, bool manageCertTrust, QWidget *parent, const QList<QSslCertificate> &connectionCAs )
   : QWidget( parent )
   , mConnectionCAs( connectionCAs )
   , mDefaultItemForeground( QBrush() )
@@ -78,8 +58,7 @@ QgsAuthCertInfo::QgsAuthCertInfo( const QSslCertificate &cert,
 
     treeHierarchy->setRootIsDecorated( false );
 
-    connect( treeHierarchy, &QTreeWidget::currentItemChanged,
-             this, &QgsAuthCertInfo::currentCertItemChanged );
+    connect( treeHierarchy, &QTreeWidget::currentItemChanged, this, &QgsAuthCertInfo::currentCertItemChanged );
 
     mCaCertsCache = QgsApplication::authManager()->caCertsCache();
 
@@ -100,8 +79,7 @@ QgsAuthCertInfo::QgsAuthCertInfo( const QSslCertificate &cert,
     if ( res )
       setCertHierarchy();
 
-    connect( cmbbxTrust, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ),
-             this, &QgsAuthCertInfo::currentPolicyIndexChanged );
+    connect( cmbbxTrust, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsAuthCertInfo::currentPolicyIndexChanged );
   }
 }
 
@@ -127,17 +105,17 @@ void QgsAuthCertInfo::updateCurrentCert( QTreeWidgetItem *item )
   if ( !item )
     return;
 
-  int indx( item->data( 0, Qt::UserRole ).toInt() );
+  const int indx( item->data( 0, Qt::UserRole ).toInt() );
   updateCurrentCertInfo( indx );
 }
 
 bool QgsAuthCertInfo::populateQcaCertCollection()
 {
-  const QList<QPair<QgsAuthCertUtils::CaCertSource, QSslCertificate> > &certpairs( mCaCertsCache.values() );
+  const QList<QPair<QgsAuthCertUtils::CaCertSource, QSslCertificate>> &certpairs( mCaCertsCache.values() );
   for ( int i = 0; i < certpairs.size(); ++i )
   {
     QCA::ConvertResult res;
-    QCA::Certificate acert = QCA::Certificate::fromPEM( certpairs.at( i ).second.toPem(), &res, QStringLiteral( "qca-ossl" ) );
+    const QCA::Certificate acert = QCA::Certificate::fromPEM( certpairs.at( i ).second.toPem(), &res, QStringLiteral( "qca-ossl" ) );
     if ( res == QCA::ConvertGood && !acert.isNull() )
     {
       mCaCerts.addCertificate( acert );
@@ -149,7 +127,7 @@ bool QgsAuthCertInfo::populateQcaCertCollection()
     for ( const QSslCertificate &cert : constMConnectionCAs )
     {
       QCA::ConvertResult res;
-      QCA::Certificate acert = QCA::Certificate::fromPEM( cert.toPem(), &res, QStringLiteral( "qca-ossl" ) );
+      const QCA::Certificate acert = QCA::Certificate::fromPEM( cert.toPem(), &res, QStringLiteral( "qca-ossl" ) );
       if ( res == QCA::ConvertGood && !acert.isNull() )
       {
         mCaCerts.addCertificate( acert );
@@ -179,20 +157,21 @@ bool QgsAuthCertInfo::setQcaCertificate( const QSslCertificate &cert )
 
 bool QgsAuthCertInfo::populateCertChain()
 {
-  QCA::CertificateChain certchain( mCert );
+  const QCA::CertificateChain certchain( mCert );
   QCA::Validity valid;
   mACertChain = certchain.complete( mCaCerts.certificates(), &valid );
   if ( valid != QCA::ValidityGood && valid != QCA::ErrorInvalidCA )
   {
     // invalid CAs are skipped to allow an incomplete chain
     setupError( tr( "Invalid population of QCA certificate chain.<br><br>"
-                    "Validity message: %1" ).arg( QgsAuthCertUtils::qcaValidityMessage( valid ) ) );
+                    "Validity message: %1" )
+                  .arg( QgsAuthCertUtils::qcaValidityMessage( valid ) ) );
     return false;
   }
 
   if ( mACertChain.isEmpty() )
   {
-    QgsDebugMsg( QStringLiteral( "Could not populate QCA certificate chain" ) );
+    QgsDebugError( QStringLiteral( "Could not populate QCA certificate chain" ) );
     mACertChain = certchain;
   }
 
@@ -204,7 +183,7 @@ bool QgsAuthCertInfo::populateCertChain()
 
   // mirror chain to QSslCertificate
   const auto constMACertChain = mACertChain;
-  for ( QCA::Certificate cert : constMACertChain )
+  for ( const QCA::Certificate &cert : constMACertChain )
   {
     QSslCertificate qcert;
     if ( !cert.isNull() )
@@ -225,8 +204,8 @@ void QgsAuthCertInfo::setCertHierarchy()
   QTreeWidgetItem *previtem = nullptr;
   while ( it.hasPrevious() )
   {
-    QSslCertificate cert( it.previous() );
-    bool missingCA = cert.isNull();
+    const QSslCertificate cert( it.previous() );
+    const bool missingCA = cert.isNull();
     QString cert_source;
     if ( missingCA && it.hasPrevious() )
     {
@@ -236,16 +215,16 @@ void QgsAuthCertInfo::setCertHierarchy()
     else
     {
       cert_source = QgsAuthCertUtils::resolvedCertName( cert );
-      QString sha = QgsAuthCertUtils::shaHexForCert( cert );
+      const QString sha = QgsAuthCertUtils::shaHexForCert( cert );
       if ( mCaCertsCache.contains( sha ) )
       {
-        const QPair<QgsAuthCertUtils::CaCertSource, QSslCertificate > &certpair( mCaCertsCache.value( sha ) );
+        const QPair<QgsAuthCertUtils::CaCertSource, QSslCertificate> &certpair( mCaCertsCache.value( sha ) );
         cert_source += QStringLiteral( " (%1)" ).arg( QgsAuthCertUtils::getCaSourceName( certpair.first, true ) );
       }
       else if ( mConnectionCAs.contains( cert ) )
       {
         cert_source += QStringLiteral( " (%1)" )
-                       .arg( QgsAuthCertUtils::getCaSourceName( QgsAuthCertUtils::Connection, true ) );
+                         .arg( QgsAuthCertUtils::getCaSourceName( QgsAuthCertUtils::Connection, true ) );
       }
     }
 
@@ -294,7 +273,7 @@ void QgsAuthCertInfo::updateCurrentCertInfo( int chainindx )
 
   if ( !mCurrentQCert.isNull() )
   {
-    QgsAuthCertUtils::CertTrustPolicy trustpolicy( QgsApplication::authManager()->certificateTrustPolicy( mCurrentQCert ) );
+    const QgsAuthCertUtils::CertTrustPolicy trustpolicy( QgsApplication::authManager()->certificateTrustPolicy( mCurrentQCert ) );
     mCurrentTrustPolicy = trustpolicy;
 
     cmbbxTrust->setTrustPolicy( trustpolicy );
@@ -324,8 +303,9 @@ void QgsAuthCertInfo::setUpCertDetailsTree()
   mSecGeneral = new QTreeWidgetItem(
     treeDetails,
     QStringList( tr( "General" ) ),
-    static_cast<int>( DetailsSection ) );
-  setItemBold_( mSecGeneral );
+    static_cast<int>( DetailsSection )
+  );
+  QgsAuthGuiUtils::setItemBold( mSecGeneral );
   mSecGeneral->setFirstColumnSpanned( true );
   mSecGeneral->setFlags( Qt::ItemIsEnabled );
   mSecGeneral->setExpanded( true );
@@ -334,8 +314,9 @@ void QgsAuthCertInfo::setUpCertDetailsTree()
   mSecDetails = new QTreeWidgetItem(
     treeDetails,
     QStringList( tr( "Details" ) ),
-    static_cast<int>( DetailsSection ) );
-  setItemBold_( mSecDetails );
+    static_cast<int>( DetailsSection )
+  );
+  QgsAuthGuiUtils::setItemBold( mSecDetails );
   mSecDetails->setFirstColumnSpanned( true );
   mSecDetails->setFlags( Qt::ItemIsEnabled );
   mSecDetails->setExpanded( false );
@@ -351,8 +332,9 @@ void QgsAuthCertInfo::setUpCertDetailsTree()
   mSecPemText = new QTreeWidgetItem(
     treeDetails,
     QStringList( tr( "PEM Text" ) ),
-    static_cast<int>( DetailsSection ) );
-  setItemBold_( mSecPemText );
+    static_cast<int>( DetailsSection )
+  );
+  QgsAuthGuiUtils::setItemBold( mSecPemText );
   mSecPemText->setFirstColumnSpanned( true );
   mSecPemText->setFlags( Qt::ItemIsEnabled );
   mSecPemText->setExpanded( false );
@@ -374,7 +356,8 @@ QTreeWidgetItem *QgsAuthCertInfo::addGroupItem( QTreeWidgetItem *parent, const Q
   QTreeWidgetItem *grpitem = new QTreeWidgetItem(
     parent,
     QStringList( group ),
-    static_cast<int>( DetailsGroup ) );
+    static_cast<int>( DetailsGroup )
+  );
 
   grpitem->setFirstColumnSpanned( true );
   grpitem->setFlags( Qt::ItemIsEnabled );
@@ -390,8 +373,7 @@ QTreeWidgetItem *QgsAuthCertInfo::addGroupItem( QTreeWidgetItem *parent, const Q
   return grpitem;
 }
 
-void QgsAuthCertInfo::addFieldItem( QTreeWidgetItem *parent, const QString &field, const QString &value,
-                                    QgsAuthCertInfo::FieldWidget wdgt, const QColor &color )
+void QgsAuthCertInfo::addFieldItem( QTreeWidgetItem *parent, const QString &field, const QString &value, QgsAuthCertInfo::FieldWidget wdgt, const QColor &color )
 {
   if ( value.isEmpty() )
     return;
@@ -399,7 +381,8 @@ void QgsAuthCertInfo::addFieldItem( QTreeWidgetItem *parent, const QString &fiel
   QTreeWidgetItem *item = new QTreeWidgetItem(
     parent,
     QStringList() << field << ( wdgt == NoWidget ? value : QString() ),
-    static_cast<int>( DetailsField ) );
+    static_cast<int>( DetailsField )
+  );
 
   item->setTextAlignment( 0, Qt::AlignRight );
   item->setTextAlignment( 1, Qt::AlignLeft );
@@ -442,18 +425,15 @@ void QgsAuthCertInfo::addFieldItem( QTreeWidgetItem *parent, const QString &fiel
     }
     item->treeWidget()->setItemWidget( item, 1, pte );
   }
-
 }
 
 void QgsAuthCertInfo::populateInfoGeneralSection()
 {
-  removeChildren_( mSecGeneral );
+  QgsAuthGuiUtils::removeChildren( mSecGeneral );
 
   if ( mCurrentQCert.isNull() )
   {
-    addFieldItem( mSecGeneral, tr( "Type" ),
-                  tr( "Missing CA (incomplete local CA chain)" ),
-                  LineEdit );
+    addFieldItem( mSecGeneral, tr( "Type" ), tr( "Missing CA (incomplete local CA chain)" ), LineEdit );
     mSecGeneral->setExpanded( true );
     mSecDetails->setHidden( true );
     mSecPemText->setHidden( true );
@@ -461,15 +441,16 @@ void QgsAuthCertInfo::populateInfoGeneralSection()
   }
 
   QString certype;
-  bool isselfsigned = mCurrentACert.isSelfSigned();
-  QString selfsigned( tr( "self-signed" ) );
+  const bool isselfsigned = mCurrentACert.isSelfSigned();
+  const QString selfsigned( tr( "self-signed" ) );
 
-  QList<QgsAuthCertUtils::CertUsageType> usagetypes(
-    QgsAuthCertUtils::certificateUsageTypes( mCurrentQCert ) );
-  bool isca = usagetypes.contains( QgsAuthCertUtils::CertAuthorityUsage );
-  bool isissuer = usagetypes.contains( QgsAuthCertUtils::CertIssuerUsage );
-  bool issslserver = usagetypes.contains( QgsAuthCertUtils::TlsServerUsage );
-  bool issslclient = usagetypes.contains( QgsAuthCertUtils::TlsClientUsage );
+  const QList<QgsAuthCertUtils::CertUsageType> usagetypes(
+    QgsAuthCertUtils::certificateUsageTypes( mCurrentQCert )
+  );
+  const bool isca = usagetypes.contains( QgsAuthCertUtils::CertAuthorityUsage );
+  const bool isissuer = usagetypes.contains( QgsAuthCertUtils::CertIssuerUsage );
+  const bool issslserver = usagetypes.contains( QgsAuthCertUtils::TlsServerUsage );
+  const bool issslclient = usagetypes.contains( QgsAuthCertUtils::TlsClientUsage );
 
   if ( issslclient )
   {
@@ -486,246 +467,136 @@ void QgsAuthCertInfo::populateInfoGeneralSection()
   if ( ( isissuer || isca ) && isselfsigned )
   {
     certype = QStringLiteral( "%1 %2" )
-              .arg( tr( "Root" ),
-                    QgsAuthCertUtils::certificateUsageTypeString( QgsAuthCertUtils::CertAuthorityUsage ) );
+                .arg( tr( "Root" ), QgsAuthCertUtils::certificateUsageTypeString( QgsAuthCertUtils::CertAuthorityUsage ) );
   }
   if ( isselfsigned )
   {
     certype.append( certype.isEmpty() ? selfsigned : QStringLiteral( " (%1)" ).arg( selfsigned ) );
   }
 
-  addFieldItem( mSecGeneral, tr( "Usage type" ),
-                certype,
-                LineEdit );
-  addFieldItem( mSecGeneral, tr( "Subject" ),
-                QgsAuthCertUtils::resolvedCertName( mCurrentQCert ),
-                LineEdit );
-  addFieldItem( mSecGeneral, tr( "Issuer" ),
-                QgsAuthCertUtils::resolvedCertName( mCurrentQCert, true ),
-                LineEdit );
-  addFieldItem( mSecGeneral, tr( "Not valid after" ),
-                mCurrentQCert.expiryDate().toString(),
-                LineEdit,
-                mCurrentQCert.expiryDate() < QDateTime::currentDateTime() ? QgsAuthGuiUtils::redColor() : QColor() );
+  addFieldItem( mSecGeneral, tr( "Usage type" ), certype, LineEdit );
+  addFieldItem( mSecGeneral, tr( "Subject" ), QgsAuthCertUtils::resolvedCertName( mCurrentQCert ), LineEdit );
+  addFieldItem( mSecGeneral, tr( "Issuer" ), QgsAuthCertUtils::resolvedCertName( mCurrentQCert, true ), LineEdit );
+  addFieldItem( mSecGeneral, tr( "Not valid after" ), mCurrentQCert.expiryDate().toString(), LineEdit, mCurrentQCert.expiryDate() < QDateTime::currentDateTime() ? QgsAuthGuiUtils::redColor() : QColor() );
 
-  QSslKey pubkey( mCurrentQCert.publicKey() );
-  QString alg( pubkey.algorithm() == QSsl::Rsa ? "RSA" : "DSA" );
-  int bitsize( pubkey.length() );
-  addFieldItem( mSecGeneral, tr( "Public key" ),
-                QStringLiteral( "%1, %2 bits" ).arg( alg, bitsize == -1 ? QStringLiteral( "?" ) : QString::number( bitsize ) ),
-                LineEdit );
-  addFieldItem( mSecGeneral, tr( "Signature algorithm" ),
-                QgsAuthCertUtils::qcaSignatureAlgorithm( mCurrentACert.signatureAlgorithm() ),
-                LineEdit );
+  const QSslKey pubkey( mCurrentQCert.publicKey() );
+  const QString alg( pubkey.algorithm() == QSsl::Rsa ? "RSA" : "DSA" );
+  const int bitsize( pubkey.length() );
+  addFieldItem( mSecGeneral, tr( "Public key" ), QStringLiteral( "%1, %2 bits" ).arg( alg, bitsize == -1 ? QStringLiteral( "?" ) : QString::number( bitsize ) ), LineEdit );
+  addFieldItem( mSecGeneral, tr( "Signature algorithm" ), QgsAuthCertUtils::qcaSignatureAlgorithm( mCurrentACert.signatureAlgorithm() ), LineEdit );
 }
 
 void QgsAuthCertInfo::populateInfoDetailsSection()
 {
-  removeChildren_( mGrpSubj );
-  removeChildren_( mGrpIssu );
-  removeChildren_( mGrpCert );
-  removeChildren_( mGrpPkey );
-  removeChildren_( mGrpExts );
+  QgsAuthGuiUtils::removeChildren( mGrpSubj );
+  QgsAuthGuiUtils::removeChildren( mGrpIssu );
+  QgsAuthGuiUtils::removeChildren( mGrpCert );
+  QgsAuthGuiUtils::removeChildren( mGrpPkey );
+  QgsAuthGuiUtils::removeChildren( mGrpExts );
 
   if ( mCurrentQCert.isNull() )
     return;
 
   // Subject Info
-  addFieldItem( mGrpSubj, tr( "Country (C)" ),
-                SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::CountryName ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "State/Province (ST)" ),
-                SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::StateOrProvinceName ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Locality (L)" ),
-                SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::LocalityName ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Organization (O)" ),
-                SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::Organization ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Organizational unit (OU)" ),
-                SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::OrganizationalUnitName ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Common name (CN)" ),
-                SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::CommonName ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Email address (E)" ),
-                mCurrentACert.subjectInfo().value( QCA::Email ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Distinguished name" ),
-                QgsAuthCertUtils::getCertDistinguishedName( mCurrentQCert, mCurrentACert, false ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Email Legacy" ),
-                mCurrentACert.subjectInfo().value( QCA::EmailLegacy ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Incorporation Country" ),
-                mCurrentACert.subjectInfo().value( QCA::IncorporationCountry ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Incorporation State/Province" ),
-                mCurrentACert.subjectInfo().value( QCA::IncorporationState ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "Incorporation Locality" ),
-                mCurrentACert.subjectInfo().value( QCA::IncorporationLocality ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "URI" ),
-                mCurrentACert.subjectInfo().value( QCA::URI ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "DNS" ),
-                mCurrentACert.subjectInfo().value( QCA::DNS ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "IP Address" ),
-                mCurrentACert.subjectInfo().value( QCA::IPAddress ),
-                LineEdit );
-  addFieldItem( mGrpSubj, tr( "XMPP" ),
-                mCurrentACert.subjectInfo().value( QCA::XMPP ),
-                LineEdit );
+  addFieldItem( mGrpSubj, tr( "Country (C)" ), SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::CountryName ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "State/Province (ST)" ), SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::StateOrProvinceName ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Locality (L)" ), SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::LocalityName ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Organization (O)" ), SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::Organization ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Organizational unit (OU)" ), SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::OrganizationalUnitName ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Common name (CN)" ), SSL_SUBJECT_INFO( mCurrentQCert, QSslCertificate::CommonName ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Email address (E)" ), mCurrentACert.subjectInfo().value( QCA::Email ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Distinguished name" ), QgsAuthCertUtils::getCertDistinguishedName( mCurrentQCert, mCurrentACert, false ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Email Legacy" ), mCurrentACert.subjectInfo().value( QCA::EmailLegacy ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Incorporation Country" ), mCurrentACert.subjectInfo().value( QCA::IncorporationCountry ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Incorporation State/Province" ), mCurrentACert.subjectInfo().value( QCA::IncorporationState ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "Incorporation Locality" ), mCurrentACert.subjectInfo().value( QCA::IncorporationLocality ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "URI" ), mCurrentACert.subjectInfo().value( QCA::URI ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "DNS" ), mCurrentACert.subjectInfo().value( QCA::DNS ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "IP Address" ), mCurrentACert.subjectInfo().value( QCA::IPAddress ), LineEdit );
+  addFieldItem( mGrpSubj, tr( "XMPP" ), mCurrentACert.subjectInfo().value( QCA::XMPP ), LineEdit );
 
-  QMultiMap<QSsl::AlternativeNameEntryType, QString> alts( mCurrentQCert.subjectAlternativeNames() );
+  const QMultiMap<QSsl::AlternativeNameEntryType, QString> alts( mCurrentQCert.subjectAlternativeNames() );
   QStringList altslist;
-  QString email( tr( "Email: " ) );
-  QStringList emails( alts.values( QSsl::EmailEntry ) );
+  const QString email( tr( "Email: " ) );
+  const QStringList emails( alts.values( QSsl::EmailEntry ) );
   if ( !emails.isEmpty() )
   {
     altslist << email + emails.join( '\n' + email );
   }
-  QString dns( tr( "DNS: " ) );
-  QStringList dnss( alts.values( QSsl::DnsEntry ) );
+  const QString dns( tr( "DNS: " ) );
+  const QStringList dnss( alts.values( QSsl::DnsEntry ) );
   if ( !dnss.isEmpty() )
   {
     altslist << dns + dnss.join( '\n' + dns );
   }
-  addFieldItem( mGrpSubj, tr( "Alternate names" ),
-                altslist.join( QLatin1Char( '\n' ) ),
-                TextEdit );
+  addFieldItem( mGrpSubj, tr( "Alternate names" ), altslist.join( QLatin1Char( '\n' ) ), TextEdit );
 
   // Issuer Info
-  addFieldItem( mGrpIssu, tr( "Country (C)" ),
-                SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::CountryName ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "State/Province (ST)" ),
-                SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::StateOrProvinceName ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Locality (L)" ),
-                SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::LocalityName ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Organization (O)" ),
-                SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::Organization ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Organizational unit (OU)" ),
-                SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::OrganizationalUnitName ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Common name (CN)" ),
-                SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::CommonName ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Email address (E)" ),
-                mCurrentACert.issuerInfo().value( QCA::Email ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Distinguished name" ),
-                QgsAuthCertUtils::getCertDistinguishedName( mCurrentQCert, mCurrentACert, true ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Email Legacy" ),
-                mCurrentACert.issuerInfo().value( QCA::EmailLegacy ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Incorporation Country" ),
-                mCurrentACert.issuerInfo().value( QCA::IncorporationCountry ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Incorporation State/Province" ),
-                mCurrentACert.issuerInfo().value( QCA::IncorporationState ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "Incorporation Locality" ),
-                mCurrentACert.issuerInfo().value( QCA::IncorporationLocality ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "URI" ),
-                mCurrentACert.issuerInfo().value( QCA::URI ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "DNS" ),
-                mCurrentACert.issuerInfo().value( QCA::DNS ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "IP Address" ),
-                mCurrentACert.issuerInfo().value( QCA::IPAddress ),
-                LineEdit );
-  addFieldItem( mGrpIssu, tr( "XMPP" ),
-                mCurrentACert.issuerInfo().value( QCA::XMPP ),
-                LineEdit );
+  addFieldItem( mGrpIssu, tr( "Country (C)" ), SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::CountryName ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "State/Province (ST)" ), SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::StateOrProvinceName ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Locality (L)" ), SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::LocalityName ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Organization (O)" ), SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::Organization ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Organizational unit (OU)" ), SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::OrganizationalUnitName ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Common name (CN)" ), SSL_ISSUER_INFO( mCurrentQCert, QSslCertificate::CommonName ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Email address (E)" ), mCurrentACert.issuerInfo().value( QCA::Email ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Distinguished name" ), QgsAuthCertUtils::getCertDistinguishedName( mCurrentQCert, mCurrentACert, true ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Email Legacy" ), mCurrentACert.issuerInfo().value( QCA::EmailLegacy ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Incorporation Country" ), mCurrentACert.issuerInfo().value( QCA::IncorporationCountry ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Incorporation State/Province" ), mCurrentACert.issuerInfo().value( QCA::IncorporationState ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "Incorporation Locality" ), mCurrentACert.issuerInfo().value( QCA::IncorporationLocality ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "URI" ), mCurrentACert.issuerInfo().value( QCA::URI ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "DNS" ), mCurrentACert.issuerInfo().value( QCA::DNS ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "IP Address" ), mCurrentACert.issuerInfo().value( QCA::IPAddress ), LineEdit );
+  addFieldItem( mGrpIssu, tr( "XMPP" ), mCurrentACert.issuerInfo().value( QCA::XMPP ), LineEdit );
 
   // Certificate Info
-  addFieldItem( mGrpCert, tr( "Version" ),
-                mCurrentQCert.version(),
-                LineEdit );
-  addFieldItem( mGrpCert, tr( "Serial #" ),
-                mCurrentQCert.serialNumber(),
-                LineEdit );
-  addFieldItem( mGrpCert, tr( "Not valid before" ),
-                mCurrentQCert.effectiveDate().toString(),
-                LineEdit,
-                mCurrentQCert.effectiveDate() > QDateTime::currentDateTime() ? QgsAuthGuiUtils::redColor() : QColor() );
-  addFieldItem( mGrpCert, tr( "Not valid after" ),
-                mCurrentQCert.expiryDate().toString(),
-                LineEdit,
-                mCurrentQCert.expiryDate() < QDateTime::currentDateTime() ? QgsAuthGuiUtils::redColor() : QColor() );
-  addFieldItem( mGrpCert, tr( "Signature algorithm" ),
-                QgsAuthCertUtils::qcaSignatureAlgorithm( mCurrentACert.signatureAlgorithm() ),
-                LineEdit );
-  addFieldItem( mGrpCert, tr( "MD5 fingerprint" ),
-                QgsAuthCertUtils::getColonDelimited( mCurrentQCert.digest().toHex().toUpper() ),
-                LineEdit );
-  addFieldItem( mGrpCert, tr( "SHA1 fingerprint" ),
-                QgsAuthCertUtils::shaHexForCert( mCurrentQCert, true ).toUpper(),
-                LineEdit );
+  addFieldItem( mGrpCert, tr( "Version" ), mCurrentQCert.version(), LineEdit );
+  addFieldItem( mGrpCert, tr( "Serial #" ), mCurrentQCert.serialNumber(), LineEdit );
+  addFieldItem( mGrpCert, tr( "Not valid before" ), mCurrentQCert.effectiveDate().toString(), LineEdit, mCurrentQCert.effectiveDate() > QDateTime::currentDateTime() ? QgsAuthGuiUtils::redColor() : QColor() );
+  addFieldItem( mGrpCert, tr( "Not valid after" ), mCurrentQCert.expiryDate().toString(), LineEdit, mCurrentQCert.expiryDate() < QDateTime::currentDateTime() ? QgsAuthGuiUtils::redColor() : QColor() );
+  addFieldItem( mGrpCert, tr( "Signature algorithm" ), QgsAuthCertUtils::qcaSignatureAlgorithm( mCurrentACert.signatureAlgorithm() ), LineEdit );
+  addFieldItem( mGrpCert, tr( "MD5 fingerprint" ), QgsAuthCertUtils::getColonDelimited( mCurrentQCert.digest().toHex().toUpper() ), LineEdit );
+  addFieldItem( mGrpCert, tr( "SHA1 fingerprint" ), QgsAuthCertUtils::shaHexForCert( mCurrentQCert, true ).toUpper(), LineEdit );
 
-  QStringList crllocs( mCurrentACert.crlLocations() );
+  const QStringList crllocs( mCurrentACert.crlLocations() );
   if ( !crllocs.isEmpty() )
   {
-    addFieldItem( mGrpCert, tr( "CRL locations" ),
-                  crllocs.join( QLatin1Char( '\n' ) ),
-                  TextEdit );
+    addFieldItem( mGrpCert, tr( "CRL locations" ), crllocs.join( QLatin1Char( '\n' ) ), TextEdit );
   }
-  QStringList issulocs( mCurrentACert.issuerLocations() );
+  const QStringList issulocs( mCurrentACert.issuerLocations() );
   if ( !issulocs.isEmpty() )
   {
-    addFieldItem( mGrpCert, tr( "Issuer locations" ),
-                  issulocs.join( QLatin1Char( '\n' ) ),
-                  TextEdit );
+    addFieldItem( mGrpCert, tr( "Issuer locations" ), issulocs.join( QLatin1Char( '\n' ) ), TextEdit );
   }
-  QStringList ocsplocs( mCurrentACert.ocspLocations() );
+  const QStringList ocsplocs( mCurrentACert.ocspLocations() );
   if ( !ocsplocs.isEmpty() )
   {
-    addFieldItem( mGrpCert, tr( "OCSP locations" ),
-                  ocsplocs.join( QLatin1Char( '\n' ) ),
-                  TextEdit );
+    addFieldItem( mGrpCert, tr( "OCSP locations" ), ocsplocs.join( QLatin1Char( '\n' ) ), TextEdit );
   }
 
   // Public Key Info
   // TODO: handle ECC (Elliptic Curve) keys when Qt supports them
-  QSslKey pubqkey( mCurrentQCert.publicKey() );
-  QString alg( pubqkey.algorithm() == QSsl::Rsa ? "RSA" : "DSA" );
-  int bitsize( pubqkey.length() );
-  addFieldItem( mGrpPkey, tr( "Algorithm" ),
-                bitsize == -1 ? QStringLiteral( "Unknown (possibly Elliptic Curve)" ) : alg,
-                LineEdit );
-  addFieldItem( mGrpPkey, tr( "Key size" ),
-                bitsize == -1 ? QStringLiteral( "?" ) : QString::number( bitsize ),
-                LineEdit );
+  const QSslKey pubqkey( mCurrentQCert.publicKey() );
+  const QString alg( pubqkey.algorithm() == QSsl::Rsa ? "RSA" : "DSA" );
+  const int bitsize( pubqkey.length() );
+  addFieldItem( mGrpPkey, tr( "Algorithm" ), bitsize == -1 ? QStringLiteral( "Unknown (possibly Elliptic Curve)" ) : alg, LineEdit );
+  addFieldItem( mGrpPkey, tr( "Key size" ), bitsize == -1 ? QStringLiteral( "?" ) : QString::number( bitsize ), LineEdit );
   if ( bitsize > 0 ) // ECC keys unsupported by Qt/QCA, so returned key size is 0
   {
-    QCA::PublicKey pubakey( mCurrentACert.subjectPublicKey() );
+    const QCA::PublicKey pubakey( mCurrentACert.subjectPublicKey() );
 
     if ( pubqkey.algorithm() == QSsl::Rsa )
     {
-      QCA::RSAPublicKey rsakey( pubakey.toRSA() );
-      QCA::BigInteger modulus = rsakey.n();
+      const QCA::RSAPublicKey rsakey( pubakey.toRSA() );
+      const QCA::BigInteger modulus = rsakey.n();
       QByteArray modarray( modulus.toArray().toByteArray().toHex() );
       if ( modarray.size() > 2 && modarray.mid( 0, 2 ) == QByteArray( "00" ) )
       {
         modarray = modarray.mid( 2 );
       }
-      QCA::BigInteger exponent = rsakey.e();
-      addFieldItem( mGrpPkey, tr( "Public key" ),
-                    QgsAuthCertUtils::getColonDelimited( modarray ).toUpper(),
-                    TextEdit );
-      addFieldItem( mGrpPkey, tr( "Exponent" ),
-                    exponent.toString(),
-                    LineEdit );
+      const QCA::BigInteger exponent = rsakey.e();
+      addFieldItem( mGrpPkey, tr( "Public key" ), QgsAuthCertUtils::getColonDelimited( modarray ).toUpper(), TextEdit );
+      addFieldItem( mGrpPkey, tr( "Exponent" ), exponent.toString(), LineEdit );
     }
     // TODO: how is DSA textually represented using QCA?
     // QCA::DSAPublicKey dsakey( pubakey.toDSA() );
@@ -763,9 +634,7 @@ void QgsAuthCertInfo::populateInfoDetailsSection()
     }
     if ( !usage.isEmpty() )
     {
-      addFieldItem( mGrpPkey, tr( "Key usage" ),
-                    usage.join( QLatin1String( ", " ) ),
-                    LineEdit );
+      addFieldItem( mGrpPkey, tr( "Key usage" ), usage.join( QLatin1String( ", " ) ), LineEdit );
     }
   }
 
@@ -773,13 +642,11 @@ void QgsAuthCertInfo::populateInfoDetailsSection()
   QStringList basicconst;
   basicconst << tr( "Certificate Authority: %1" ).arg( mCurrentACert.isCA() ? tr( "Yes" ) : tr( "No" ) )
              << tr( "Chain Path Limit: %1" ).arg( mCurrentACert.pathLimit() );
-  addFieldItem( mGrpExts, tr( "Basic constraints" ),
-                basicconst.join( QLatin1Char( '\n' ) ),
-                TextEdit );
+  addFieldItem( mGrpExts, tr( "Basic constraints" ), basicconst.join( QLatin1Char( '\n' ) ), TextEdit );
 
   QStringList keyusage;
   QStringList extkeyusage;
-  QList<QCA::ConstraintType> certconsts = mCurrentACert.constraints();
+  const QList<QCA::ConstraintType> certconsts = mCurrentACert.constraints();
   const auto constCertconsts = certconsts;
   for ( const QCA::ConstraintType &certconst : constCertconsts )
   {
@@ -794,28 +661,20 @@ void QgsAuthCertInfo::populateInfoDetailsSection()
   }
   if ( !keyusage.isEmpty() )
   {
-    addFieldItem( mGrpExts, tr( "Key usage" ),
-                  keyusage.join( QLatin1Char( '\n' ) ),
-                  TextEdit );
+    addFieldItem( mGrpExts, tr( "Key usage" ), keyusage.join( QLatin1Char( '\n' ) ), TextEdit );
   }
   if ( !extkeyusage.isEmpty() )
   {
-    addFieldItem( mGrpExts, tr( "Extended key usage" ),
-                  extkeyusage.join( QLatin1Char( '\n' ) ),
-                  TextEdit );
+    addFieldItem( mGrpExts, tr( "Extended key usage" ), extkeyusage.join( QLatin1Char( '\n' ) ), TextEdit );
   }
 
-  addFieldItem( mGrpExts, tr( "Subject key ID" ),
-                QgsAuthCertUtils::getColonDelimited( mCurrentACert.subjectKeyId().toHex() ).toUpper(),
-                LineEdit );
-  addFieldItem( mGrpExts, tr( "Authority key ID" ),
-                QgsAuthCertUtils::getColonDelimited( mCurrentACert.issuerKeyId().toHex() ).toUpper(),
-                LineEdit );
+  addFieldItem( mGrpExts, tr( "Subject key ID" ), QgsAuthCertUtils::getColonDelimited( mCurrentACert.subjectKeyId().toHex() ).toUpper(), LineEdit );
+  addFieldItem( mGrpExts, tr( "Authority key ID" ), QgsAuthCertUtils::getColonDelimited( mCurrentACert.issuerKeyId().toHex() ).toUpper(), LineEdit );
 }
 
 void QgsAuthCertInfo::populateInfoPemTextSection()
 {
-  removeChildren_( mSecPemText );
+  QgsAuthGuiUtils::removeChildren( mSecPemText );
 
   if ( mCurrentQCert.isNull() )
     return;
@@ -823,7 +682,8 @@ void QgsAuthCertInfo::populateInfoPemTextSection()
   QTreeWidgetItem *item = new QTreeWidgetItem(
     mSecPemText,
     QStringList( QString() ),
-    static_cast<int>( DetailsField ) );
+    static_cast<int>( DetailsField )
+  );
 
   item->setFirstColumnSpanned( true );
 
@@ -837,10 +697,10 @@ void QgsAuthCertInfo::populateInfoPemTextSection()
 
 void QgsAuthCertInfo::btnSaveTrust_clicked()
 {
-  QgsAuthCertUtils::CertTrustPolicy newpolicy( cmbbxTrust->trustPolicy() );
+  const QgsAuthCertUtils::CertTrustPolicy newpolicy( cmbbxTrust->trustPolicy() );
   if ( !QgsApplication::authManager()->storeCertTrustPolicy( mCurrentQCert, newpolicy ) )
   {
-    QgsDebugMsg( QStringLiteral( "Could not set trust policy for certificate" ) );
+    QgsDebugError( QStringLiteral( "Could not set trust policy for certificate" ) );
   }
   mCurrentTrustPolicy = newpolicy;
   decorateCertTreeItem( mCurrentQCert, newpolicy, nullptr );
@@ -854,13 +714,11 @@ void QgsAuthCertInfo::btnSaveTrust_clicked()
 
 void QgsAuthCertInfo::currentPolicyIndexChanged( int indx )
 {
-  QgsAuthCertUtils::CertTrustPolicy newpolicy( cmbbxTrust->trustPolicyForIndex( indx ) );
+  const QgsAuthCertUtils::CertTrustPolicy newpolicy( cmbbxTrust->trustPolicyForIndex( indx ) );
   btnSaveTrust->setEnabled( newpolicy != mCurrentTrustPolicy );
 }
 
-void QgsAuthCertInfo::decorateCertTreeItem( const QSslCertificate &cert,
-    QgsAuthCertUtils::CertTrustPolicy trustpolicy,
-    QTreeWidgetItem *item )
+void QgsAuthCertInfo::decorateCertTreeItem( const QSslCertificate &cert, QgsAuthCertUtils::CertTrustPolicy trustpolicy, QTreeWidgetItem *item )
 {
   if ( !item )
   {
@@ -895,8 +753,7 @@ void QgsAuthCertInfo::decorateCertTreeItem( const QSslCertificate &cert,
     item->setIcon( 0, QgsApplication::getThemeIcon( QStringLiteral( "/mIconCertificateTrusted.svg" ) ) );
   }
   else if ( trustpolicy == QgsAuthCertUtils::Untrusted
-            || ( trustpolicy == QgsAuthCertUtils::DefaultTrust
-                 && mDefaultTrustPolicy == QgsAuthCertUtils::Untrusted ) )
+            || ( trustpolicy == QgsAuthCertUtils::DefaultTrust && mDefaultTrustPolicy == QgsAuthCertUtils::Untrusted ) )
   {
     item->setIcon( 0, QgsApplication::getThemeIcon( QStringLiteral( "/mIconCertificateUntrusted.svg" ) ) );
   }
@@ -908,10 +765,7 @@ void QgsAuthCertInfo::decorateCertTreeItem( const QSslCertificate &cert,
 
 //////////////// Embed in dialog ///////////////////
 
-QgsAuthCertInfoDialog::QgsAuthCertInfoDialog( const QSslCertificate &cert,
-    bool manageCertTrust,
-    QWidget *parent,
-    const QList<QSslCertificate> &connectionCAs )
+QgsAuthCertInfoDialog::QgsAuthCertInfoDialog( const QSslCertificate &cert, bool manageCertTrust, QWidget *parent, const QList<QSslCertificate> &connectionCAs )
   : QDialog( parent )
 
 {
@@ -922,12 +776,10 @@ QgsAuthCertInfoDialog::QgsAuthCertInfoDialog( const QSslCertificate &cert,
   mCertInfoWdgt = new QgsAuthCertInfo( cert, manageCertTrust, this, connectionCAs );
   layout->addWidget( mCertInfoWdgt );
 
-  QDialogButtonBox *buttonBox = new QDialogButtonBox( QDialogButtonBox::Close,
-      Qt::Horizontal, this );
+  QDialogButtonBox *buttonBox = new QDialogButtonBox( QDialogButtonBox::Close, Qt::Horizontal, this );
   buttonBox->button( QDialogButtonBox::Close )->setDefault( true );
   connect( buttonBox, &QDialogButtonBox::rejected, this, &QWidget::close );
   layout->addWidget( buttonBox );
 
   setLayout( layout );
 }
-

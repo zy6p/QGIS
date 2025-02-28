@@ -31,10 +31,10 @@ class QTextCodec;
  * \class QgsNetworkContentFetcher
  * \ingroup core
  * \brief HTTP network content fetcher. A simple method for fetching remote HTTP content
- * and converting the content to standard formats. Url redirects are automatically
- * handled.
+ * and converting the content to standard formats.
+ *
+ * URL redirects are automatically handled.
  * \see QgsNetworkContentFetcherTask
- * \since QGIS 2.5
 */
 class CORE_EXPORT QgsNetworkContentFetcher : public QObject
 {
@@ -42,9 +42,6 @@ class CORE_EXPORT QgsNetworkContentFetcher : public QObject
 
   public:
 
-    /**
-     * Constructor for QgsNetworkContentFetcher.
-     */
     QgsNetworkContentFetcher() = default;
 
     ~QgsNetworkContentFetcher() override;
@@ -72,6 +69,13 @@ class CORE_EXPORT QgsNetworkContentFetcher : public QObject
      * \returns QNetworkReply for fetched URL content
      */
     QNetworkReply *reply();
+
+    /**
+     * Returns the associated filename from the reply's content disposition header, if present.
+     *
+     * \since QGIS 3.28
+     */
+    QString contentDispositionFilename() const;
 
     /**
      * Returns the fetched content as a string
@@ -104,6 +108,13 @@ class CORE_EXPORT QgsNetworkContentFetcher : public QObject
      * \since QGIS 3.2
      */
     void downloadProgress( qint64 bytesReceived, qint64 bytesTotal );
+
+    /**
+     * Emitted when an error with \a code error occurred while processing the request
+     * \a errorMsg is a textual description of the error
+     * \since QGIS 3.22
+     */
+    void errorOccurred( QNetworkReply::NetworkError code, const QString &errorMsg );
 
   private:
 

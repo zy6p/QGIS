@@ -34,9 +34,10 @@ class GUI_EXPORT QgsExternalResourceConfigDlg : public QgsEditorConfigWidget, pr
     Q_OBJECT
 
   public:
-
     //! Constructor for QgsExternalResourceConfigDlg
     explicit QgsExternalResourceConfigDlg( QgsVectorLayer *vl, int fieldIdx, QWidget *parent = nullptr );
+
+    QgsExpressionContext createExpressionContext() const override;
 
     // QgsEditorConfigWidget interface
   public:
@@ -49,6 +50,12 @@ class GUI_EXPORT QgsExternalResourceConfigDlg : public QgsEditorConfigWidget, pr
 
     //! Modify RelativeDefault according to mRootPath content
     void enableRelativeDefault();
+
+    //! Enable interaction with a combobox item
+    void enableCbxItem( QComboBox *comboBox, int index, bool enabled );
+
+    //! change storage type according to index from storage type combo box
+    void changeStorageType( int storageTypeIndex );
 };
 
 #endif // QGSEXTERNALRESOURCECONFIGDLG_H

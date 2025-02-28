@@ -22,6 +22,7 @@
 #include "qgis_gui.h"
 #include "qgslayoutitempage.h"
 #include "qgslayoutaligner.h"
+#include "qgslayoutviewtool.h"
 #include <QPointer>
 #include <QGraphicsView>
 #include <QGraphicsRectItem>
@@ -29,7 +30,6 @@
 
 class QMenu;
 class QgsLayout;
-class QgsLayoutViewTool;
 class QgsLayoutViewToolTemporaryKeyPan;
 class QgsLayoutViewToolTemporaryKeyZoom;
 class QgsLayoutViewToolTemporaryMousePan;
@@ -37,6 +37,7 @@ class QgsLayoutRuler;
 class QgsLayoutViewMenuProvider;
 class QgsLayoutViewSnapMarker;
 class QgsLayoutReportSectionLabel;
+class QgsScreenHelper;
 
 /**
  * \ingroup gui
@@ -44,11 +45,9 @@ class QgsLayoutReportSectionLabel;
  *
  * QgsLayoutView manages the layout interaction tools and mouse/key events.
  *
- * \since QGIS 3.0
  */
-class GUI_EXPORT QgsLayoutView: public QGraphicsView
+class GUI_EXPORT QgsLayoutView : public QGraphicsView
 {
-
 #ifdef SIP_RUN
     SIP_CONVERT_TO_SUBCLASS_CODE
     if ( qobject_cast<QgsLayoutView *>( sipCpp ) )
@@ -64,19 +63,18 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
     Q_PROPERTY( QgsLayoutViewTool *tool READ tool WRITE setTool NOTIFY toolSet )
 
   public:
-
     //! Clipboard operations
     enum ClipboardOperation
     {
-      ClipboardCut, //!< Cut items
+      ClipboardCut,  //!< Cut items
       ClipboardCopy, //!< Copy items
     };
 
     //! Paste modes
     enum PasteMode
     {
-      PasteModeCursor, //!< Paste items at cursor position
-      PasteModeCenter, //!< Paste items in center of view
+      PasteModeCursor,  //!< Paste items at cursor position
+      PasteModeCenter,  //!< Paste items in center of view
       PasteModeInPlace, //!< Paste items in place
     };
 
@@ -206,13 +204,13 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
      * Returns a list of page items which are currently visible in the view.
      * \see visiblePageNumbers()
      */
-    QList< QgsLayoutItemPage * > visiblePages() const;
+    QList<QgsLayoutItemPage *> visiblePages() const;
 
     /**
      * Returns a list of page numbers for pages which are currently visible in the view.
      * \see visiblePages()
      */
-    QList< int > visiblePageNumbers() const;
+    QList<int> visiblePageNumbers() const;
 
     /**
      * Aligns all selected items using the specified \a alignment.
@@ -247,7 +245,7 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
      * \see copySelectedItems()
      * \see pasteItems()
      */
-    void copyItems( const QList< QgsLayoutItem * > &items, ClipboardOperation operation );
+    void copyItems( const QList<QgsLayoutItem *> &items, ClipboardOperation operation );
 
     /**
      * Pastes items from clipboard, using the specified \a mode.
@@ -257,7 +255,7 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
      * \see copySelectedItems()
      * \see hasItemsInClipboard()
      */
-    QList< QgsLayoutItem * > pasteItems( PasteMode mode );
+    QList<QgsLayoutItem *> pasteItems( PasteMode mode );
 
     /**
      * Pastes items from clipboard, at the specified \a layoutPoint,
@@ -268,7 +266,7 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
      * \see copySelectedItems()
      * \see hasItemsInClipboard()
      */
-    QList< QgsLayoutItem * > pasteItems( QPointF layoutPoint );
+    QList<QgsLayoutItem *> pasteItems( QPointF layoutPoint );
 
     /**
      * Returns TRUE if the current clipboard contains layout items.
@@ -287,7 +285,7 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
      * used to temporarily halt painting while exporting layouts.
      * \note Not available in Python bindings.
      */
-    void setPaintingEnabled( bool enabled ); SIP_SKIP
+    void setPaintingEnabled( bool enabled ) SIP_SKIP;
 
     /**
      * Sets a section \a label, to display above the first page shown in the
@@ -448,7 +446,7 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
      * Delete the specified \a items.
      * \see deleteSelectedItems()
      */
-    void deleteItems( const QList< QgsLayoutItem * > &items );
+    void deleteItems( const QList<QgsLayoutItem *> &items );
 
     /**
      * Groups all selected items.
@@ -550,11 +548,12 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
     void invalidateCachedRenders();
 
   private:
-
     //! Zoom layout from a mouse wheel event
     void wheelZoom( QWheelEvent *event );
 
-    QPointer< QgsLayoutViewTool > mTool;
+    QgsScreenHelper *mScreenHelper = nullptr;
+
+    QPointer<QgsLayoutViewTool> mTool;
 
     QgsLayoutViewToolTemporaryKeyPan *mSpacePanTool = nullptr;
     QgsLayoutViewToolTemporaryMousePan *mMidMouseButtonPanTool = nullptr;
@@ -564,7 +563,7 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
 
     QgsLayoutRuler *mHorizontalRuler = nullptr;
     QgsLayoutRuler *mVerticalRuler = nullptr;
-    std::unique_ptr< QgsLayoutViewMenuProvider > mMenuProvider;
+    std::unique_ptr<QgsLayoutViewMenuProvider> mMenuProvider;
 
     QgsLayoutViewSnapMarker *mSnapMarker = nullptr;
     QgsLayoutReportSectionLabel *mSectionLabel = nullptr;
@@ -594,7 +593,6 @@ class GUI_EXPORT QgsLayoutView: public QGraphicsView
  * instances to provide custom context menus (opened upon right-click).
  *
  * \see QgsLayoutView
- * \since QGIS 3.0
  */
 class GUI_EXPORT QgsLayoutViewMenuProvider
 {
@@ -617,15 +615,12 @@ class GUI_EXPORT QgsLayoutViewMenuProvider
 class GUI_EXPORT QgsLayoutViewSnapMarker : public QGraphicsRectItem
 {
   public:
-
     QgsLayoutViewSnapMarker();
 
     void paint( QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr ) override;
 
   private:
-
     int mSize = 0;
-
 };
 
 ///@endcond

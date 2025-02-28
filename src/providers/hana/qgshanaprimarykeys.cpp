@@ -38,65 +38,13 @@ namespace
   {
     return x <= ( ( INT32PK_OFFSET ) / 2 ) ? x : -( INT32PK_OFFSET - x );
   }
-
-  QStringList parseUriKey( const QString &key )
-  {
-    if ( key.isEmpty() )
-      return QStringList();
-
-    QStringList cols;
-
-    // remove quotes from key list
-    if ( key.startsWith( '"' ) && key.endsWith( '"' ) )
-    {
-      int i = 1;
-      QString col;
-      while ( i < key.size() )
-      {
-        if ( key[i] == '"' )
-        {
-          if ( i + 1 < key.size() && key[i + 1] == '"' )
-          {
-            i++;
-          }
-          else
-          {
-            cols << col;
-            col.clear();
-
-            if ( ++i == key.size() )
-              break;
-
-            Q_ASSERT( key[i] == ',' );
-            i++;
-            Q_ASSERT( key[i] == '"' );
-            i++;
-            col.clear();
-            continue;
-          }
-        }
-
-        col += key[i++];
-      }
-    }
-    else if ( key.contains( ',' ) )
-    {
-      cols = key.split( ',' );
-    }
-    else
-    {
-      cols << key;
-    }
-
-    return cols;
-  }
-}
+} // namespace
 
 QgsFeatureId QgsHanaPrimaryKeyContext::lookupFid( const QVariantList &v )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
-  QMap<QVariantList, QgsFeatureId>::const_iterator it = mKeyToFid.constFind( v );
+  const QMap<QVariantList, QgsFeatureId>::const_iterator it = mKeyToFid.constFind( v );
 
   if ( it != mKeyToFid.constEnd() )
     return it.value();
@@ -109,9 +57,9 @@ QgsFeatureId QgsHanaPrimaryKeyContext::lookupFid( const QVariantList &v )
 
 QVariantList QgsHanaPrimaryKeyContext::removeFid( QgsFeatureId fid )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
-  QVariantList v = mFidToKey[ fid ];
+  QVariantList v = mFidToKey[fid];
   mFidToKey.remove( fid );
   mKeyToFid.remove( v );
   return v;
@@ -119,7 +67,7 @@ QVariantList QgsHanaPrimaryKeyContext::removeFid( QgsFeatureId fid )
 
 void QgsHanaPrimaryKeyContext::insertFid( QgsFeatureId fid, const QVariantList &k )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
   mFidToKey.insert( fid, k );
   mKeyToFid.insert( k, fid );
@@ -127,9 +75,9 @@ void QgsHanaPrimaryKeyContext::insertFid( QgsFeatureId fid, const QVariantList &
 
 QVariantList QgsHanaPrimaryKeyContext::lookupKey( QgsFeatureId featureId )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
-  QMap<QgsFeatureId, QVariantList>::const_iterator it = mFidToKey.constFind( featureId );
+  const QMap<QgsFeatureId, QVariantList>::const_iterator it = mFidToKey.constFind( featureId );
   if ( it != mFidToKey.constEnd() )
     return it.value();
   return QVariantList();
@@ -142,7 +90,7 @@ QPair<QgsHanaPrimaryKeyType, QList<int>> QgsHanaPrimaryKeyUtils::determinePrimar
 
   for ( const QString &clmName : columnNames )
   {
-    int idx = fields.indexFromName( clmName );
+    const int idx = fields.indexFromName( clmName );
     if ( idx < 0 )
     {
       attrs.clear();
@@ -185,31 +133,30 @@ QgsHanaPrimaryKeyType QgsHanaPrimaryKeyUtils::getPrimaryKeyType( const QgsField 
 {
   switch ( field.type() )
   {
-    case QVariant::LongLong:
+    case QMetaType::Type::LongLong:
       return PktInt64;
-    case QVariant::Int:
+    case QMetaType::Type::Int:
       return PktInt;
     default:
       return PktFidMap;
   }
 }
 
-QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFields &fields, QgsHanaPrimaryKeyType pkType,
-    const QList<int> &pkAttrs )
+QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFields &fields, QgsHanaPrimaryKeyType pkType, const QList<int> &pkAttrs )
 {
   switch ( pkType )
   {
     case PktInt:
     case PktInt64:
     {
-      QString columnName = fields.at( pkAttrs[0] ).name() ;
+      const QString columnName = fields.at( pkAttrs[0] ).name();
       return QStringLiteral( "%1=?" ).arg( QgsHanaUtils::quotedIdentifier( columnName ) );
     }
     case PktFidMap:
     {
       QList<QString> conditions;
       conditions.reserve( pkAttrs.size() );
-      for ( int idx : pkAttrs )
+      for ( const int idx : pkAttrs )
         conditions << QStringLiteral( "%1=?" ).arg( QgsHanaUtils::quotedIdentifier( fields[idx].name() ) );
       return conditions.join( QLatin1String( " AND " ) );
     }
@@ -219,15 +166,14 @@ QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFields &fields, QgsHa
   return QString(); //avoid warning
 }
 
-QString QgsHanaPrimaryKeyUtils::buildWhereClause( QgsFeatureId featureId, const QgsFields &fields, QgsHanaPrimaryKeyType pkType,
-    const QList<int> &pkAttrs, QgsHanaPrimaryKeyContext &primaryKeyCntx )
+QString QgsHanaPrimaryKeyUtils::buildWhereClause( QgsFeatureId featureId, const QgsFields &fields, QgsHanaPrimaryKeyType pkType, const QList<int> &pkAttrs, QgsHanaPrimaryKeyContext &primaryKeyCntx )
 {
   switch ( pkType )
   {
     case PktInt:
     {
       Q_ASSERT( pkAttrs.size() == 1 );
-      QString fieldName = fields[pkAttrs[0]].name();
+      const QString fieldName = fields[pkAttrs[0]].name();
       return QStringLiteral( "%1=%2" ).arg( QgsHanaUtils::quotedIdentifier( fieldName ) ).arg( fidToInt( featureId ) );
     }
     case PktInt64:
@@ -251,7 +197,7 @@ QString QgsHanaPrimaryKeyUtils::buildWhereClause( QgsFeatureId featureId, const 
       QStringList conditions;
       for ( int i = 0; i < pkAttrs.size(); i++ )
       {
-        const QgsField &field  = fields.at( pkAttrs[i] );
+        const QgsField &field = fields.at( pkAttrs[i] );
         conditions << QStringLiteral( "%1=%2" ).arg( QgsHanaUtils::quotedIdentifier( field.name() ), QgsHanaUtils::toConstant( pkValues[i], field.type() ) );
       }
       return conditions.join( QLatin1String( " AND " ) );
@@ -263,8 +209,7 @@ QString QgsHanaPrimaryKeyUtils::buildWhereClause( QgsFeatureId featureId, const 
   return QString(); // avoid warning
 }
 
-QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFeatureIds &featureIds, const QgsFields &fields, QgsHanaPrimaryKeyType pkType,
-    const QList<int> &pkAttrs, QgsHanaPrimaryKeyContext &primaryKeyCntx )
+QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFeatureIds &featureIds, const QgsFields &fields, QgsHanaPrimaryKeyType pkType, const QList<int> &pkAttrs, QgsHanaPrimaryKeyContext &primaryKeyCntx )
 {
   if ( featureIds.isEmpty() )
     return QString();
@@ -275,7 +220,7 @@ QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFeatureIds &featureId
     case PktInt64:
     {
       QStringList fids;
-      for ( QgsFeatureId featureId : featureIds )
+      for ( const QgsFeatureId featureId : featureIds )
       {
         if ( pkType == PktInt )
           fids << QString::number( fidToInt( featureId ) );
@@ -288,13 +233,13 @@ QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFeatureIds &featureId
         }
       }
 
-      const QgsField &field  = fields.at( pkAttrs[0] );
+      const QgsField &field = fields.at( pkAttrs[0] );
       return QStringLiteral( "%1 IN (%2)" ).arg( QgsHanaUtils::quotedIdentifier( field.name() ), fids.join( ',' ) );
     }
     case PktFidMap:
     {
       QStringList whereClauses;
-      for ( QgsFeatureId featureId : featureIds )
+      for ( const QgsFeatureId featureId : featureIds )
       {
         const QString fidWhereClause = buildWhereClause( featureId, fields, pkType, pkAttrs, primaryKeyCntx );
         if ( fidWhereClause.isEmpty() )
@@ -308,4 +253,67 @@ QString QgsHanaPrimaryKeyUtils::buildWhereClause( const QgsFeatureIds &featureId
   }
 
   return QString(); //avoid warning
+}
+
+QString QgsHanaPrimaryKeyUtils::buildUriKey( const QStringList &columns )
+{
+  QString ret;
+  for ( auto i = 0; i < columns.size(); ++i )
+  {
+    ret += QgsHanaUtils::quotedIdentifier( columns[i] );
+    if ( i != columns.size() - 1 )
+      ret += ',';
+  }
+  return ret;
+}
+
+QStringList QgsHanaPrimaryKeyUtils::parseUriKey( const QString &key )
+{
+  if ( key.isEmpty() )
+    return QStringList();
+
+  QStringList cols;
+
+  // remove quotes from key list
+  if ( key.startsWith( '"' ) && key.endsWith( '"' ) )
+  {
+    int i = 1;
+    QString col;
+    while ( i < key.size() )
+    {
+      if ( key[i] == '"' )
+      {
+        if ( i + 1 < key.size() && key[i + 1] == '"' )
+        {
+          i++;
+        }
+        else
+        {
+          cols << col;
+          col.clear();
+
+          if ( ++i == key.size() )
+            break;
+
+          Q_ASSERT( key[i] == ',' );
+          i++;
+          Q_ASSERT( key[i] == '"' );
+          i++;
+          continue;
+        }
+      }
+
+      col += key[i++];
+    }
+  }
+  else if ( key.contains( ',' ) )
+  {
+    cols = key.split( ',' );
+  }
+  else
+  {
+    cols << key;
+  }
+
+  return cols;
 }

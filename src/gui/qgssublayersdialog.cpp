@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgssublayersdialog.h"
+#include "moc_qgssublayersdialog.cpp"
 #include "qgslogger.h"
 #include "qgssettings.h"
 #include "qgsgui.h"
@@ -27,13 +28,13 @@ class SubLayerItem : public QTreeWidgetItem
 {
   public:
     SubLayerItem( const QStringList &strings, int type = QTreeWidgetItem::Type )
-      :  QTreeWidgetItem( strings, type )
+      : QTreeWidgetItem( strings, type )
     {}
 
-    bool operator <( const QTreeWidgetItem &other ) const override
+    bool operator<( const QTreeWidgetItem &other ) const override
     {
       QgsSublayersDialog *d = qobject_cast<QgsSublayersDialog *>( treeWidget()->parent() );
-      int col = treeWidget()->sortColumn();
+      const int col = treeWidget()->sortColumn();
 
       if ( col == 0 || ( col > 0 && d->countColumn() == col ) )
         return text( col ).toInt() < other.text( col ).toInt();
@@ -43,11 +44,7 @@ class SubLayerItem : public QTreeWidgetItem
 };
 //! @endcond
 
-QgsSublayersDialog::QgsSublayersDialog( ProviderType providerType,
-                                        const QString &name,
-                                        QWidget *parent,
-                                        Qt::WindowFlags fl,
-                                        const QString &dataSourceUri )
+QgsSublayersDialog::QgsSublayersDialog( ProviderType providerType, const QString &name, QWidget *parent, Qt::WindowFlags fl, const QString &dataSourceUri )
   : QDialog( parent, fl )
   , mName( name )
 {
@@ -57,10 +54,9 @@ QgsSublayersDialog::QgsSublayersDialog( ProviderType providerType,
   QString title;
   switch ( providerType )
   {
-    case QgsSublayersDialog::Ogr :
+    case QgsSublayersDialog::Ogr:
       title = tr( "Select Vector Layers to Add…" );
-      layersTable->setHeaderLabels( QStringList() << tr( "Layer ID" ) << tr( "Layer name" )
-                                    << tr( "Number of features" ) << tr( "Geometry type" ) << tr( "Description" ) );
+      layersTable->setHeaderLabels( QStringList() << tr( "Layer ID" ) << tr( "Layer name" ) << tr( "Number of features" ) << tr( "Geometry type" ) << tr( "Description" ) );
       mShowCount = true;
       mShowType = true;
       mShowDescription = true;
@@ -75,8 +71,7 @@ QgsSublayersDialog::QgsSublayersDialog( ProviderType providerType,
       break;
     default:
       title = tr( "Select Layers to Add…" );
-      layersTable->setHeaderLabels( QStringList() << tr( "Layer ID" ) << tr( "Layer name" )
-                                    << tr( "Type" ) );
+      layersTable->setHeaderLabels( QStringList() << tr( "Layer ID" ) << tr( "Layer name" ) << tr( "Type" ) );
       mShowType = true;
   }
 
@@ -87,7 +82,7 @@ QgsSublayersDialog::QgsSublayersDialog( ProviderType providerType,
 
   setWindowTitle( fileName.isEmpty() ? title : QStringLiteral( "%1 | %2" ).arg( title, fileName ) );
   mLblFilePath->setText( QDir::toNativeSeparators( QFileInfo( filePath ).canonicalFilePath() ) );
-  mLblFilePath->setVisible( ! fileName.isEmpty() );
+  mLblFilePath->setVisible( !fileName.isEmpty() );
 
   // add a "Select All" button - would be nicer with an icon
   connect( mBtnSelectAll, &QAbstractButton::pressed, layersTable, &QTreeView::selectAll );
@@ -100,10 +95,8 @@ QgsSublayersDialog::QgsSublayersDialog( ProviderType providerType,
 QgsSublayersDialog::~QgsSublayersDialog()
 {
   QgsSettings settings;
-  settings.setValue( "/Windows/" + mName + "SubLayers/headerColumnCount",
-                     layersTable->columnCount() );
-  settings.setValue( "/Windows/" + mName + "SubLayers/headerState",
-                     layersTable->header()->saveState() );
+  settings.setValue( "/Windows/" + mName + "SubLayers/headerColumnCount", layersTable->columnCount() );
+  settings.setValue( "/Windows/" + mName + "SubLayers/headerState", layersTable->header()->saveState() );
 }
 
 static bool _isLayerIdUnique( int layerId, QTreeWidget *layersTable )
@@ -151,7 +144,7 @@ void QgsSublayersDialog::populateLayerTable( const QgsSublayersDialog::LayerDefi
     QStringList elements;
     elements << QString::number( item.layerId ) << item.layerName;
     if ( mShowCount )
-      elements << ( item.count == -1 ? tr( "Unknown" ) : QString::number( item.count ) );
+      elements << ( item.count == static_cast<int>( Qgis::FeatureCountState::Uncounted ) || item.count == static_cast<int>( Qgis::FeatureCountState::UnknownCount ) ? tr( "Unknown" ) : QString::number( item.count ) );
     if ( mShowType )
       elements << item.type;
     if ( mShowDescription )
@@ -160,10 +153,10 @@ void QgsSublayersDialog::populateLayerTable( const QgsSublayersDialog::LayerDefi
   }
 
   // resize columns
-  QgsSettings settings;
-  QByteArray ba = settings.value( "/Windows/" + mName + "SubLayers/headerState" ).toByteArray();
-  int savedColumnCount = settings.value( "/Windows/" + mName + "SubLayers/headerColumnCount" ).toInt();
-  if ( ! ba.isNull() && savedColumnCount == layersTable->columnCount() )
+  const QgsSettings settings;
+  const QByteArray ba = settings.value( "/Windows/" + mName + "SubLayers/headerState" ).toByteArray();
+  const int savedColumnCount = settings.value( "/Windows/" + mName + "SubLayers/headerColumnCount" ).toInt();
+  if ( !ba.isNull() && savedColumnCount == layersTable->columnCount() )
   {
     layersTable->header()->restoreState( ba );
   }
@@ -181,7 +174,7 @@ void QgsSublayersDialog::populateLayerTable( const QgsSublayersDialog::LayerDefi
 int QgsSublayersDialog::exec()
 {
   QgsSettings settings;
-  PromptMode promptLayers = settings.enumValue( QStringLiteral( "qgis/promptForSublayers" ), PromptAlways );
+  const Qgis::SublayerPromptMode promptLayers = settings.enumValue( QStringLiteral( "qgis/promptForSublayers" ), Qgis::SublayerPromptMode::AlwaysAsk );
 
   // make sure three are sublayers to choose
   if ( layersTable->topLevelItemCount() == 0 )
@@ -190,9 +183,9 @@ int QgsSublayersDialog::exec()
   layersTable->selectAll();
 
   // check promptForSublayers settings - perhaps this should be in QgsDataSource instead?
-  if ( promptLayers == PromptNever )
+  if ( promptLayers == Qgis::SublayerPromptMode::NeverAskSkip )
     return QDialog::Rejected;
-  else if ( promptLayers == PromptLoadAll )
+  else if ( promptLayers == Qgis::SublayerPromptMode::NeverAskLoadAll )
     return QDialog::Accepted;
 
   // if there is only 1 sublayer (probably the main layer), just select that one and return
@@ -205,10 +198,10 @@ int QgsSublayersDialog::exec()
   // if we got here, disable override cursor, open dialog and return result
   // TODO add override cursor where it is missing (e.g. when opening via "Add Raster")
   QCursor cursor;
-  bool overrideCursor = nullptr != QApplication::overrideCursor();
+  const bool overrideCursor = nullptr != QApplication::overrideCursor();
   if ( overrideCursor )
   {
-    cursor = QCursor( * QApplication::overrideCursor() );
+    cursor = QCursor( *QApplication::overrideCursor() );
     QApplication::restoreOverrideCursor();
   }
 
@@ -216,11 +209,11 @@ int QgsSublayersDialog::exec()
   if ( mShowAddToGroupCheckbox )
   {
     mCbxAddToGroup->setVisible( true );
-    bool addToGroup = settings.value( QStringLiteral( "/qgis/openSublayersInGroup" ), false ).toBool();
+    const bool addToGroup = settings.value( QStringLiteral( "/qgis/openSublayersInGroup" ), false ).toBool();
     mCbxAddToGroup->setChecked( addToGroup );
   }
 
-  int ret = QDialog::exec();
+  const int ret = QDialog::exec();
   if ( overrideCursor )
     QApplication::setOverrideCursor( cursor );
 

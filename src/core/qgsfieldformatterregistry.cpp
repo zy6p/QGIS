@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgsfieldformatterregistry.h"
+#include "moc_qgsfieldformatterregistry.cpp"
 #include "qgsfieldformatter.h"
 
 #include "qgsvaluerelationfieldformatter.h"
@@ -45,7 +46,7 @@ QgsFieldFormatterRegistry::QgsFieldFormatterRegistry( QObject *parent )
 
 QgsFieldFormatterRegistry::~QgsFieldFormatterRegistry()
 {
-  QgsReadWriteLocker locker( mLock, QgsReadWriteLocker::Write );
+  const QgsReadWriteLocker locker( mLock, QgsReadWriteLocker::Write );
   qDeleteAll( mFieldFormatters );
   delete mFallbackFieldFormatter;
 }
@@ -65,7 +66,7 @@ void QgsFieldFormatterRegistry::removeFieldFormatter( QgsFieldFormatter *formatt
 
 void QgsFieldFormatterRegistry::removeFieldFormatter( const QString &id )
 {
-  QgsReadWriteLocker locker( mLock, QgsReadWriteLocker::Write );
+  const QgsReadWriteLocker locker( mLock, QgsReadWriteLocker::Write );
   if ( QgsFieldFormatter *formatter = mFieldFormatters.take( id ) )
   {
     emit fieldFormatterRemoved( formatter );
@@ -75,7 +76,7 @@ void QgsFieldFormatterRegistry::removeFieldFormatter( const QString &id )
 
 QgsFieldFormatter *QgsFieldFormatterRegistry::fieldFormatter( const QString &id ) const
 {
-  QgsReadWriteLocker locker( mLock, QgsReadWriteLocker::Read );
+  const QgsReadWriteLocker locker( mLock, QgsReadWriteLocker::Read );
   return mFieldFormatters.value( id, mFallbackFieldFormatter );
 }
 

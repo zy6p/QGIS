@@ -19,6 +19,9 @@
 #include "qgis_core.h"
 #include "qgsfeature.h"
 #include "qgsfeatureiterator.h"
+#include "qgscoordinatetransform.h"
+#include "qgsvectorlayercache.h"
+#include <QPointer>
 
 class QgsVectorLayerCache;
 
@@ -39,6 +42,8 @@ class CORE_EXPORT QgsCachedFeatureIterator : public QgsAbstractFeatureIterator
      * \param featureRequest   The feature request to answer
      */
     QgsCachedFeatureIterator( QgsVectorLayerCache *vlCache, const QgsFeatureRequest &featureRequest );
+
+    ~QgsCachedFeatureIterator() override;
 
     /**
      * Rewind to the beginning of the iterator
@@ -62,8 +67,6 @@ class CORE_EXPORT QgsCachedFeatureIterator : public QgsAbstractFeatureIterator
      *
      * \param f      Will write to this feature
      * \returns bool  TRUE if the operation was OK
-     *
-     * \see bool getFeature( QgsFeature& f )
      */
     bool fetchFeature( QgsFeature &f ) override;
 
@@ -76,11 +79,19 @@ class CORE_EXPORT QgsCachedFeatureIterator : public QgsAbstractFeatureIterator
     bool nextFeatureFilterFids( QgsFeature &f ) override { return fetchFeature( f ); }
 
   private:
+#ifdef SIP_RUN
+    QgsCachedFeatureIterator( const QgsCachedFeatureIterator &other );
+#endif
+
     QList< QgsFeatureId > mFeatureIds;
-    QgsVectorLayerCache *mVectorLayerCache = nullptr;
+    QPointer< QgsVectorLayerCache > mVectorLayerCache = nullptr;
     QList< QgsFeatureId >::ConstIterator mFeatureIdIterator;
     QgsCoordinateTransform mTransform;
     QgsRectangle mFilterRect;
+
+    QgsGeometry mDistanceWithinGeom;
+    std::unique_ptr< QgsGeometryEngine > mDistanceWithinEngine;
+    double mDistanceWithin = 0;
 };
 
 /**
@@ -122,16 +133,15 @@ class CORE_EXPORT QgsCachedFeatureWriterIterator : public QgsAbstractFeatureIter
      *
      * \param f      Will write to this feature
      * \returns bool  TRUE if the operation was OK
-     *
-     * \see bool getFeature( QgsFeature& f )
      */
     bool fetchFeature( QgsFeature &f ) override;
 
   private:
     QgsFeatureIterator mFeatIt;
-    QgsVectorLayerCache *mVectorLayerCache = nullptr;
+    QPointer< QgsVectorLayerCache > mVectorLayerCache;
     QgsFeatureIds mFids;
     QgsCoordinateTransform mTransform;
     QgsRectangle mFilterRect;
+
 };
 #endif // QGSCACHEDFEATUREITERATOR_H

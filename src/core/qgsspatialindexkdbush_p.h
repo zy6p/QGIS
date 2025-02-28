@@ -39,25 +39,26 @@
 #include <memory>
 #include <QList>
 #include "kdbush.hpp"
+#include <functional>
 
 
 class PointXYKDBush : public kdbush::KDBush< std::pair<double, double>, QgsSpatialIndexKDBushData, std::size_t >
 {
   public:
 
-    explicit PointXYKDBush( QgsFeatureIterator &fi, QgsFeedback *feedback = nullptr )
+    explicit PointXYKDBush( QgsFeatureIterator &fi, QgsFeedback *feedback = nullptr, const std::function< bool( const QgsFeature & ) > *callback = nullptr )
     {
-      fillFromIterator( fi, feedback );
+      fillFromIterator( fi, feedback, callback );
     }
 
     explicit PointXYKDBush( const QgsFeatureSource &source, QgsFeedback *feedback )
     {
       points.reserve( source.featureCount() );
       QgsFeatureIterator it = source.getFeatures( QgsFeatureRequest().setNoAttributes() );
-      fillFromIterator( it, feedback );
+      fillFromIterator( it, feedback, nullptr );
     }
 
-    void fillFromIterator( QgsFeatureIterator &fi, QgsFeedback *feedback = nullptr )
+    void fillFromIterator( QgsFeatureIterator &fi, QgsFeedback *feedback = nullptr, const std::function< bool( const QgsFeature & ) > *callback = nullptr )
     {
       std::size_t size = 0;
 
@@ -67,10 +68,13 @@ class PointXYKDBush : public kdbush::KDBush< std::pair<double, double>, QgsSpati
         if ( feedback && feedback->isCanceled() )
           return;
 
+        if ( callback && !( *callback )( f ) )
+          return;
+
         if ( !f.hasGeometry() )
           continue;
 
-        if ( QgsWkbTypes::flatType( f.geometry().wkbType() ) == QgsWkbTypes::Point )
+        if ( QgsWkbTypes::flatType( f.geometry().wkbType() ) == Qgis::WkbType::Point )
         {
           const QgsPoint *point = qgsgeometry_cast< const QgsPoint * >( f.geometry().constGet() );
           points.emplace_back( QgsSpatialIndexKDBushData( f.id(), point->x(), point->y() ) );
@@ -107,6 +111,10 @@ class QgsSpatialIndexKDBushPrivate
 
     explicit QgsSpatialIndexKDBushPrivate( const QgsFeatureSource &source, QgsFeedback *feedback = nullptr )
       : index( std::make_unique < PointXYKDBush >( source, feedback ) )
+    {}
+
+    explicit QgsSpatialIndexKDBushPrivate( QgsFeatureIterator &fi, const std::function< bool( const QgsFeature & ) > &callback, QgsFeedback *feedback = nullptr )
+      : index( std::make_unique < PointXYKDBush >( fi, feedback, &callback ) )
     {}
 
     QAtomicInt ref = 1;

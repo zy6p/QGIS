@@ -18,15 +18,16 @@
 
 #include "qgis_core.h"
 #include "qgis_sip.h"
-#include "qgsgeometry.h"
 #include "qgsfeatureid.h"
 #include "qgsvectorlayer.h"
 
 class QgsCurve;
+class QgsGeometry;
 
 /**
  * \ingroup core
  * \class QgsVectorLayerEditUtils
+ * \brief Contains utility functions for editing vector layers.
  */
 class CORE_EXPORT QgsVectorLayerEditUtils
 {
@@ -66,9 +67,8 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * Deletes a vertex from a feature.
      * \param featureId ID of feature to remove vertex from
      * \param vertex index of vertex to delete
-     * \since QGIS 2.14
      */
-    QgsVectorLayer::EditResult deleteVertex( QgsFeatureId featureId, int vertex );
+    Qgis::VectorEditResult deleteVertex( QgsFeatureId featureId, int vertex );
 
     /**
      * Adds a ring to polygon/multipolygon features
@@ -77,9 +77,9 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * all intersecting features are tested and the ring is added to the first valid feature.
      * \param modifiedFeatureId if specified, feature ID for feature that ring was added to will be stored in this parameter
      * \return OperationResult result code: success or reason of failure
-     * \deprecated since QGIS 3.12 - will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
+     * \deprecated QGIS 3.12. Will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
      */
-    Q_DECL_DEPRECATED QgsGeometry::OperationResult addRing( const QVector<QgsPointXY> &ring, const QgsFeatureIds &targetFeatureIds = QgsFeatureIds(), QgsFeatureId *modifiedFeatureId = nullptr ) SIP_DEPRECATED;
+    Q_DECL_DEPRECATED Qgis::GeometryOperationResult addRing( const QVector<QgsPointXY> &ring, const QgsFeatureIds &targetFeatureIds = QgsFeatureIds(), QgsFeatureId *modifiedFeatureId = nullptr ) SIP_DEPRECATED;
 
     /**
      * Adds a ring to polygon/multipolygon features
@@ -89,7 +89,18 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * \param modifiedFeatureId if specified, feature ID for feature that ring was added to will be stored in this parameter
      * \return OperationResult result code: success or reason of failure
      */
-    QgsGeometry::OperationResult addRing( const QgsPointSequence &ring, const QgsFeatureIds &targetFeatureIds = QgsFeatureIds(), QgsFeatureId *modifiedFeatureId = nullptr );
+    Qgis::GeometryOperationResult addRing( const QgsPointSequence &ring, const QgsFeatureIds &targetFeatureIds = QgsFeatureIds(), QgsFeatureId *modifiedFeatureId = nullptr );
+
+    /**
+     * Adds a ring to polygon/multipolygon features
+     * \param ring ring to add (ownership is transferred)
+     * \param targetFeatureIds if specified, only these features will be the candidates for adding a ring. Otherwise
+     * all intersecting features are tested and the ring is added to all valid features.
+     * \param modifiedFeatureIds if specified, feature IDS for features that ring was added to will be stored in this parameter
+     * \return OperationResult result code: success or reason of failure
+     * \since QGIS 3.28
+     */
+    Qgis::GeometryOperationResult addRingV2( QgsCurve *ring SIP_TRANSFER, const QgsFeatureIds &targetFeatureIds = QgsFeatureIds(), QgsFeatureIds *modifiedFeatureIds SIP_OUT = nullptr );
 
     /**
      * Adds a ring to polygon/multipolygon features
@@ -100,7 +111,7 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * \return OperationResult result code: success or reason of failure
      * \note available in python bindings as addCurvedRing
      */
-    QgsGeometry::OperationResult addRing( QgsCurve *ring, const QgsFeatureIds &targetFeatureIds = QgsFeatureIds(), QgsFeatureId *modifiedFeatureId = nullptr ) SIP_PYNAME( addCurvedRing );
+    Qgis::GeometryOperationResult addRing( QgsCurve *ring SIP_TRANSFER, const QgsFeatureIds &targetFeatureIds = QgsFeatureIds(), QgsFeatureId *modifiedFeatureId = nullptr ) SIP_PYNAME( addCurvedRing );
 
     /**
      * Adds a new part polygon to a multipart feature
@@ -111,9 +122,9 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * - QgsGeometry::InvalidBaseGeometry
      * - QgsGeometry::InvalidInput
      *
-     * \deprecated since QGIS 3.12 - will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
+     * \deprecated QGIS 3.12. Will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
      */
-    Q_DECL_DEPRECATED QgsGeometry::OperationResult addPart( const QVector<QgsPointXY> &ring, QgsFeatureId featureId ) SIP_DEPRECATED;
+    Q_DECL_DEPRECATED  Qgis::GeometryOperationResult addPart( const QVector<QgsPointXY> &ring, QgsFeatureId featureId ) SIP_DEPRECATED;
 
     /**
      * Adds a new part polygon to a multipart feature
@@ -127,7 +138,7 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      *
      * \note available in python bindings as addPartV2
      */
-    QgsGeometry::OperationResult addPart( const QgsPointSequence &ring, QgsFeatureId featureId );
+    Qgis::GeometryOperationResult addPart( const QgsPointSequence &ring, QgsFeatureId featureId );
 
     /**
      * Adds a new part polygon to a multipart feature
@@ -141,7 +152,7 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      *
      * \note available in python bindings as addCurvedPart
      */
-    QgsGeometry::OperationResult addPart( QgsCurve *ring, QgsFeatureId featureId ) SIP_PYNAME( addCurvedPart );
+    Qgis::GeometryOperationResult addPart( QgsCurve *ring SIP_TRANSFER, QgsFeatureId featureId ) SIP_PYNAME( addCurvedPart );
 
     /**
      * Translates feature by dx, dy
@@ -165,9 +176,9 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * - QgsGeometry::GeometryEngineError
      * - QgsGeometry::SplitCannotSplitPoint
      *
-     * \deprecated since QGIS 3.12 - will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
+     * \deprecated QGIS 3.12. Will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
      */
-    Q_DECL_DEPRECATED QgsGeometry::OperationResult splitParts( const QVector<QgsPointXY> &splitLine, bool topologicalEditing = false ) SIP_DEPRECATED;
+    Q_DECL_DEPRECATED  Qgis::GeometryOperationResult splitParts( const QVector<QgsPointXY> &splitLine, bool topologicalEditing = false ) SIP_DEPRECATED;
 
     /**
      * Splits parts cut by the given line
@@ -182,16 +193,16 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * - QgsGeometry::GeometryEngineError
      * - QgsGeometry::SplitCannotSplitPoint
      */
-    QgsGeometry::OperationResult splitParts( const QgsPointSequence &splitLine, bool topologicalEditing = false );
+    Qgis::GeometryOperationResult splitParts( const QgsPointSequence &splitLine, bool topologicalEditing = false );
 
     /**
      * Splits features cut by the given line
      * \param splitLine line that splits the layer features
      * \param topologicalEditing TRUE if topological editing is enabled
      * \returns QgsGeometry::OperationResult
-     * \deprecated since QGIS 3.12 - will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
+     * \deprecated QGIS 3.12. Will be removed in QGIS 4.0. Use the variant which accepts QgsPoint objects instead of QgsPointXY.
      */
-    Q_DECL_DEPRECATED QgsGeometry::OperationResult splitFeatures( const QVector<QgsPointXY> &splitLine, bool topologicalEditing = false ) SIP_DEPRECATED;
+    Q_DECL_DEPRECATED  Qgis::GeometryOperationResult splitFeatures( const QVector<QgsPointXY> &splitLine, bool topologicalEditing = false ) SIP_DEPRECATED;
 
     /**
      * Splits features cut by the given line
@@ -199,7 +210,7 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * \param topologicalEditing TRUE if topological editing is enabled
      * \returns QgsGeometry::OperationResult
      */
-    QgsGeometry::OperationResult splitFeatures( const QgsPointSequence &splitLine, bool topologicalEditing = false );
+    Qgis::GeometryOperationResult splitFeatures( const QgsPointSequence &splitLine, bool topologicalEditing = false );
 
     /**
      * Splits features cut by the given curve
@@ -210,7 +221,7 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * \returns QgsGeometry::OperationResult
      * \since QGIS 3.16
      */
-    QgsGeometry::OperationResult splitFeatures( const QgsCurve *curve, QgsPointSequence &topologyTestPoints SIP_OUT, bool preserveCircular = false, bool topologicalEditing = false );
+    Qgis::GeometryOperationResult splitFeatures( const QgsCurve *curve, QgsPointSequence &topologyTestPoints SIP_OUT, bool preserveCircular = false, bool topologicalEditing = false );
 
     /**
      * Adds topological points for every vertex of the geometry.
@@ -256,6 +267,24 @@ class CORE_EXPORT QgsVectorLayerEditUtils
      * \since QGIS 3.16
      */
     int addTopologicalPoints( const QgsPointSequence &ps );
+
+    /**
+     * Merge features into a single one.
+     * \param targetFeatureId id of the target feature (will be updated)
+     * \param mergeFeatureIds id list of features to merge (will be deleted)
+     * \param mergeAttributes are the resulting attributes in the merged feature
+     * \param unionGeometry is the resulting geometry of the merged feature
+     * \param errorMessage will be set to a descriptive error message if any occurs
+     *
+     * \returns TRUE if the merge was successful, or FALSE if the operation failed.
+     *
+     * \since QGIS 3.30
+     */
+    bool mergeFeatures( const QgsFeatureId &targetFeatureId, const QgsFeatureIds &mergeFeatureIds, const QgsAttributes &mergeAttributes, const QgsGeometry &unionGeometry, QString &errorMessage SIP_OUT );
+
+    ///@cond PRIVATE
+    static double getTopologicalSearchRadius( const QgsVectorLayer *layer ) SIP_SKIP;
+    ///@endcond
 
   private:
 

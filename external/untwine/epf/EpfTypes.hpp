@@ -13,17 +13,12 @@
 
 #pragma once
 
-#include <pdal/Dimension.hpp>
-#include <pdal/SpatialReference.hpp>
-#include <pdal/util/Bounds.hpp>
-
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
-#include "../untwine/FileDimInfo.hpp"
-#include "../untwine/VoxelKey.hpp"
+#include "untwine/VoxelKey.hpp"
 
 namespace untwine
 {
@@ -38,19 +33,6 @@ constexpr int BufSize = 4096 * 10;
 constexpr int MaxBuffers = 1000;
 constexpr int NumWriters = 4;
 constexpr int NumFileProcessors = 8;
-
-struct FileInfo
-{
-    std::string filename;
-    std::string driver;
-    DimInfoList dimInfo;
-    uint64_t numPoints;
-    pdal::BOX3D bounds;
-    pdal::SpatialReference srs;
-
-    bool valid() const
-    { return filename.size(); }
-};
 
 } // namespace epf
 } // namespace untwine

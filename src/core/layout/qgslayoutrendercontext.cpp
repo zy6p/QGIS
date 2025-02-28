@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgslayoutrendercontext.h"
+#include "moc_qgslayoutrendercontext.cpp"
 #include "qgslayout.h"
 
 QgsLayoutRenderContext::QgsLayoutRenderContext( QgsLayout *layout )
@@ -22,7 +23,7 @@ QgsLayoutRenderContext::QgsLayoutRenderContext( QgsLayout *layout )
   , mFlags( FlagAntialiasing | FlagUseAdvancedEffects )
   , mLayout( layout )
 {
-  mSimplifyMethod.setSimplifyHints( QgsVectorSimplifyMethod::NoSimplification );
+  mSimplifyMethod.setSimplifyHints( Qgis::VectorRenderingSimplificationFlag::NoSimplification );
 }
 
 void QgsLayoutRenderContext::setFlags( const QgsLayoutRenderContext::Flags flags )
@@ -59,18 +60,21 @@ bool QgsLayoutRenderContext::testFlag( const QgsLayoutRenderContext::Flag flag )
   return mFlags.testFlag( flag );
 }
 
-QgsRenderContext::Flags QgsLayoutRenderContext::renderContextFlags() const
+Qgis::RenderContextFlags QgsLayoutRenderContext::renderContextFlags() const
 {
-  QgsRenderContext::Flags flags = QgsRenderContext::Flags();
+  Qgis::RenderContextFlags flags = Qgis::RenderContextFlags();
   if ( mFlags & FlagAntialiasing )
-    flags = flags | QgsRenderContext::Antialiasing;
+  {
+    flags = flags | Qgis::RenderContextFlag::Antialiasing;
+    flags = flags | Qgis::RenderContextFlag::HighQualityImageTransforms;
+  }
   if ( mFlags & FlagUseAdvancedEffects )
-    flags = flags | QgsRenderContext::UseAdvancedEffects;
+    flags = flags | Qgis::RenderContextFlag::UseAdvancedEffects;
   if ( mFlags & FlagLosslessImageRendering )
-    flags = flags | QgsRenderContext::LosslessImageRendering;
+    flags = flags | Qgis::RenderContextFlag::LosslessImageRendering;
 
   // TODO - expose as layout context flag?
-  flags |= QgsRenderContext::ForceVectorOutput;
+  flags |= Qgis::RenderContextFlag::ForceVectorOutput;
   return flags;
 }
 
@@ -111,6 +115,11 @@ void QgsLayoutRenderContext::setBoundingBoxesVisible( bool visible )
 void QgsLayoutRenderContext::setPagesVisible( bool visible )
 {
   mPagesVisible = visible;
+}
+
+void QgsLayoutRenderContext::setMaskSettings( const QgsMaskRenderSettings &settings )
+{
+  mMaskRenderSettings = settings;
 }
 
 QStringList QgsLayoutRenderContext::exportThemes() const

@@ -20,14 +20,14 @@
 #include "qgssettings.h"
 #include "qgsproject.h"
 
-class TestQgsDatumTransformDialog: public QObject
+class TestQgsDatumTransformDialog : public QObject
 {
     Q_OBJECT
   private slots:
-    void initTestCase(); // will be called before the first testfunction is executed.
+    void initTestCase();    // will be called before the first testfunction is executed.
     void cleanupTestCase(); // will be called after the last testfunction was executed.
-    void init(); // will be called before each testfunction is executed.
-    void cleanup(); // will be called after every testfunction.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void defaultTransform();
     void fallback();
@@ -36,7 +36,6 @@ class TestQgsDatumTransformDialog: public QObject
     void runDialog();
 
   private:
-
 };
 
 void TestQgsDatumTransformDialog::initTestCase()
@@ -82,13 +81,21 @@ void TestQgsDatumTransformDialog::defaultTransform()
   QCOMPARE( def.destinationCrs.authid(), QStringLiteral( "EPSG:4283" ) );
   QCOMPARE( def.proj, QStringLiteral( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +proj=push +v_3 +step +proj=cart +ellps=GRS80 +step +inv +proj=helmert +x=0.06155 +y=-0.01087 +z=-0.04019 +rx=-0.0394924 +ry=-0.0327221 +rz=-0.0328979 +s=-0.009994 +convention=coordinate_frame +step +inv +proj=cart +ellps=GRS80 +step +proj=pop +v_3 +step +proj=unitconvert +xy_in=rad +xy_out=deg" ) );
 
-  QgsDatumTransformDialog dlg2( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ) );
+  const QgsDatumTransformDialog dlg2( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ) );
   def = dlg2.defaultDatumTransform();
   QCOMPARE( def.sourceCrs.authid(), QStringLiteral( "EPSG:4326" ) );
   QCOMPARE( def.destinationCrs.authid(), QStringLiteral( "EPSG:26742" ) );
   if ( def.proj == QLatin1String( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +inv +proj=hgridshift +grids=conus +step +proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=39.8333333333333 +lat_2=38.3333333333333 +x_0=609601.219202438 +y_0=0 +ellps=clrk66 +step +proj=unitconvert +xy_in=m +xy_out=us-ft" ) )
   {
     QCOMPARE( def.proj, QStringLiteral( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +inv +proj=hgridshift +grids=conus +step +proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=39.8333333333333 +lat_2=38.3333333333333 +x_0=609601.219202438 +y_0=0 +ellps=clrk66 +step +proj=unitconvert +xy_in=m +xy_out=us-ft" ) );
+  }
+  else if ( def.proj == QLatin1String( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +inv +proj=hgridshift +grids=us_noaa_cnhpgn.tif +step +inv +proj=hgridshift +grids=us_noaa_conus.tif +step +proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=39.8333333333333 +lat_2=38.3333333333333 +x_0=609601.219202438 +y_0=0 +ellps=clrk66 +step +proj=unitconvert +xy_in=m +xy_out=us-ft" ) )
+  {
+    QCOMPARE( def.proj, QStringLiteral( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +inv +proj=hgridshift +grids=us_noaa_cnhpgn.tif +step +inv +proj=hgridshift +grids=us_noaa_conus.tif +step +proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=39.8333333333333 +lat_2=38.3333333333333 +x_0=609601.219202438 +y_0=0 +ellps=clrk66 +step +proj=unitconvert +xy_in=m +xy_out=us-ft" ) );
+  }
+  else if ( def.proj == QLatin1String( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +inv +proj=hgridshift +grids=us_noaa_conus.tif +step +proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=39.8333333333333 +lat_2=38.3333333333333 +x_0=609601.219202438 +y_0=0 +ellps=clrk66 +step +proj=unitconvert +xy_in=m +xy_out=us-ft" ) )
+  {
+    QCOMPARE( def.proj, QStringLiteral( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +inv +proj=hgridshift +grids=us_noaa_conus.tif +step +proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=39.8333333333333 +lat_2=38.3333333333333 +x_0=609601.219202438 +y_0=0 +ellps=clrk66 +step +proj=unitconvert +xy_in=m +xy_out=us-ft" ) );
   }
   else
   {
@@ -101,7 +108,7 @@ void TestQgsDatumTransformDialog::fallback()
   // don't default to allow fallback
   QgsDatumTransformDialog dlg( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:7844" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4283" ) ), false, true, false, qMakePair( -1, -1 ), nullptr, Qt::WindowFlags(), QString(), nullptr, false );
 
-  QgsDatumTransformDialog::TransformInfo def = dlg.selectedDatumTransform();
+  const QgsDatumTransformDialog::TransformInfo def = dlg.selectedDatumTransform();
   QCOMPARE( def.sourceCrs.authid(), QStringLiteral( "EPSG:7844" ) );
   QCOMPARE( def.destinationCrs.authid(), QStringLiteral( "EPSG:4283" ) );
   QCOMPARE( def.proj, QStringLiteral( "+proj=pipeline +step +proj=unitconvert +xy_in=deg +xy_out=rad +step +proj=push +v_3 +step +proj=cart +ellps=GRS80 +step +inv +proj=helmert +x=0.06155 +y=-0.01087 +z=-0.04019 +rx=-0.0394924 +ry=-0.0327221 +rz=-0.0328979 +s=-0.009994 +convention=coordinate_frame +step +inv +proj=cart +ellps=GRS80 +step +proj=pop +v_3 +step +proj=unitconvert +xy_in=rad +xy_out=deg" ) );
@@ -112,16 +119,16 @@ void TestQgsDatumTransformDialog::shouldAskUser()
 {
   // no prompts!
   QgsSettings().setValue( QStringLiteral( "/projections/promptWhenMultipleTransformsExist" ), false, QgsSettings::App );
-  QgsDatumTransformDialog dlg( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ) );
+  const QgsDatumTransformDialog dlg( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ) );
   QVERIFY( !dlg.shouldAskUserForSelection() );
-  QgsDatumTransformDialog dlg2( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:7406" ) ) );
+  const QgsDatumTransformDialog dlg2( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:7406" ) ) );
   QVERIFY( !dlg2.shouldAskUserForSelection() );
 
-//prompts
+  //prompts
   QgsSettings().setValue( QStringLiteral( "/projections/promptWhenMultipleTransformsExist" ), true, QgsSettings::App );
-  QgsDatumTransformDialog dlg3( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ) );
+  const QgsDatumTransformDialog dlg3( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) ) );
   QVERIFY( dlg3.shouldAskUserForSelection() );
-  QgsDatumTransformDialog dlg4( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:7406" ) ) );
+  const QgsDatumTransformDialog dlg4( QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:26742" ) ), QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:7406" ) ) );
   QVERIFY( !dlg4.shouldAskUserForSelection() );
 }
 

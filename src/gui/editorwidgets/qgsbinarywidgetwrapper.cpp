@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsbinarywidgetwrapper.h"
+#include "moc_qgsbinarywidgetwrapper.cpp"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
 #include "qgsfileutils.h"
@@ -39,7 +40,7 @@ QgsBinaryWidgetWrapper::QgsBinaryWidgetWrapper( QgsVectorLayer *layer, int field
 
 QVariant QgsBinaryWidgetWrapper::value() const
 {
-  return mValue.isEmpty() || mValue.isNull() ? QVariant( QVariant::ByteArray ) : mValue;
+  return mValue.isEmpty() || mValue.isNull() ? QgsVariantUtils::createNullVariant( QMetaType::Type::QByteArray ) : mValue;
 }
 
 void QgsBinaryWidgetWrapper::showIndeterminateState()
@@ -112,7 +113,7 @@ bool QgsBinaryWidgetWrapper::valid() const
 
 void QgsBinaryWidgetWrapper::updateValues( const QVariant &value, const QVariantList & )
 {
-  mValue = value.isValid() && !value.isNull() && value.canConvert< QByteArray >() ? value.toByteArray() : QByteArray();
+  mValue = value.isValid() && !QgsVariantUtils::isNull( value ) && value.canConvert<QByteArray>() ? value.toByteArray() : QByteArray();
   if ( mValue.length() == 0 )
     mValue = QByteArray();
 
@@ -139,19 +140,16 @@ void QgsBinaryWidgetWrapper::saveContent()
 
   QString file;
   {
-    QgsFocusKeeper focusKeeper;
+    const QgsFocusKeeper focusKeeper;
 
-    file = QFileDialog::getSaveFileName( nullptr,
-                                         tr( "Save Contents to File" ),
-                                         defaultPath(),
-                                         tr( "All files" ) + " (*.*)" );
+    file = QFileDialog::getSaveFileName( nullptr, tr( "Save Contents to File" ), defaultPath(), tr( "All files" ) + " (*.*)" );
   }
   if ( file.isEmpty() )
   {
     return;
   }
 
-  QFileInfo fi( file );
+  const QFileInfo fi( file );
   s.setValue( QStringLiteral( "/UI/lastBinaryDir" ), fi.absolutePath() );
 
   QFile fileOut( file );
@@ -160,8 +158,7 @@ void QgsBinaryWidgetWrapper::saveContent()
   fileOut.close();
 
   if ( mMessageBar )
-    mMessageBar->pushSuccess( QString(), tr( "Saved content to <a href=\"%1\">%2</a>" ).arg(
-                                QUrl::fromLocalFile( file ).toString(), QDir::toNativeSeparators( file ) ) );
+    mMessageBar->pushSuccess( QString(), tr( "Saved content to <a href=\"%1\">%2</a>" ).arg( QUrl::fromLocalFile( file ).toString(), QDir::toNativeSeparators( file ) ) );
 }
 
 void QgsBinaryWidgetWrapper::setContent()
@@ -170,15 +167,12 @@ void QgsBinaryWidgetWrapper::setContent()
 
   QString file;
   {
-    QgsFocusKeeper focusKeeper;
+    const QgsFocusKeeper focusKeeper;
 
-    file = QFileDialog::getOpenFileName( nullptr,
-                                         tr( "Embed File" ),
-                                         defaultPath(),
-                                         tr( "All files" ) + " (*.*)" );
+    file = QFileDialog::getOpenFileName( nullptr, tr( "Embed File" ), defaultPath(), tr( "All files" ) + " (*.*)" );
   }
 
-  QFileInfo fi( file );
+  const QFileInfo fi( file );
   if ( file.isEmpty() || !fi.exists() )
   {
     return;
@@ -199,7 +193,7 @@ void QgsBinaryWidgetWrapper::setContent()
 void QgsBinaryWidgetWrapper::clear()
 {
   {
-    QgsFocusKeeper focusKeeper;
+    const QgsFocusKeeper focusKeeper;
     if ( QMessageBox::question( nullptr, tr( "Clear Contents" ), tr( "Are you sure you want the clear this field's content?" ), QMessageBox::Yes | QMessageBox::No, QMessageBox::No ) != QMessageBox::Yes )
       return;
   }
@@ -212,4 +206,3 @@ QString QgsBinaryWidgetWrapper::defaultPath()
 {
   return QgsSettings().value( QStringLiteral( "/UI/lastBinaryDir" ), QDir::homePath() ).toString();
 }
-

@@ -14,12 +14,14 @@
  ***************************************************************************/
 
 #include "qgsexpressionstoredialog.h"
+#include "moc_qgsexpressionstoredialog.cpp"
 #include <QPushButton>
 #include <QStyle>
 
 QgsExpressionStoreDialog::QgsExpressionStoreDialog( const QString &label, const QString &expression, const QString &helpText, const QStringList &existingLabels, QWidget *parent )
   : QDialog( parent )
   , mExistingLabels( existingLabels )
+  , mOriginalLabel( label )
 {
   setupUi( this );
   mExpression->setText( expression );
@@ -30,10 +32,9 @@ QgsExpressionStoreDialog::QgsExpressionStoreDialog( const QString &label, const 
   mValidationError->setStyleSheet( QStringLiteral( "QLabel { color : red; }" ) );
   QPushButton *saveBtn { buttonBox->button( QDialogButtonBox::StandardButton::Save ) };
   saveBtn->setEnabled( false );
-  connect( mLabel, &QLineEdit::textChanged, this, [ = ]( const QString & text )
-  {
+  connect( mLabel, &QLineEdit::textChanged, this, [=]( const QString &text ) {
     QString errorMessage;
-    if ( mExistingLabels.contains( text ) )
+    if ( mOriginalLabel.simplified() != text.simplified() && mExistingLabels.contains( text.simplified() ) )
     {
       errorMessage = tr( "A stored expression with this name already exists" );
     }
@@ -41,7 +42,7 @@ QgsExpressionStoreDialog::QgsExpressionStoreDialog( const QString &label, const 
     {
       errorMessage = tr( "Labels cannot contain slashes (/ or \\)" );
     }
-    if ( ! errorMessage.isEmpty() )
+    if ( !errorMessage.isEmpty() )
     {
       mValidationError->show();
       mValidationError->setText( errorMessage );
@@ -56,7 +57,7 @@ QgsExpressionStoreDialog::QgsExpressionStoreDialog( const QString &label, const 
   // No slashes in labels!
   QString labelFixed { label };
   labelFixed.remove( '/' ).remove( '\\' );
-  mLabel->setText( labelFixed );
+  mLabel->setText( labelFixed.simplified() );
 }
 
 QString QgsExpressionStoreDialog::helpText() const

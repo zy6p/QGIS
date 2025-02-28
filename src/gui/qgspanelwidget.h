@@ -30,7 +30,6 @@ class GUI_EXPORT QgsPanelWidget : public QWidget
 {
     Q_OBJECT
   public:
-
     /**
      * \brief Base class for any widget that can be shown as a inline panel
      * \param parent Parent widget.
@@ -75,6 +74,16 @@ class GUI_EXPORT QgsPanelWidget : public QWidget
     virtual void setDockMode( bool dockMode );
 
     /**
+     * Returns TRUE if the size constraints and hints for the panel widget should be
+     * applied to the parent QgsPanelWidgetStack which this panel is shown in.
+     *
+     * The default behavior is to return FALSE.
+     *
+     * \since QGIS 3.20
+     */
+    virtual bool applySizeConstraintsToStack() const;
+
+    /**
      * Returns the dock mode state.
      * \returns TRUE if in dock mode.  If in dock mode the widget
      * will emit the showPanel signal to handle panel opening
@@ -103,7 +112,6 @@ class GUI_EXPORT QgsPanelWidget : public QWidget
      * widget.
      * \param widget widget which may be contained within a panel widget
      * \returns parent panel widget if found, otherwise NULLPTR
-     * \since QGIS 3.0
      */
     static QgsPanelWidget *findParentPanel( QWidget *widget );
 
@@ -174,7 +182,6 @@ class GUI_EXPORT QgsPanelWidget : public QWidget
     void acceptPanel();
 
   protected:
-
     /**
      * \brief Overridden key press event to handle the esc event on the widget.
      * \param event The key event
@@ -185,7 +192,6 @@ class GUI_EXPORT QgsPanelWidget : public QWidget
     bool mAutoDelete = true;
     QString mPanelTitle;
     bool mDockMode = false;
-
 };
 
 
@@ -197,11 +203,10 @@ class GUI_EXPORT QgsPanelWidget : public QWidget
  * \note Generally you should use the QgsPanelWidget class if you can
  * and only use this wrapper if you can't update your code.
  */
-class GUI_EXPORT QgsPanelWidgetWrapper: public QgsPanelWidget
+class GUI_EXPORT QgsPanelWidgetWrapper : public QgsPanelWidget
 {
     Q_OBJECT
   public:
-
     /**
      * \brief Wrapper widget for existing widgets which can't have
      * the inheritance tree changed, e.g dialogs.
@@ -218,7 +223,6 @@ class GUI_EXPORT QgsPanelWidgetWrapper: public QgsPanelWidget
 
   private:
     QWidget *mWidget = nullptr;
-
 };
 
 #endif // QGSPANELWIDGET_H

@@ -46,13 +46,15 @@ class CORE_EXPORT QgsDatabaseSchemaItem : public QgsDataCollectionItem
 
     ~QgsDatabaseSchemaItem() override;
 
-    QgsAbstractDatabaseProviderConnection *databaseConnection() const override;
+#ifdef SIP_RUN
+    SIP_PYOBJECT __repr__();
+    % MethodCode
+    QString str = QStringLiteral( "<QgsDatabaseSchemaItem: \"%1\" %2>" ).arg( sipCpp->name(), sipCpp->path() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
+    % End
+#endif
 
-    /**
-     * Returns the standard browser data collection icon.
-     * \see iconDir()
-     */
-    static QIcon iconDataCollection();
+    QgsAbstractDatabaseProviderConnection *databaseConnection() const override;
 
 };
 

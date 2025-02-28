@@ -17,14 +17,12 @@
 #ifndef QGSPGSOURCESELECT_H
 #define QGSPGSOURCESELECT_H
 
-#include "ui_qgsdbsourceselectbase.h"
 #include "qgsguiutils.h"
 #include "qgsdatasourceuri.h"
-#include "qgsdbfilterproxymodel.h"
-#include "qgspgtablemodel.h"
 #include "qgshelp.h"
 #include "qgsproviderregistry.h"
-#include "qgsabstractdatasourcewidget.h"
+#include "qgsabstractdbsourceselect.h"
+#include "qgspostgresconn.h"
 
 #include <QMap>
 #include <QPair>
@@ -32,11 +30,11 @@
 #include <QItemDelegate>
 
 class QPushButton;
-class QStringList;
 class QgsGeomColumnTypeThread;
 class QgisApp;
 class QgsPgSourceSelect;
 class QgsProxyProgressTask;
+class QgsPgTableModel;
 
 class QgsPgSourceSelectDelegate : public QItemDelegate
 {
@@ -61,13 +59,13 @@ class QgsPgSourceSelectDelegate : public QItemDelegate
  * for PostGIS enabled PostgreSQL databases. The user can then connect and add
  * tables from the database to the map canvas.
  */
-class QgsPgSourceSelect : public QgsAbstractDataSourceWidget, private Ui::QgsDbSourceSelectBase
+class QgsPgSourceSelect : public QgsAbstractDbSourceSelect
 {
     Q_OBJECT
 
   public:
     //! Constructor
-    QgsPgSourceSelect( QWidget *parent = nullptr, Qt::WindowFlags fl = QgsGuiUtils::ModalDialogFlags, QgsProviderRegistry::WidgetMode widgetMode = QgsProviderRegistry::WidgetMode::None );
+    QgsPgSourceSelect( QWidget *parent = nullptr, Qt::WindowFlags fl = QgsGuiUtils::ModalDialogFlags, QgsProviderRegistry::WidgetMode widgetMode = QgsProviderRegistry::WidgetMode::Standalone );
 
     ~QgsPgSourceSelect() override;
     //! Populate the connection list combo box
@@ -88,7 +86,6 @@ class QgsPgSourceSelect : public QgsAbstractDataSourceWidget, private Ui::QgsDbS
     void refresh() override;
     //! Determines the tables the user selected and closes the dialog
     void addButtonClicked() override;
-    void buildQuery();
 
     /**
      * Connects to the database using the stored connection parameters.
@@ -106,16 +103,9 @@ class QgsPgSourceSelect : public QgsAbstractDataSourceWidget, private Ui::QgsDbS
     void btnSave_clicked();
     //! Loads the selected connections from file
     void btnLoad_clicked();
-    void mSearchGroupBox_toggled( bool );
-    void mSearchTableEdit_textChanged( const QString &text );
-    void mSearchColumnComboBox_currentIndexChanged( const QString &text );
-    void mSearchModeComboBox_currentIndexChanged( const QString &text );
     void cmbConnections_currentIndexChanged( const QString &text );
-    void setSql( const QModelIndex &index );
     //! Store the selected database
     void setLayerType( const QgsPostgresLayerProperty &layerProperty );
-    void mTablesTreeView_clicked( const QModelIndex &index );
-    void mTablesTreeView_doubleClicked( const QModelIndex &index );
     void treeWidgetSelectionChanged( const QItemSelection &selected, const QItemSelection &deselected );
     //!Sets a new regular expression to the model
     void setSearchExpression( const QString &regexp );
@@ -123,6 +113,9 @@ class QgsPgSourceSelect : public QgsAbstractDataSourceWidget, private Ui::QgsDbS
     void columnThreadFinished();
 
     void reset() override;
+
+  protected slots:
+    void setSql( const QModelIndex &index ) override;
 
   private:
     typedef QPair<QString, QString> geomPair;
@@ -147,13 +140,10 @@ class QgsPgSourceSelect : public QgsAbstractDataSourceWidget, private Ui::QgsDbS
     QStringList mSelectedTables;
     bool mUseEstimatedMetadata = false;
     // Storage for the range of layer type icons
-    QMap<QString, QPair<QString, QIcon> > mLayerIcons;
+    QMap<QString, QPair<QString, QIcon>> mLayerIcons;
 
     //! Model that acts as datasource for mTableTreeWidget
-    QgsPgTableModel mTableModel;
-    QgsDatabaseFilterProxyModel mProxyModel;
-
-    QPushButton *mBuildQueryButton = nullptr;
+    QgsPgTableModel *mTableModel = nullptr;
 
     void finishList();
 

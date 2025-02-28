@@ -25,21 +25,9 @@
 #include <QImage>
 #include <QPainter>
 
-//qgis includes...
-#include <qgsapplication.h>
-#include <qgsgeometry.h>
-#include <qgsmaptopixelgeometrysimplifier.h>
-#if 0
-#include <qgspoint.h>
-#include "qgsgeometryutils.h"
-#include "qgspoint.h"
-#include "qgslinestring.h"
-#include "qgspolygon.h"
-#include "qgscircularstring.h"
-#endif
-
-//qgs unit test utility class
-#include "qgsrenderchecker.h"
+#include "qgsapplication.h"
+#include "qgsgeometry.h"
+#include "qgsmaptopixelgeometrysimplifier.h"
 
 /**
  * \ingroup UnitTests
@@ -55,7 +43,7 @@ class TestQgsMapToPixelGeometrySimplifier : public QObject
   private:
     // Release return with delete []
     unsigned char *
-    hex2bytes( const char *hex, int *size )
+      hex2bytes( const char *hex, int *size )
     {
       QByteArray ba = QByteArray::fromHex( hex );
       unsigned char *out = new unsigned char[ba.size()];
@@ -65,20 +53,22 @@ class TestQgsMapToPixelGeometrySimplifier : public QObject
     }
 
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init();// will be called before each testfunction is executed.
-    void cleanup();// will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void testDefaultGeometry();
     void testLine1();
     void testIsGeneralizableByMapBoundingBox();
     void testWkbDimensionMismatch();
     void testCircularString();
+    void testSnapToGrid();
+    void testSnapToGridZM();
     void testVisvalingam();
+    void testVisvalingamZM();
     void testRingValidity();
     void testAbstractGeometrySimplify();
-
 };
 
 TestQgsMapToPixelGeometrySimplifier::TestQgsMapToPixelGeometrySimplifier() = default;
@@ -111,10 +101,10 @@ void TestQgsMapToPixelGeometrySimplifier::cleanup()
 
 void TestQgsMapToPixelGeometrySimplifier::testDefaultGeometry()
 {
-  QgsGeometry g;
-  int fl = QgsMapToPixelSimplifier::SimplifyGeometry;
-  QgsMapToPixelSimplifier simplifier( fl, 10.0 );
-  QgsGeometry ret = simplifier.simplify( g );
+  const QgsGeometry g;
+  const int fl = QgsMapToPixelSimplifier::SimplifyGeometry;
+  const QgsMapToPixelSimplifier simplifier( fl, 10.0 );
+  const QgsGeometry ret = simplifier.simplify( g );
   QVERIFY( ret.isNull() ); // not simplifiable
 }
 
@@ -122,7 +112,7 @@ void TestQgsMapToPixelGeometrySimplifier::testLine1()
 {
   // NOTE: we need more than 4 vertices, or the line will not be
   //       reduced at all by the algorithm
-  QgsGeometry g( QgsGeometry::fromWkt( QStringLiteral( "LINESTRING(0 0,1 1,2 0,3 1,4 0,20 1,20 0,10 0,5 0)" ) ) );
+  const QgsGeometry g( QgsGeometry::fromWkt( QStringLiteral( "LINESTRING(0 0,1 1,2 0,3 1,4 0,20 1,20 0,10 0,5 0)" ) ) );
   int fl;
   QString wkt;
 
@@ -149,10 +139,9 @@ void TestQgsMapToPixelGeometrySimplifier::testLine1()
   QCOMPARE( wkt, QString( "LineString (0 0, 20 1)" ) );
 }
 
-void
-TestQgsMapToPixelGeometrySimplifier::testIsGeneralizableByMapBoundingBox()
+void TestQgsMapToPixelGeometrySimplifier::testIsGeneralizableByMapBoundingBox()
 {
-  QgsRectangle r1( 0, 0, 10, 1 );
+  const QgsRectangle r1( 0, 0, 10, 1 );
   bool ret;
 
   ret = QgsMapToPixelSimplifier::isGeneralizableByMapBoundingBox( r1, 15 );
@@ -160,10 +149,10 @@ TestQgsMapToPixelGeometrySimplifier::testIsGeneralizableByMapBoundingBox()
 
   // NOTE: boundary case
   ret = QgsMapToPixelSimplifier::isGeneralizableByMapBoundingBox( r1, 10 );
-  QVERIFY( ! ret );
+  QVERIFY( !ret );
 
   ret = QgsMapToPixelSimplifier::isGeneralizableByMapBoundingBox( r1, 5 );
-  QVERIFY( ! ret );
+  QVERIFY( !ret );
 }
 
 void TestQgsMapToPixelGeometrySimplifier::testWkbDimensionMismatch()
@@ -178,12 +167,12 @@ void TestQgsMapToPixelGeometrySimplifier::testWkbDimensionMismatch()
   QgsGeometry g12416;
   // NOTE: wkb onwership transferred to QgsGeometry
   g12416.fromWkb( wkb, size );
-  QString wkt = g12416.asWkt();
-  QCOMPARE( wkt, QString( "MultiLineStringZ ((0 0 0, 1 1 0, 2 0 0, 3 1 0, 10 0 -0.000001),(0 0 0, 0 0 0.000001))" ) );
+  const QString wkt = g12416.asWkt();
+  QCOMPARE( wkt, QString( "MultiLineString Z ((0 0 0, 1 1 0, 2 0 0, 3 1 0, 10 0 -0.000001),(0 0 0, 0 0 0.000001))" ) );
 
-  int fl = QgsMapToPixelSimplifier::SimplifyGeometry;
-  QgsMapToPixelSimplifier simplifier( fl, 20.0 );
-  QgsGeometry ret = simplifier.simplify( g12416 );
+  const int fl = QgsMapToPixelSimplifier::SimplifyGeometry;
+  const QgsMapToPixelSimplifier simplifier( fl, 20.0 );
+  const QgsGeometry ret = simplifier.simplify( g12416 );
   QVERIFY( !ret.equals( g12416 ) );
 }
 
@@ -196,33 +185,65 @@ void TestQgsMapToPixelGeometrySimplifier::testCircularString()
   QCOMPARE( simplifier.simplify( g ).asWkt(), WKT );
 }
 
+void TestQgsMapToPixelGeometrySimplifier::testSnapToGrid()
+{
+  const QString wkt( QStringLiteral( "LineString (0 0, 30 0, 31 30, 32 0, 40 0, 41 100, 42 0, 50 0)" ) );
+  const QgsGeometry g = QgsGeometry::fromWkt( wkt );
+
+  const QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, 80, Qgis::VectorSimplificationAlgorithm::SnapToGrid );
+  const QString expectedWkt( QStringLiteral( "LineString (0 0, 30 0, 32 0, 41 100, 42 0, 50 0)" ) );
+
+  QCOMPARE( simplifier.simplify( g ).asWkt(), expectedWkt );
+}
+
+void TestQgsMapToPixelGeometrySimplifier::testSnapToGridZM()
+{
+  const QString wkt( QStringLiteral( "LineString (0 0 101 1, 30 0 102 2, 31 30 103 3, 32 0 104 4, 40 0 105 5, 41 100 106 6, 42 0 107 7, 50 0 108 8)" ) );
+  const QgsGeometry g = QgsGeometry::fromWkt( wkt );
+
+  const QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, 80, Qgis::VectorSimplificationAlgorithm::SnapToGrid );
+  const QString expectedWkt( QStringLiteral( "LineString ZM (0 0 101 1, 30 0 102 2, 32 0 104 4, 41 100 106 6, 42 0 107 7, 50 0 108 8)" ) );
+
+  QCOMPARE( simplifier.simplify( g ).asWkt(), expectedWkt );
+}
+
 void TestQgsMapToPixelGeometrySimplifier::testVisvalingam()
 {
-  QString wkt( QStringLiteral( "LineString (0 0, 30 0, 31 30, 32 0, 40 0, 41 100, 42 0, 50 0)" ) );
-  QgsGeometry g = QgsGeometry::fromWkt( wkt );
+  const QString wkt( QStringLiteral( "LineString (0 0, 30 0, 31 30, 32 0, 40 0, 41 100, 42 0, 50 0)" ) );
+  const QgsGeometry g = QgsGeometry::fromWkt( wkt );
 
-  const QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, 7, QgsMapToPixelSimplifier::Visvalingam );
-  QString expectedWkt( QStringLiteral( "LineString (0 0, 40 0, 41 100, 42 0, 50 0)" ) );
+  const QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, 7, Qgis::VectorSimplificationAlgorithm::Visvalingam );
+  const QString expectedWkt( QStringLiteral( "LineString (0 0, 40 0, 41 100, 42 0, 50 0)" ) );
+
+  QCOMPARE( simplifier.simplify( g ).asWkt(), expectedWkt );
+}
+
+void TestQgsMapToPixelGeometrySimplifier::testVisvalingamZM()
+{
+  const QString wkt( QStringLiteral( "LineString ZM (0 0 100 1, 30 0 100 1, 31 30 100 1, 32 0 100 1, 40 0 100 1, 41 100 100 1, 42 0 100 1, 50 0 100 1)" ) );
+  const QgsGeometry g = QgsGeometry::fromWkt( wkt );
+
+  const QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, 7, Qgis::VectorSimplificationAlgorithm::Visvalingam );
+  const QString expectedWkt( QStringLiteral( "LineString ZM (0 0 100 1, 40 0 100 1, 41 100 100 1, 42 0 100 1, 50 0 100 1)" ) );
 
   QCOMPARE( simplifier.simplify( g ).asWkt(), expectedWkt );
 }
 
 void TestQgsMapToPixelGeometrySimplifier::testRingValidity()
 {
-  QgsGeometry poly = QgsGeometry::fromWkt( QStringLiteral( "Polygon ((0 0, 30 0, 30 30, 0 30, 0 0),(10.0001 10.00002, 10.0005 10.00002, 10.0005 10.00004, 10.00001 10.00004, 10.0001 10.00002 ))" ) );
+  const QgsGeometry poly = QgsGeometry::fromWkt( QStringLiteral( "Polygon ((0 0, 30 0, 30 30, 0 30, 0 0),(10.0001 10.00002, 10.0005 10.00002, 10.0005 10.00004, 10.00001 10.00004, 10.0001 10.00002 ))" ) );
 
-  int fl = QgsMapToPixelSimplifier::SimplifyGeometry | QgsMapToPixelSimplifier::SimplifyEnvelope;
-  QgsMapToPixelSimplifier simplifier( fl, 5 );
-  QgsGeometry ret = simplifier.simplify( poly );
+  const int fl = QgsMapToPixelSimplifier::SimplifyGeometry | QgsMapToPixelSimplifier::SimplifyEnvelope;
+  const QgsMapToPixelSimplifier simplifier( fl, 5 );
+  const QgsGeometry ret = simplifier.simplify( poly );
   QVERIFY( ret.isGeosValid() );
-
 }
 
 void TestQgsMapToPixelGeometrySimplifier::testAbstractGeometrySimplify()
 {
   // test direct simplification of abstract geometries, especially the "no simplification required" paths
   QgsMapToPixelSimplifier simplifier( QgsMapToPixelSimplifier::SimplifyGeometry, 5 );
-  std::unique_ptr< QgsAbstractGeometry > simplified;
+  std::unique_ptr<QgsAbstractGeometry> simplified;
 
   // no input geometry
   simplified.reset( simplifier.simplify( nullptr ) );

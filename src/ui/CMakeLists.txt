@@ -16,8 +16,12 @@ file(GLOB CALLOUT_UIS "${CMAKE_CURRENT_SOURCE_DIR}/callouts/*.ui")
 file(GLOB NUMERICFORMAT_UIS "${CMAKE_CURRENT_SOURCE_DIR}/numericformats/*.ui")
 file(GLOB ATTRIBUTEFORMCONFIG_UIS "${CMAKE_CURRENT_SOURCE_DIR}/attributeformconfig/*.ui")
 file(GLOB GEOREFERENCER_UIS "${CMAKE_CURRENT_SOURCE_DIR}/georeferencer/*.ui")
+file(GLOB ANNOTATION_UIS "${CMAKE_CURRENT_SOURCE_DIR}/annotations/*.ui")
+file(GLOB SENSOR_UIS "${CMAKE_CURRENT_SOURCE_DIR}/sensor/*.ui")
+file(GLOB TILED_SCENE_UIS "${CMAKE_CURRENT_SOURCE_DIR}/tiledscene/*.ui")
+file(GLOB STAC_UIS "${CMAKE_CURRENT_SOURCE_DIR}/stac/*.ui")
 
-QT5_WRAP_UI(QGIS_UIS_H
+qt_wrap_ui(QGIS_UIS_H
   ${QGIS_UIS}
   ${SYMBOLLAYER_UIS}
   ${EDITORWIDGET_UIS}
@@ -35,6 +39,21 @@ QT5_WRAP_UI(QGIS_UIS_H
   ${NUMERICFORMAT_UIS}
   ${ATTRIBUTEFORMCONFIG_UIS}
   ${GEOREFERENCER_UIS}
+  ${ANNOTATION_UIS}
+  ${SENSOR_UIS}
+  ${TILED_SCENE_UIS}
+  ${STAC_UIS}
 )
 
+set(QGIS_GUI_UI_HDRS ${QGIS_UIS_H} PARENT_SCOPE)
+
 add_custom_target(ui ALL DEPENDS ${QGIS_UIS_H})
+
+# target_sources for custom targets only available in cmake 3.20 and above,
+# debian bullseye still has 3.18
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.20")
+target_sources(ui
+  PRIVATE
+    qgsplaybackcontrollerwidgetbase.ui
+)
+endif(CMAKE_VERSION VERSION_GREATER_EQUAL "3.20")

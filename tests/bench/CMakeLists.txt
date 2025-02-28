@@ -19,22 +19,20 @@ include_directories(
 
   ${CMAKE_BINARY_DIR}
 )
-include_directories(SYSTEM
-  ${SQLITE3_INCLUDE_DIR}
-)
 
 target_link_libraries(qgis_bench
   qgis_core
-  ${SQLITE3_LIBRARY}
-  ${Qt5Core_LIBRARIES}
-  ${Qt5Network_LIBRARIES}
-  ${Qt5Svg_LIBRARIES}
-  ${Qt5Xml_LIBRARIES}
+  ${QT_VERSION_BASE}::Core
+  ${QT_VERSION_BASE}::Network
+  ${QT_VERSION_BASE}::Svg
+  ${QT_VERSION_BASE}::Xml
   ${OPTIONAL_QTWEBKIT}
-  ${Qt5Test_LIBRARIES}
+  ${QT_VERSION_BASE}::Test
 )
 
 if(APPLE)
+  target_link_libraries(qgis_bench qgis_native)
+
   set_target_properties(qgis_bench PROPERTIES
     INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${QGIS_LIB_DIR}
     INSTALL_RPATH_USE_LINK_PATH true

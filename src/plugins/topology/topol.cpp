@@ -29,6 +29,7 @@
 #include <QMenu>
 
 #include "topol.h"
+#include "moc_topol.cpp"
 #include "checkDock.h"
 
 static const QString sName = QObject::tr( "Topology Checker" );
@@ -47,7 +48,7 @@ static const QString sPluginIcon = QStringLiteral( ":/topology/mActionTopologyCh
 /**
  * Constructor for the plugin. The plugin is passed a pointer
  * an interface object that provides access to exposed functions in QGIS.
- * \param theQGisInterface - Pointer to the QGIS interface object
+ * \param theQGisInterface Pointer to the QGIS interface object
  */
 Topol::Topol( QgisInterface *qgisInterface )
   : QgisPlugin( sName, sDescription, sCategory, sPluginVersion, sPluginType )
@@ -141,15 +142,15 @@ QGISEXTERN QgisPlugin *classFactory( QgisInterface *qgisInterfacePointer )
 }
 // Return the name of the plugin - note that we do not user class members as
 // the class may not yet be insantiated when this method is called.
-QGISEXTERN QString name()
+QGISEXTERN const QString *name()
 {
-  return sName;
+  return &sName;
 }
 
 // Return the description
-QGISEXTERN QString description()
+QGISEXTERN const QString *description()
 {
-  return sDescription;
+  return &sDescription;
 }
 
 // Return the type (either UI or MapLayer plugin)
@@ -159,20 +160,20 @@ QGISEXTERN int type()
 }
 
 // Return the category
-QGISEXTERN QString category()
+QGISEXTERN const QString *category()
 {
-  return sCategory;
+  return &sCategory;
 }
 
 // Return the version number for the plugin
-QGISEXTERN QString version()
+QGISEXTERN const QString *version()
 {
-  return sPluginVersion;
+  return &sPluginVersion;
 }
 
-QGISEXTERN QString icon()
+QGISEXTERN const QString *icon()
 {
-  return sPluginIcon;
+  return &sPluginIcon;
 }
 
 // Delete ourself

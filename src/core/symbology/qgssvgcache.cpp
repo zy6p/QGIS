@@ -16,12 +16,14 @@
  ***************************************************************************/
 
 #include "qgssvgcache.h"
+#include "moc_qgssvgcache.cpp"
 #include "qgis.h"
 #include "qgslogger.h"
 #include "qgsnetworkaccessmanager.h"
 #include "qgsmessagelog.h"
 #include "qgssymbollayerutils.h"
 #include "qgsnetworkcontentfetchertask.h"
+#include "qgsabstractcontentcache_p.h"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -125,7 +127,7 @@ QgsSvgCache::QgsSvgCache( QObject *parent )
 QImage QgsSvgCache::svgAsImage( const QString &file, double size, const QColor &fill, const QColor &stroke, double strokeWidth,
                                 double widthScaleFactor, bool &fitsInCache, double fixedAspectRatio, bool blocking, const QMap<QString, QString> &parameters )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
   fitsInCache = true;
   QgsSvgCacheEntry *currentEntry = cacheEntry( file, size, fill, stroke, strokeWidth, widthScaleFactor, fixedAspectRatio, parameters, blocking );
@@ -137,7 +139,7 @@ QImage QgsSvgCache::svgAsImage( const QString &file, double size, const QColor &
   //update stats for memory usage
   if ( !currentEntry->image )
   {
-    QSvgRenderer r( currentEntry->svgContent );
+    const QSvgRenderer r( currentEntry->svgContent );
     double hwRatio = 1.0;
     if ( r.viewBoxF().width() > 0 )
     {
@@ -185,7 +187,7 @@ QImage QgsSvgCache::svgAsImage( const QString &file, double size, const QColor &
 QPicture QgsSvgCache::svgAsPicture( const QString &path, double size, const QColor &fill, const QColor &stroke, double strokeWidth,
                                     double widthScaleFactor, bool forceVectorOutput, double fixedAspectRatio, bool blocking, const QMap<QString, QString> &parameters )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
   QgsSvgCacheEntry *currentEntry = cacheEntry( path, size, fill, stroke, strokeWidth, widthScaleFactor, fixedAspectRatio, parameters, blocking );
 
@@ -209,7 +211,7 @@ QPicture QgsSvgCache::svgAsPicture( const QString &path, double size, const QCol
 QByteArray QgsSvgCache::svgContent( const QString &path, double size, const QColor &fill, const QColor &stroke, double strokeWidth,
                                     double widthScaleFactor, double fixedAspectRatio, bool blocking, const QMap<QString, QString> &parameters, bool *isMissingImage )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
   QgsSvgCacheEntry *currentEntry = cacheEntry( path, size, fill, stroke, strokeWidth, widthScaleFactor, fixedAspectRatio, parameters, blocking, isMissingImage );
 
@@ -219,7 +221,7 @@ QByteArray QgsSvgCache::svgContent( const QString &path, double size, const QCol
 QSizeF QgsSvgCache::svgViewboxSize( const QString &path, double size, const QColor &fill, const QColor &stroke, double strokeWidth,
                                     double widthScaleFactor, double fixedAspectRatio, bool blocking, const QMap<QString, QString> &parameters )
 {
-  QMutexLocker locker( &mMutex );
+  const QMutexLocker locker( &mMutex );
 
   QgsSvgCacheEntry *currentEntry = cacheEntry( path, size, fill, stroke, strokeWidth, widthScaleFactor, fixedAspectRatio, parameters, blocking );
   return currentEntry->viewboxSize;
@@ -277,7 +279,7 @@ void QgsSvgCache::containsParams( const QString &path,
     return;
   }
 
-  QDomElement docElem = svgDoc.documentElement();
+  const QDomElement docElem = svgDoc.documentElement();
   containsElemParams( docElem, hasFillParam, hasDefaultFillParam, defaultFillColor,
                       hasFillOpacityParam, hasDefaultFillOpacity, defaultFillOpacity,
                       hasStrokeParam, hasDefaultStrokeColor, defaultStrokeColor,
@@ -304,7 +306,7 @@ void QgsSvgCache::replaceParamsAndCacheSvg( QgsSvgCacheEntry *entry, bool blocki
   QDomElement docElem = svgDoc.documentElement();
 
   QSizeF viewboxSize;
-  double sizeScaleFactor = calcSizeScaleFactor( entry, docElem, viewboxSize );
+  const double sizeScaleFactor = calcSizeScaleFactor( entry, docElem, viewboxSize );
   entry->viewboxSize = viewboxSize;
   replaceElemParams( docElem, entry->fill, entry->stroke, entry->strokeWidth * sizeScaleFactor, entry->parameters );
 
@@ -339,7 +341,7 @@ double QgsSvgCache::calcSizeScaleFactor( QgsSvgCacheEntry *entry, const QDomElem
   }
   else
   {
-    QDomElement svgElem = docElem.firstChildElement( QStringLiteral( "svg" ) );
+    const QDomElement svgElem = docElem.firstChildElement( QStringLiteral( "svg" ) );
     if ( !svgElem.isNull() )
     {
       if ( svgElem.hasAttribute( QStringLiteral( "viewBox" ) ) )
@@ -356,17 +358,17 @@ double QgsSvgCache::calcSizeScaleFactor( QgsSvgCacheEntry *entry, const QDomElem
     if ( docElem.tagName() == QLatin1String( "svg" ) && docElem.hasAttribute( QStringLiteral( "width" ) ) )
     {
       const QString widthString = docElem.attribute( QStringLiteral( "width" ) );
-      const QRegularExpression measureRegEx( QStringLiteral( "([\\d\\.]+).*?$" ) );
+      const thread_local QRegularExpression measureRegEx( QStringLiteral( "([\\d\\.]+).*?$" ) );
       const QRegularExpressionMatch widthMatch = measureRegEx.match( widthString );
       if ( widthMatch.hasMatch() )
       {
-        double width = widthMatch.captured( 1 ).toDouble();
+        const double width = widthMatch.captured( 1 ).toDouble();
         const QString heightString = docElem.attribute( QStringLiteral( "height" ) );
 
         const QRegularExpressionMatch heightMatch = measureRegEx.match( heightString );
         if ( heightMatch.hasMatch() )
         {
-          double height = heightMatch.captured( 1 ).toDouble();
+          const double height = heightMatch.captured( 1 ).toDouble();
           viewboxSize = QSizeF( width, height );
           return width / entry->size;
         }
@@ -378,15 +380,15 @@ double QgsSvgCache::calcSizeScaleFactor( QgsSvgCacheEntry *entry, const QDomElem
 
 
   //width should be 3rd element in a 4 part space delimited string
-  QStringList parts = viewBox.split( ' ' );
+  const QStringList parts = viewBox.split( ' ' );
   if ( parts.count() != 4 )
     return 1.0;
 
   bool heightOk = false;
-  double height = parts.at( 3 ).toDouble( &heightOk );
+  const double height = parts.at( 3 ).toDouble( &heightOk );
 
   bool widthOk = false;
-  double width = parts.at( 2 ).toDouble( &widthOk );
+  const double width = parts.at( 2 ).toDouble( &widthOk );
   if ( widthOk )
   {
     if ( heightOk )
@@ -407,7 +409,7 @@ bool QgsSvgCache::checkReply( QNetworkReply *reply, const QString &path ) const
 {
   // we accept both real SVG mime types AND plain text types - because some sites
   // (notably github) serve up svgs as raw text
-  QString contentType = reply->header( QNetworkRequest::ContentTypeHeader ).toString();
+  const QString contentType = reply->header( QNetworkRequest::ContentTypeHeader ).toString();
   if ( !contentType.startsWith( QLatin1String( "image/svg+xml" ), Qt::CaseInsensitive )
        && !contentType.startsWith( QLatin1String( "text/plain" ), Qt::CaseInsensitive ) )
   {
@@ -428,10 +430,10 @@ void QgsSvgCache::cacheImage( QgsSvgCacheEntry *entry )
 
   QSizeF viewBoxSize;
   QSizeF scaledSize;
-  QSize imageSize = sizeForImage( *entry, viewBoxSize, scaledSize );
+  const QSize imageSize = sizeForImage( *entry, viewBoxSize, scaledSize );
 
   // cast double image sizes to int for QImage
-  std::unique_ptr< QImage > image = std::make_unique< QImage >( imageSize, QImage::Format_ARGB32_Premultiplied );
+  auto image = std::make_unique< QImage >( imageSize, QImage::Format_ARGB32_Premultiplied );
   image->fill( 0 ); // transparent background
 
   const bool isFixedAR = entry->fixedAspectRatio > 0;
@@ -446,7 +448,7 @@ void QgsSvgCache::cacheImage( QgsSvgCacheEntry *entry )
   {
     QSizeF s( viewBoxSize );
     s.scale( scaledSize.width(), scaledSize.height(), isFixedAR ? Qt::IgnoreAspectRatio : Qt::KeepAspectRatio );
-    QRectF rect( ( imageSize.width() - s.width() ) / 2, ( imageSize.height() - s.height() ) / 2, s.width(), s.height() );
+    const QRectF rect( ( imageSize.width() - s.width() ) / 2, ( imageSize.height() - s.height() ) / 2, s.width(), s.height() );
     r.render( &p, rect );
   }
 
@@ -464,10 +466,10 @@ void QgsSvgCache::cachePicture( QgsSvgCacheEntry *entry, bool forceVectorOutput 
 
   entry->picture.reset();
 
-  bool isFixedAR = entry->fixedAspectRatio > 0;
+  const bool isFixedAR = entry->fixedAspectRatio > 0;
 
   //correct QPictures dpi correction
-  std::unique_ptr< QPicture > picture = std::make_unique< QPicture >();
+  auto picture = std::make_unique< QPicture >();
   QRectF rect;
   QSvgRenderer r( entry->svgContent );
   double hwRatio = 1.0;
@@ -483,8 +485,8 @@ void QgsSvgCache::cachePicture( QgsSvgCacheEntry *entry, bool forceVectorOutput 
     }
   }
 
-  double wSize = entry->size;
-  double hSize = wSize * hwRatio;
+  const double wSize = entry->size;
+  const double hSize = wSize * hwRatio;
 
   QSizeF s( r.viewBoxF().size() );
   s.scale( wSize, hSize, isFixedAR ? Qt::IgnoreAspectRatio : Qt::KeepAspectRatio );
@@ -521,22 +523,22 @@ void QgsSvgCache::replaceElemParams( QDomElement &elem, const QColor &fill, cons
   }
 
   //go through attributes
-  QDomNamedNodeMap attributes = elem.attributes();
-  int nAttributes = attributes.count();
+  const QDomNamedNodeMap attributes = elem.attributes();
+  const int nAttributes = attributes.count();
   for ( int i = 0; i < nAttributes; ++i )
   {
-    QDomAttr attribute = attributes.item( i ).toAttr();
+    const QDomAttr attribute = attributes.item( i ).toAttr();
     //e.g. style="fill:param(fill);param(stroke)"
     if ( attribute.name().compare( QLatin1String( "style" ), Qt::CaseInsensitive ) == 0 )
     {
       //entries separated by ';'
       QString newAttributeString;
 
-      QStringList entryList = attribute.value().split( ';' );
+      const QStringList entryList = attribute.value().split( ';' );
       QStringList::const_iterator entryIt = entryList.constBegin();
       for ( ; entryIt != entryList.constEnd(); ++entryIt )
       {
-        QStringList keyValueSplit = entryIt->split( ':' );
+        const QStringList keyValueSplit = entryIt->split( ':' );
         if ( keyValueSplit.size() < 2 )
         {
           continue;
@@ -627,8 +629,8 @@ void QgsSvgCache::replaceElemParams( QDomElement &elem, const QColor &fill, cons
     }
   }
 
-  QDomNodeList childList = elem.childNodes();
-  int nChildren = childList.count();
+  const QDomNodeList childList = elem.childNodes();
+  const int nChildren = childList.count();
   for ( int i = 0; i < nChildren; ++i )
   {
     QDomElement childElem = childList.at( i ).toElement();
@@ -654,26 +656,26 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
   }
 
   //check this elements attribute
-  QDomNamedNodeMap attributes = elem.attributes();
-  int nAttributes = attributes.count();
+  const QDomNamedNodeMap attributes = elem.attributes();
+  const int nAttributes = attributes.count();
 
   QStringList valueSplit;
   for ( int i = 0; i < nAttributes; ++i )
   {
-    QDomAttr attribute = attributes.item( i ).toAttr();
+    const QDomAttr attribute = attributes.item( i ).toAttr();
     if ( attribute.name().compare( QLatin1String( "style" ), Qt::CaseInsensitive ) == 0 )
     {
       //entries separated by ';'
-      QStringList entryList = attribute.value().split( ';' );
+      const QStringList entryList = attribute.value().split( ';' );
       QStringList::const_iterator entryIt = entryList.constBegin();
       for ( ; entryIt != entryList.constEnd(); ++entryIt )
       {
-        QStringList keyValueSplit = entryIt->split( ':' );
+        const QStringList keyValueSplit = entryIt->split( ':' );
         if ( keyValueSplit.size() < 2 )
         {
           continue;
         }
-        QString value = keyValueSplit.at( 1 );
+        const QString value = keyValueSplit.at( 1 );
         valueSplit = value.split( ' ' );
         if ( !hasFillParam && value.startsWith( QLatin1String( "param(fill)" ) ) )
         {
@@ -690,7 +692,7 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
           if ( valueSplit.size() > 1 )
           {
             bool ok;
-            double opacity = valueSplit.at( 1 ).toDouble( &ok );
+            const double opacity = valueSplit.at( 1 ).toDouble( &ok );
             if ( ok )
             {
               defaultFillOpacity = opacity;
@@ -722,7 +724,7 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
           if ( valueSplit.size() > 1 )
           {
             bool ok;
-            double opacity = valueSplit.at( 1 ).toDouble( &ok );
+            const double opacity = valueSplit.at( 1 ).toDouble( &ok );
             if ( ok )
             {
               defaultStrokeOpacity = opacity;
@@ -734,7 +736,7 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
     }
     else
     {
-      QString value = attribute.value();
+      const QString value = attribute.value();
       valueSplit = value.split( ' ' );
       if ( !hasFillParam && value.startsWith( QLatin1String( "param(fill)" ) ) )
       {
@@ -751,7 +753,7 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
         if ( valueSplit.size() > 1 )
         {
           bool ok;
-          double opacity = valueSplit.at( 1 ).toDouble( &ok );
+          const double opacity = valueSplit.at( 1 ).toDouble( &ok );
           if ( ok )
           {
             defaultFillOpacity = opacity;
@@ -783,7 +785,7 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
         if ( valueSplit.size() > 1 )
         {
           bool ok;
-          double opacity = valueSplit.at( 1 ).toDouble( &ok );
+          const double opacity = valueSplit.at( 1 ).toDouble( &ok );
           if ( ok )
           {
             defaultStrokeOpacity = opacity;
@@ -795,11 +797,11 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
   }
 
   //pass it further to child items
-  QDomNodeList childList = elem.childNodes();
-  int nChildren = childList.count();
+  const QDomNodeList childList = elem.childNodes();
+  const int nChildren = childList.count();
   for ( int i = 0; i < nChildren; ++i )
   {
-    QDomElement childElem = childList.at( i ).toElement();
+    const QDomElement childElem = childList.at( i ).toElement();
     containsElemParams( childElem, hasFillParam, hasDefaultFill, defaultFill,
                         hasFillOpacityParam, hasDefaultFillOpacity, defaultFillOpacity,
                         hasStrokeParam, hasDefaultStroke, defaultStroke,
@@ -810,9 +812,9 @@ void QgsSvgCache::containsElemParams( const QDomElement &elem, bool &hasFillPara
 
 QSize QgsSvgCache::sizeForImage( const QgsSvgCacheEntry &entry, QSizeF &viewBoxSize, QSizeF &scaledSize ) const
 {
-  bool isFixedAR = entry.fixedAspectRatio > 0;
+  const bool isFixedAR = entry.fixedAspectRatio > 0;
 
-  QSvgRenderer r( entry.svgContent );
+  const QSvgRenderer r( entry.svgContent );
   double hwRatio = 1.0;
   viewBoxSize = r.viewBoxF().size();
   if ( viewBoxSize.width() > 0 )
@@ -855,3 +857,4 @@ QImage QgsSvgCache::imageFromCachedPicture( const QgsSvgCacheEntry &entry ) cons
   return image;
 }
 
+template class QgsAbstractContentCache<QgsSvgCacheEntry>; // clazy:exclude=missing-qobject-macro

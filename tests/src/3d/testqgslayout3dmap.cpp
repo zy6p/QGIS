@@ -18,32 +18,31 @@
 #include "qgs3dmapsettings.h"
 #include "qgsapplication.h"
 #include "qgsflatterraingenerator.h"
-#include "qgslayoutframe.h"
 #include "qgslayoutitem3dmap.h"
-#include "qgslayout.h"
-#include "qgsmultirenderchecker.h"
-#include "qgsfontutils.h"
 #include "qgsproject.h"
 #include "qgsrasterlayer.h"
+#include "qgslayout.h"
 
 #include <QObject>
 #include "qgstest.h"
 
-class TestQgsLayout3DMap : public QObject
+class TestQgsLayout3DMap : public QgsTest
 {
     Q_OBJECT
 
+  public:
+    TestQgsLayout3DMap()
+      : QgsTest( QStringLiteral( "Layout 3D Map Tests" ), QStringLiteral( "composer_3d" ) ) {}
+
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init();// will be called before each testfunction is executed.
-    void cleanup();// will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void testBasic();
 
   private:
-    QString mReport;
-    QFont mTestFont;
     std::unique_ptr<QgsProject> mProject;
     QgsRasterLayer *mLayerDtm;
 };
@@ -55,56 +54,39 @@ void TestQgsLayout3DMap::initTestCase()
 
   mProject.reset( new QgsProject );
 
-  QString dataDir( TEST_DATA_DIR );
+  const QString dataDir( TEST_DATA_DIR );
   mLayerDtm = new QgsRasterLayer( dataDir + "/3d/dtm.tif", "rgb", "gdal" );
   QVERIFY( mLayerDtm->isValid() );
   mProject->addMapLayer( mLayerDtm );
 
   mProject->setCrs( mLayerDtm->crs() );
-
-  mReport = QStringLiteral( "<h1>Layout 3D Map Tests</h1>\n" );
-
-  QgsFontUtils::loadStandardTestFonts( QStringList() << QStringLiteral( "Oblique" ) );
-  mTestFont = QgsFontUtils::getStandardTestFont( QStringLiteral( "Oblique " ) );
 }
 
 void TestQgsLayout3DMap::cleanupTestCase()
 {
   mProject.reset();
-
-  QString myReportFile = QDir::tempPath() + "/qgistest.html";
-  QFile myFile( myReportFile );
-  if ( myFile.open( QIODevice::WriteOnly | QIODevice::Append ) )
-  {
-    QTextStream myQTextStream( &myFile );
-    myQTextStream << mReport;
-    myFile.close();
-  }
   QgsApplication::exitQgis();
 }
 
 void TestQgsLayout3DMap::init()
 {
-
 }
 
 void TestQgsLayout3DMap::cleanup()
 {
-
 }
 
 void TestQgsLayout3DMap::testBasic()
 {
-  QgsRectangle fullExtent = mLayerDtm->extent();
+  const QgsRectangle fullExtent = mLayerDtm->extent();
 
   Qgs3DMapSettings *map = new Qgs3DMapSettings;
   map->setCrs( mProject->crs() );
-  map->setOrigin( QgsVector3D( fullExtent.center().x(), fullExtent.center().y(), 0 ) );
-  map->setTerrainLayers( QList<QgsMapLayer *>() << mLayerDtm );
+  map->setExtent( fullExtent );
+  map->setLayers( QList<QgsMapLayer *>() << mLayerDtm );
 
   QgsFlatTerrainGenerator *flatTerrain = new QgsFlatTerrainGenerator;
-  flatTerrain->setCrs( map->crs() );
-  flatTerrain->setExtent( fullExtent );
+  flatTerrain->setCrs( map->crs(), mProject->transformContext() );
   map->setTerrainGenerator( flatTerrain );
 
   QgsCameraPose cam;
@@ -120,24 +102,29 @@ void TestQgsLayout3DMap::testBasic()
   map3dItem->setMapSettings( map );
   l.addLayoutItem( map3dItem );
 
-  QgsLayoutChecker checker( QStringLiteral( "composer3d_basic" ), &l );
-  checker.setControlPathPrefix( QStringLiteral( "composer_3d" ) );
-  bool result = checker.testLayout( mReport, 0, 100 );
-  QVERIFY( result );
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
+  QGSVERIFYLAYOUTCHECK( QStringLiteral( "composer3d_basic_qt5" ), &l, 0, 100 );
+#else
+  QGSVERIFYLAYOUTCHECK( QStringLiteral( "composer3d_basic_qt6" ), &l, 0, 100 );
+#endif
 
   QVERIFY( !map->isTemporal() );
 
-  QDateTime begin( QDate( 2020, 01, 01 ), QTime( 10, 0, 0 ), Qt::UTC );
-  QDateTime end = begin.addSecs( 3600 );
+  const QDateTime begin( QDate( 2020, 01, 01 ), QTime( 10, 0, 0 ), Qt::UTC );
+  const QDateTime end = begin.addSecs( 3600 );
   map3dItem->setTemporalRange( QgsDateTimeRange( begin, end ) );
 
   map3dItem->refresh();
-  checker.testLayout( mReport, 0, 100 );
+
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
+  QGSVERIFYLAYOUTCHECK( QStringLiteral( "composer3d_basic_qt5" ), &l, 0, 100 );
+#else
+  QGSVERIFYLAYOUTCHECK( QStringLiteral( "composer3d_basic_qt6" ), &l, 0, 100 );
+#endif
 
   QVERIFY( map->isTemporal() );
   QCOMPARE( map->temporalRange(), QgsDateTimeRange( begin, end ) );
 }
-
 
 
 QGSTEST_MAIN( TestQgsLayout3DMap )

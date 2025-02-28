@@ -8,9 +8,6 @@ include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 include_directories (SYSTEM
-  ${GDAL_INCLUDE_DIR}
-  ${PROJ_INCLUDE_DIR}
-  ${GEOS_INCLUDE_DIR}
   ${POSTGRES_INCLUDE_DIR}
 )
 
@@ -62,9 +59,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
       )
     endif()
 
-    QT5_WRAP_UI (GRASS_LIBRARY_UIS_H
-      ../qgsgrassoptionsbase.ui
-    )
+    qt_wrap_ui(GRASS_LIBRARY_UIS_H ../qgsgrassoptionsbase.ui)
 
     add_library(qgisgrass${GRASS_BUILD_VERSION} SHARED
       ${GRASS_LIBRARY_SRCS}
@@ -121,6 +116,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
           ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_dbmibase}
           ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_dbmiclient}
           ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gproj}
+	  GDAL::GDAL
       )
     else()
       set(GRASS_TARGET_LINK_LIBRARIES${GRASS_BUILD_VERSION}
@@ -132,10 +128,14 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_dbmibase}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_dbmiclient}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gproj}
+	GDAL::GDAL
       )
     endif()
 
     target_link_libraries(qgisgrass${GRASS_BUILD_VERSION} ${GRASS_TARGET_LINK_LIBRARIES${GRASS_BUILD_VERSION}})
+	  if(WITH_POSTGRESQL)
+	    target_link_libraries(qgisgrass${GRASS_BUILD_VERSION} PostgreSQL::PostgreSQL)
+	  endif()
 
     if (WITH_GUI)
       target_link_libraries(qgisgrass${GRASS_BUILD_VERSION}
@@ -157,23 +157,23 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
     # GRASS vector provider
     #
     set (GRASS_VECTOR_PROVIDER_SRCS ../qgsgrassprovidermodule.cpp)
-    add_library(grassprovider${GRASS_BUILD_VERSION} MODULE ${GRASS_VECTOR_PROVIDER_SRCS})
+    add_library(provider_grass${GRASS_BUILD_VERSION} MODULE ${GRASS_VECTOR_PROVIDER_SRCS})
 
     # require c++17
-    target_compile_features(grassprovider${GRASS_BUILD_VERSION} PRIVATE cxx_std_17)
+    target_compile_features(provider_grass${GRASS_BUILD_VERSION} PRIVATE cxx_std_17)
 
-    set_target_properties(grassprovider${GRASS_BUILD_VERSION} PROPERTIES
+    set_target_properties(provider_grass${GRASS_BUILD_VERSION} PROPERTIES
       COMPILE_FLAGS "-DGRASS_BASE=\\\"${GRASS_PREFIX}\\\""
     )
-    target_link_libraries(grassprovider${GRASS_BUILD_VERSION}
+    target_link_libraries(provider_grass${GRASS_BUILD_VERSION}
       qgisgrass${GRASS_BUILD_VERSION}
     )
 
     if (WITH_GUI)
-      target_link_libraries(grassprovider${GRASS_BUILD_VERSION}
+      target_link_libraries(provider_grass${GRASS_BUILD_VERSION}
         qgis_gui
       )
-      add_dependencies(grassprovider${GRASS_BUILD_VERSION} ui)
+      add_dependencies(provider_grass${GRASS_BUILD_VERSION} ui)
     endif()
 
     #
@@ -182,15 +182,15 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
     set (GRASS_RASTER_PROVIDER_SRCS
       ../qgsgrassrasterprovidermodule.cpp
     )
-    add_library(grassrasterprovider${GRASS_BUILD_VERSION} MODULE ${GRASS_RASTER_PROVIDER_SRCS})
+    add_library(provider_grassraster${GRASS_BUILD_VERSION} MODULE ${GRASS_RASTER_PROVIDER_SRCS})
 
     # require c++17
-    target_compile_features(grassrasterprovider${GRASS_BUILD_VERSION} PRIVATE cxx_std_17)
+    target_compile_features(provider_grassraster${GRASS_BUILD_VERSION} PRIVATE cxx_std_17)
 
-    set_target_properties(grassrasterprovider${GRASS_BUILD_VERSION} PROPERTIES
+    set_target_properties(provider_grassraster${GRASS_BUILD_VERSION} PROPERTIES
       COMPILE_FLAGS "-DGRASS_BASE=\\\"${GRASS_PREFIX}\\\""
     )
-    target_link_libraries(grassrasterprovider${GRASS_BUILD_VERSION}
+    target_link_libraries(provider_grassraster${GRASS_BUILD_VERSION}
       qgisgrass${GRASS_BUILD_VERSION}
       qgis_core
     )
@@ -207,14 +207,14 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
       target_link_libraries(qgis.d.rast${GRASS_BUILD_VERSION}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gis}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_datetime}
-        ${GDAL_LIBRARY}
+        GDAL::GDAL
       )
     else()
       target_link_libraries(qgis.d.rast${GRASS_BUILD_VERSION}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gis}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_datetime}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_raster}
-        ${GDAL_LIBRARY}
+        GDAL::GDAL
       )
     endif()
 
@@ -227,7 +227,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gis}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_datetime}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gproj}
-        ${GDAL_LIBRARY}
+        GDAL::GDAL
       )
     else()
       target_link_libraries(qgis.g.info${GRASS_BUILD_VERSION}
@@ -235,7 +235,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_datetime}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gproj}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_raster}
-        ${GDAL_LIBRARY}
+        GDAL::GDAL
       )
     endif()
     if (UNIX)
@@ -254,7 +254,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
         qgisgrass${GRASS_BUILD_VERSION}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gis}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_datetime}
-        ${GDAL_LIBRARY}
+        GDAL::GDAL
         qgis_core
       )
     else()
@@ -263,7 +263,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_gis}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_datetime}
         ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_raster}
-        ${GDAL_LIBRARY}
+        GDAL::GDAL
         qgis_core
       )
     endif()
@@ -282,7 +282,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
       ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_vect}
       ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_dbmibase}
       ${GRASS_LIBRARY${GRASS_BUILD_VERSION}_dbmiclient}
-      ${GDAL_LIBRARY}
+      GDAL::GDAL
       qgis_core
     )
 
@@ -294,11 +294,11 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
       LIBRARY DESTINATION ${QGIS_LIB_DIR}
       FRAMEWORK DESTINATION ${QGIS_FW_SUBDIR})
 
-    install(TARGETS grassprovider${GRASS_BUILD_VERSION}
+    install(TARGETS provider_grass${GRASS_BUILD_VERSION}
       RUNTIME DESTINATION ${QGIS_PLUGIN_DIR}
       LIBRARY DESTINATION ${QGIS_PLUGIN_DIR})
 
-    install(TARGETS grassrasterprovider${GRASS_BUILD_VERSION}
+    install(TARGETS provider_grassraster${GRASS_BUILD_VERSION}
       RUNTIME DESTINATION ${QGIS_PLUGIN_DIR}
       LIBRARY DESTINATION ${QGIS_PLUGIN_DIR})
 
@@ -312,7 +312,7 @@ macro(ADD_GRASSLIB GRASS_BUILD_VERSION)
     )
 endmacro(ADD_GRASSLIB)
 
-foreach(GRASS_BUILD_VERSION 6 7) # GRASS 6 and GRASS 7
+foreach(GRASS_BUILD_VERSION 6 7 8)
   if(GRASS_FOUND${GRASS_BUILD_VERSION})
     add_subdirectory(${GRASS_BUILD_VERSION})
   endif()
@@ -753,7 +753,7 @@ if(WITH_GRASS_DIRECT)
           # Declare function type
           list ( APPEND FUNCTIONS_MAP "typedef ${FUNCTION_TYPE} ${POINTER} ${FUNCTION_NAME}_type(${PARAM_TYPES})\;\n\n" )
           list ( APPEND FUNCTIONS_MAP "${FUNCTION_TYPE} GRASS_LIB_EXPORT ${POINTER} ${FUNCTION_NAME} ( ${PARAMS} ) {\n" )
-          #list ( APPEND FUNCTIONS_MAP "  QgsDebugMsg( \"Entered\" )\;\n" )
+	  #list ( APPEND FUNCTIONS_MAP "  QgsDebugMsgLevel( \"Entered\", 4 )\;\n" )
           list ( APPEND FUNCTIONS_MAP "  ${FUNCTION_NAME}_type* fn = (${FUNCTION_NAME}_type*) cast_to_fptr (QgsGrassGisLib::instance()->resolve( \"${FUNCTION_NAME}\" ))\;\n" )
           list ( APPEND FUNCTIONS_MAP "  return fn( ${PARAM_NAMES} )\;\n")
           list ( APPEND FUNCTIONS_MAP "}\n\n" )

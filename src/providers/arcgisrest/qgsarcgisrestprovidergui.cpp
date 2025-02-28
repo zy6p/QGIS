@@ -13,6 +13,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "qgsarcgisrestprovidergui.h"
+
 #include "qgsapplication.h"
 #include "qgsproviderguimetadata.h"
 #include "qgssourceselectprovider.h"
@@ -28,7 +30,6 @@
 class QgsArcGisRestSourceSelectProvider : public QgsSourceSelectProvider
 {
   public:
-
     QString providerKey() const override { return QgsAfsProvider::AFS_PROVIDER_KEY; }
     QString text() const override { return QObject::tr( "ArcGIS REST Server" ); }
     int ordering() const override { return QgsSourceSelectProvider::OrderRemoteProvider + 150; }
@@ -42,7 +43,8 @@ class QgsArcGisRestSourceSelectProvider : public QgsSourceSelectProvider
 class QgsArcGisRestSourceWidgetProvider : public QgsProviderSourceWidgetProvider
 {
   public:
-    QgsArcGisRestSourceWidgetProvider() : QgsProviderSourceWidgetProvider() {}
+    QgsArcGisRestSourceWidgetProvider()
+      : QgsProviderSourceWidgetProvider() {}
     QString providerKey() const override
     {
       return QgsAfsProvider::AFS_PROVIDER_KEY;
@@ -63,38 +65,37 @@ class QgsArcGisRestSourceWidgetProvider : public QgsProviderSourceWidgetProvider
     }
 };
 
-class QgsArcGisRestProviderGuiMetadata: public QgsProviderGuiMetadata
+
+QgsArcGisRestProviderGuiMetadata::QgsArcGisRestProviderGuiMetadata()
+  : QgsProviderGuiMetadata( QgsAfsProvider::AFS_PROVIDER_KEY )
 {
-  public:
-    QgsArcGisRestProviderGuiMetadata()
-      : QgsProviderGuiMetadata( QgsAfsProvider::AFS_PROVIDER_KEY )
-    {
-    }
+}
 
-    QList<QgsDataItemGuiProvider *> dataItemGuiProviders() override
-    {
-      QList<QgsDataItemGuiProvider *> providers;
-      providers << new QgsArcGisRestDataItemGuiProvider();
-      return providers;
-    }
+QList<QgsDataItemGuiProvider *> QgsArcGisRestProviderGuiMetadata::dataItemGuiProviders()
+{
+  QList<QgsDataItemGuiProvider *> providers;
+  providers << new QgsArcGisRestDataItemGuiProvider();
+  return providers;
+}
 
-    QList<QgsSourceSelectProvider *> sourceSelectProviders() override
-    {
-      QList<QgsSourceSelectProvider *> providers;
-      providers << new QgsArcGisRestSourceSelectProvider;
-      return providers;
-    }
+QList<QgsSourceSelectProvider *> QgsArcGisRestProviderGuiMetadata::sourceSelectProviders()
+{
+  QList<QgsSourceSelectProvider *> providers;
+  providers << new QgsArcGisRestSourceSelectProvider;
+  return providers;
+}
 
-    QList<QgsProviderSourceWidgetProvider *> sourceWidgetProviders() override
-    {
-      QList<QgsProviderSourceWidgetProvider *> providers;
-      providers << new QgsArcGisRestSourceWidgetProvider();
-      return providers;
-    }
-};
+QList<QgsProviderSourceWidgetProvider *> QgsArcGisRestProviderGuiMetadata::sourceWidgetProviders()
+{
+  QList<QgsProviderSourceWidgetProvider *> providers;
+  providers << new QgsArcGisRestSourceWidgetProvider();
+  return providers;
+}
 
 
+#ifndef HAVE_STATIC_PROVIDERS
 QGISEXTERN QgsProviderGuiMetadata *providerGuiMetadataFactory()
 {
   return new QgsArcGisRestProviderGuiMetadata();
 }
+#endif

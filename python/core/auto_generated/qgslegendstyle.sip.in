@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/qgslegendstyle.h                                            *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -21,17 +21,6 @@ Contains detailed styling information relating to how a layout legend should be 
 %End
   public:
 
-    enum Style
-    {
-      Undefined,
-      Hidden,
-      Title,
-      Group,
-      Subgroup,
-      Symbol,
-      SymbolLabel,
-    };
-
 
     enum Side
     {
@@ -43,22 +32,48 @@ Contains detailed styling information relating to how a layout legend should be 
 
     QgsLegendStyle();
 
-    QFont font() const;
+ QFont font() const /Deprecated="Since 3.40. Use textFormat() instead."/;
 %Docstring
 Returns the font used for rendering this legend component.
 
 .. seealso:: :py:func:`setFont`
+
+.. deprecated:: 3.40
+
+   Use :py:func:`~QgsLegendStyle.textFormat` instead.
 %End
 
-    void setFont( const QFont &font );
+ void setFont( const QFont &font ) /Deprecated="Since 3.40. Use setTextFormat() instead."/;
 %Docstring
 Sets the ``font`` used for rendering this legend component.
 
 .. seealso:: :py:func:`font`
+
+.. deprecated:: 3.40
+
+   Use :py:func:`~QgsLegendStyle.setTextFormat` instead.
+%End
+
+    QgsTextFormat &textFormat();
+%Docstring
+Returns the text format used for rendering this legend component.
+
+.. seealso:: :py:func:`setTextFormat`
+
+.. versionadded:: 3.30
 %End
 
 
-    double margin( Side side );
+    void setTextFormat( const QgsTextFormat &format );
+%Docstring
+Sets the text ``format`` used for rendering this legend component.
+
+.. seealso:: :py:func:`textFormat`
+
+.. versionadded:: 3.30
+%End
+
+    double margin( Side side ) const;
 %Docstring
 Returns the margin (in mm) for the specified ``side`` of the component.
 
@@ -105,6 +120,24 @@ Sets the alignment for the legend component.
 .. versionadded:: 3.10
 %End
 
+    double indent() const;
+%Docstring
+Returns the indent (in mm) of a group or subgroup.
+
+.. seealso:: :py:func:`indent`
+
+.. versionadded:: 3.22
+%End
+
+    void setIndent( double indent );
+%Docstring
+Sets the indent (in mm) of a group or subgroup.
+
+.. seealso:: :py:func:`indent`
+
+.. versionadded:: 3.22
+%End
+
     void writeXml( const QString &name, QDomElement &elem, QDomDocument &doc, const QgsReadWriteContext &context = QgsReadWriteContext() ) const;
 %Docstring
 Writes the component's style definition to an XML element.
@@ -119,7 +152,15 @@ Reads the component's style definition from an XML element.
 .. seealso:: :py:func:`writeXml`
 %End
 
-    static QString styleName( Style s );
+    void updateDataDefinedProperties( QgsRenderContext &context );
+%Docstring
+Updates any data-defined properties in the style, using the specified
+render ``context``.
+
+.. versionadded:: 3.42
+%End
+
+    static QString styleName( Qgis::LegendComponent s );
 %Docstring
 Returns the name for a style component as a string.
 
@@ -130,14 +171,14 @@ This is a non-localised version, for internal use.
 .. seealso:: :py:func:`styleLabel`
 %End
 
-    static Style styleFromName( const QString &styleName );
+    static Qgis::LegendComponent styleFromName( const QString &styleName );
 %Docstring
 Returns the style from name string.
 
 .. seealso:: :py:func:`styleName`
 %End
 
-    static QString styleLabel( Style s );
+    static QString styleLabel( Qgis::LegendComponent s );
 %Docstring
 Returns a translated string representing a style component, for use in UI.
 
@@ -151,5 +192,5 @@ Returns a translated string representing a style component, for use in UI.
  *                                                                      *
  * src/core/qgslegendstyle.h                                            *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

@@ -16,10 +16,10 @@
 #include "layer.h"
 #include "pal.h"
 #include "feature.h"
-#include "geomfunction.h"
 #include "labelposition.h"
 #include "util.h"
 #include "costcalculator.h"
+#include "qgsgeometryutils_base.h"
 #include <cmath>
 #include <cfloat>
 
@@ -34,13 +34,13 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
 {
   int n = 0;
   double dist;
-  double distlabel = lp->feature->getLabelDistance();
+  const double distlabel = lp->feature->getLabelDistance();
 
   switch ( obstacle->getGeosType() )
   {
     case GEOS_POINT:
 
-      dist = lp->getDistanceToPoint( obstacle->x[0], obstacle->y[0] );
+      dist = lp->getDistanceToPoint( obstacle->x[0], obstacle->y[0], true );
       if ( dist < 0 )
         n = 2;
       else if ( dist < distlabel )
@@ -61,15 +61,15 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
       // behavior depends on obstacle avoid type
       switch ( obstacle->layer()->obstacleType() )
       {
-        case QgsLabelObstacleSettings::PolygonInterior:
+        case QgsLabelObstacleSettings::ObstacleType::PolygonInterior:
           // n ranges from 0 -> 12
           n = lp->polygonIntersectionCost( obstacle );
           break;
-        case QgsLabelObstacleSettings::PolygonBoundary:
+        case QgsLabelObstacleSettings::ObstacleType::PolygonBoundary:
           // penalty may need tweaking, given that interior mode ranges up to 12
           n = ( lp->crossesBoundary( obstacle ) ? 6 : 0 );
           break;
-        case QgsLabelObstacleSettings::PolygonWhole:
+        case QgsLabelObstacleSettings::ObstacleType::PolygonWhole:
           // n is either 0 or 12
           n = ( lp->intersectsWithPolygon( obstacle ) ? 12 : 0 );
           break;
@@ -79,22 +79,22 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
   }
 
   //scale cost by obstacle's factor
-  double obstacleCost = obstacle->obstacleSettings().factor() * double( n );
+  const double obstacleCost = obstacle->obstacleSettings().factor() * double( n );
   if ( n > 0 )
     lp->setConflictsWithObstacle( true );
 
   switch ( pal->placementVersion() )
   {
-    case QgsLabelingEngineSettings::PlacementEngineVersion1:
+    case Qgis::LabelPlacementEngineVersion::Version1:
       break;
 
-    case QgsLabelingEngineSettings::PlacementEngineVersion2:
+    case Qgis::LabelPlacementEngineVersion::Version2:
     {
       // obstacle factor is from 0 -> 2, label priority is from 1 -> 0. argh!
       const double priority = 2 * ( 1 - lp->feature->calculatePriority() );
       const double obstaclePriority = obstacle->obstacleSettings().factor();
 
-      // if feature priority is < obstaclePriorty, there's a hard conflict...
+      // if feature priority is < obstaclePriority, there's a hard conflict...
       if ( n > 0 && ( priority < obstaclePriority && !qgsDoubleNear( priority, obstaclePriority, 0.001 ) ) )
       {
         lp->setHasHardObstacleConflict( true );
@@ -114,7 +114,7 @@ void CostCalculator::calculateCandidatePolygonRingDistanceCosts( std::vector< st
   QHash< LabelPosition *, double > polygonRingDistances;
   double minCandidateRingDistance = std::numeric_limits< double >::max();
   double maxCandidateRingDistance = std::numeric_limits< double >::lowest();
-  for ( std::unique_ptr< LabelPosition > &pos : lPos )
+  for ( const std::unique_ptr< LabelPosition > &pos : lPos )
   {
     const double candidatePolygonRingDistance = calculatePolygonRingDistance( pos.get(), bbx, bby );
 
@@ -155,7 +155,7 @@ void CostCalculator::calculateCandidatePolygonCentroidDistanceCosts( pal::Featur
     const double lPosX = ( pos->x[0] + pos->x[2] ) / 2.0;
     const double lPosY = ( pos->y[0] + pos->y[2] ) / 2.0;
 
-    const double candidatePolygonCentroidDistance = std::sqrt( ( cx - lPosX ) * ( cx - lPosX ) + ( cy - lPosY ) * ( cy - lPosY ) );
+    const double candidatePolygonCentroidDistance = QgsGeometryUtilsBase::distance2D( cx, cy, lPosX, lPosY );
 
     minCandidateCentroidDistance  = std::min( minCandidateCentroidDistance, candidatePolygonCentroidDistance );
     maxCandidateCentroidDistance = std::max( maxCandidateCentroidDistance, candidatePolygonCentroidDistance );
@@ -195,7 +195,7 @@ double CostCalculator::calculatePolygonRingDistance( LabelPosition *candidate, d
 
   // prefer candidates further from the outside of map rather then those close to the outside of the map
   // TODO 3: should be using the actual map boundary here, not the bounding box
-  PointSet extent( 4, bbx, bby );
+  const PointSet extent( 4, bbx, bby );
   ringDistanceCalculator.addRing( &extent );
 
   // prefer candidates which further from interior rings (holes) of the polygon
@@ -245,8 +245,8 @@ void CostCalculator::finalizeCandidatesCosts( Feats *feat, double bbx[4], double
 
   if ( feat->feature->getGeosType() == GEOS_POLYGON )
   {
-    int arrangement = feat->feature->layer()->arrangement();
-    if ( arrangement == QgsPalLayerSettings::Free || arrangement == QgsPalLayerSettings::Horizontal )
+    const Qgis::LabelPlacement arrangement = feat->feature->layer()->arrangement();
+    if ( arrangement == Qgis::LabelPlacement::Free || arrangement == Qgis::LabelPlacement::Horizontal )
     {
       // prefer positions closer to the pole of inaccessibilities
       calculateCandidatePolygonRingDistanceCosts( feat->candidates, bbx, bby );
@@ -267,7 +267,7 @@ CandidatePolygonRingDistanceCalculator::CandidatePolygonRingDistanceCalculator( 
 
 void CandidatePolygonRingDistanceCalculator::addRing( const pal::PointSet *ring )
 {
-  double d = ring->minDistanceToPoint( mPx, mPy );
+  const double d = ring->minDistanceToPoint( mPx, mPy );
   if ( d < mMinDistance )
   {
     mMinDistance = d;

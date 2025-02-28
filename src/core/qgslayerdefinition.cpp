@@ -18,7 +18,6 @@
 #include <QTextStream>
 
 #include "qgslayerdefinition.h"
-#include "qgslayertree.h"
 #include "qgslogger.h"
 #include "qgsmaplayer.h"
 #include "qgspathresolver.h"
@@ -29,13 +28,17 @@
 #include "qgsreadwritecontext.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectortilelayer.h"
+#include "qgstiledscenelayer.h"
 #include "qgsapplication.h"
 #include "qgsmaplayerfactory.h"
 #include "qgsmeshlayer.h"
 #include "qgspointcloudlayer.h"
-#include "qgsannotationlayer.h"
+#include "qgsfileutils.h"
+#include "qgsgrouplayer.h"
+#include "qgslayertreegroup.h"
+#include "qgslayertreelayer.h"
 
-bool QgsLayerDefinition::loadLayerDefinition( const QString &path, QgsProject *project, QgsLayerTreeGroup *rootGroup, QString &errorMessage )
+bool QgsLayerDefinition::loadLayerDefinition( const QString &path, QgsProject *project, QgsLayerTreeGroup *rootGroup, QString &errorMessage, Qgis::LayerTreeInsertionMethod insertMethod, const QgsLayerTreeRegistryBridge::InsertionPoint *insertPoint )
 {
   QFile file( path );
   if ( !file.open( QIODevice::ReadOnly ) )
@@ -52,28 +55,28 @@ bool QgsLayerDefinition::loadLayerDefinition( const QString &path, QgsProject *p
     return false;
   }
 
-  QFileInfo fileinfo( file );
+  const QFileInfo fileinfo( file );
   QDir::setCurrent( fileinfo.absoluteDir().path() );
 
   QgsReadWriteContext context;
   context.setPathResolver( QgsPathResolver( path ) );
   context.setProjectTranslator( project );
 
-  return loadLayerDefinition( doc, project, rootGroup, errorMessage, context );
+  return loadLayerDefinition( doc, project, rootGroup, errorMessage, context, insertMethod, insertPoint );
 }
 
-bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *project, QgsLayerTreeGroup *rootGroup, QString &errorMessage, QgsReadWriteContext &context )
+bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *project, QgsLayerTreeGroup *rootGroup, QString &errorMessage, QgsReadWriteContext &context, Qgis::LayerTreeInsertionMethod insertMethod, const QgsLayerTreeRegistryBridge::InsertionPoint *insertPoint )
 {
   errorMessage.clear();
 
-  QgsLayerTreeGroup *root = new QgsLayerTreeGroup();
+  QgsLayerTreeGroup root;
 
   // reorder maplayer nodes based on dependencies
   // dependencies have to be resolved before IDs get changed
-  DependencySorter depSorter( doc );
+  const DependencySorter depSorter( doc );
   if ( !depSorter.hasMissingDependency() )
   {
-    QVector<QDomNode> sortedLayerNodes = depSorter.sortedLayerNodes();
+    const QVector<QDomNode> sortedLayerNodes = depSorter.sortedLayerNodes();
     QVector<QDomNode> clonedSorted;
     const auto constSortedLayerNodes = sortedLayerNodes;
     for ( const QDomNode &node : constSortedLayerNodes )
@@ -94,14 +97,13 @@ bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *proj
   // IDs of layers should be changed otherwise we may have more then one layer with the same id
   // We have to replace the IDs before we load them because it's too late once they are loaded
   const QDomNodeList treeLayerNodes = doc.elementsByTagName( QStringLiteral( "layer-tree-layer" ) );
-  QDomNode treeLayerNode = treeLayerNodes.at( 0 );
-  for ( int i = 0; ! treeLayerNode.isNull(); ++i )
+  for ( int i = 0; i < treeLayerNodes.length(); ++i )
   {
-    treeLayerNode = treeLayerNodes.at( i );
+    const QDomNode treeLayerNode = treeLayerNodes.item( i );
     QDomElement treeLayerElem = treeLayerNode.toElement();
-    QString oldid = treeLayerElem.attribute( QStringLiteral( "id" ) );
-    QString layername = treeLayerElem.attribute( QStringLiteral( "name" ) );
-    QString newid = QgsMapLayer::generateId( layername );
+    const QString oldid = treeLayerElem.attribute( QStringLiteral( "id" ) );
+    const QString layername = treeLayerElem.attribute( QStringLiteral( "name" ) );
+    const QString newid = QgsMapLayer::generateId( layername );
     treeLayerElem.setAttribute( QStringLiteral( "id" ), newid );
 
     // Replace IDs for map layers
@@ -110,7 +112,7 @@ bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *proj
     for ( int j = 0; ! idnode.isNull() ; ++j )
     {
       idnode = ids.at( j );
-      QDomElement idElem = idnode.toElement();
+      const QDomElement idElem = idnode.toElement();
       if ( idElem.text() == oldid )
       {
         idElem.firstChild().setNodeValue( newid );
@@ -121,8 +123,8 @@ bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *proj
     const QDomNodeList vectorJoinNodes = doc.elementsByTagName( QStringLiteral( "join" ) ); // TODO: Find a better way of searching for vectorjoins, there might be other <join> elements within the project.
     for ( int j = 0; j < vectorJoinNodes.size(); ++j )
     {
-      QDomNode joinNode = vectorJoinNodes.at( j );
-      QDomElement joinElement = joinNode.toElement();
+      const QDomNode joinNode = vectorJoinNodes.at( j );
+      const QDomElement joinElement = joinNode.toElement();
       if ( joinElement.attribute( QStringLiteral( "joinLayerId" ) ) == oldid )
       {
         joinNode.toElement().setAttribute( QStringLiteral( "joinLayerId" ), newid );
@@ -133,7 +135,7 @@ bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *proj
     const QDomNodeList dataDeps = doc.elementsByTagName( QStringLiteral( "dataDependencies" ) );
     for ( int i = 0; i < dataDeps.size(); i++ )
     {
-      QDomNodeList layers = dataDeps.at( i ).childNodes();
+      const QDomNodeList layers = dataDeps.at( i ).childNodes();
       for ( int j = 0; j < layers.size(); j++ )
       {
         QDomElement elt = layers.at( j ).toElement();
@@ -145,16 +147,16 @@ bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *proj
     }
 
     // Change IDs of widget config values
-    QDomNodeList widgetConfig = doc.elementsByTagName( QStringLiteral( "editWidget" ) );
+    const QDomNodeList widgetConfig = doc.elementsByTagName( QStringLiteral( "editWidget" ) );
     for ( int i = 0; i < widgetConfig.size(); i++ )
     {
-      QDomNodeList config = widgetConfig.at( i ).childNodes();
+      const QDomNodeList config = widgetConfig.at( i ).childNodes();
       for ( int j = 0; j < config.size(); j++ )
       {
-        QDomNodeList optMap = config.at( j ).childNodes();
+        const QDomNodeList optMap = config.at( j ).childNodes();
         for ( int z = 0; z < optMap.size(); z++ )
         {
-          QDomNodeList opts = optMap.at( z ).childNodes();
+          const QDomNodeList opts = optMap.at( z ).childNodes();
           for ( int k = 0; k < opts.size(); k++ )
           {
             QDomElement opt = opts.at( k ).toElement();
@@ -172,11 +174,11 @@ bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *proj
   bool loadInLegend = true;
   if ( !layerTreeElem.isNull() )
   {
-    root->readChildrenFromXml( layerTreeElem, context );
+    root.readChildrenFromXml( layerTreeElem, context );
     loadInLegend = false;
   }
 
-  QList<QgsMapLayer *> layers = QgsLayerDefinition::loadLayerDefinitionLayersInternal( doc, context, errorMessage );
+  const QList<QgsMapLayer *> layers = QgsLayerDefinition::loadLayerDefinitionLayersInternal( doc, context, errorMessage );
 
   project->addMapLayers( layers, loadInLegend );
 
@@ -184,30 +186,46 @@ bool QgsLayerDefinition::loadLayerDefinition( QDomDocument doc, QgsProject *proj
   const auto constLayers = layers;
   for ( QgsMapLayer *layer : constLayers )
   {
-    if ( QgsVectorLayer *vlayer = qobject_cast< QgsVectorLayer * >( layer ) )
-    {
-      vlayer->resolveReferences( project );
-    }
+    layer->resolveReferences( project );
   }
 
-  root->resolveReferences( project );
+  root.resolveReferences( project );
 
-  QList<QgsLayerTreeNode *> nodes = root->children();
-  root->abandonChildren();
-  delete root;
+  const QList<QgsLayerTreeNode *> nodes = root.children();
+  root.abandonChildren();
 
-  rootGroup->insertChildNodes( -1, nodes );
+  switch ( insertMethod )
+  {
+    case Qgis::LayerTreeInsertionMethod::AboveInsertionPoint:
+      if ( insertPoint )
+      {
+        insertPoint->group->insertChildNodes( insertPoint->position, nodes );
+      }
+      else
+      {
+        rootGroup->insertChildNodes( -1, nodes );
+      }
+      break;
+    case Qgis::LayerTreeInsertionMethod::TopOfTree:
+      rootGroup->insertChildNodes( 0, nodes );
+      break;
+    default: //Keep current behavior for Qgis::LayerTreeInsertionMethod::OptimalInInsertionGroup
+      rootGroup->insertChildNodes( -1, nodes );
+  }
 
   return true;
 }
 
-bool QgsLayerDefinition::exportLayerDefinition( QString path, const QList<QgsLayerTreeNode *> &selectedTreeNodes, QString &errorMessage )
+bool QgsLayerDefinition::exportLayerDefinition( const QString &path, const QList<QgsLayerTreeNode *> &selectedTreeNodes, QString &errorMessage )
 {
-  if ( !path.endsWith( QLatin1String( ".qlr" ) ) )
-    path = path.append( ".qlr" );
+  return exportLayerDefinition( path, selectedTreeNodes, QgsProject::instance()->filePathStorage(), errorMessage ); // skip-keyword-check
+}
+
+bool QgsLayerDefinition::exportLayerDefinition( const QString &p, const QList<QgsLayerTreeNode *> &selectedTreeNodes, Qgis::FilePathType pathType, QString &errorMessage )
+{
+  const QString path = QgsFileUtils::ensureFileNameHasExtension( p, { QStringLiteral( "qlr" )} );
 
   QFile file( path );
-
   if ( !file.open( QFile::WriteOnly | QFile::Truncate ) )
   {
     errorMessage = file.errorString();
@@ -215,10 +233,17 @@ bool QgsLayerDefinition::exportLayerDefinition( QString path, const QList<QgsLay
   }
 
   QgsReadWriteContext context;
-  bool writeAbsolutePath = QgsProject::instance()->readBoolEntry( QStringLiteral( "Paths" ), QStringLiteral( "/Absolute" ), false );
-  context.setPathResolver( QgsPathResolver( writeAbsolutePath ? QString() : path ) );
+  switch ( pathType )
+  {
+    case Qgis::FilePathType::Absolute:
+      context.setPathResolver( QgsPathResolver( QString() ) );
+      break;
+    case Qgis::FilePathType::Relative:
+      context.setPathResolver( QgsPathResolver( path ) );
+      break;
+  }
 
-  QDomDocument doc( QStringLiteral( "qgis-layer-definition" ) );
+  const QDomDocument doc( QStringLiteral( "qgis-layer-definition" ) );
   if ( !exportLayerDefinition( doc, selectedTreeNodes, errorMessage, context ) )
     return false;
 
@@ -232,20 +257,17 @@ bool QgsLayerDefinition::exportLayerDefinition( QDomDocument doc, const QList<Qg
   Q_UNUSED( errorMessage )
   QDomElement qgiselm = doc.createElement( QStringLiteral( "qlr" ) );
   doc.appendChild( qgiselm );
-  QList<QgsLayerTreeNode *> nodes = selectedTreeNodes;
-  QgsLayerTreeGroup *root = new QgsLayerTreeGroup;
-  const auto constNodes = nodes;
-  for ( QgsLayerTreeNode *node : constNodes )
+  QgsLayerTreeGroup root;
+  for ( QgsLayerTreeNode *node : selectedTreeNodes )
   {
     QgsLayerTreeNode *newnode = node->clone();
-    root->addChildNode( newnode );
+    root.addChildNode( newnode );
   }
-  root->writeXml( qgiselm, context );
+  root.writeXml( qgiselm, context );
 
   QDomElement layerselm = doc.createElement( QStringLiteral( "maplayers" ) );
-  QList<QgsLayerTreeLayer *> layers = root->findLayers();
-  const auto constLayers = layers;
-  for ( QgsLayerTreeLayer *layer : constLayers )
+  const QList<QgsLayerTreeLayer *> layers = root.findLayers();
+  for ( QgsLayerTreeLayer *layer : layers )
   {
     if ( ! layer->layer() )
     {
@@ -299,39 +321,47 @@ QList<QgsMapLayer *> QgsLayerDefinition::loadLayerDefinitionLayersInternal( QDom
     QgsMapLayer *layer = nullptr;
 
     bool ok = false;
-    const QgsMapLayerType layerType = QgsMapLayerFactory::typeFromString( type, ok );
+    const Qgis::LayerType layerType = QgsMapLayerFactory::typeFromString( type, ok );
     if ( ok )
     {
       switch ( layerType )
       {
-        case QgsMapLayerType::VectorLayer:
+        case Qgis::LayerType::Vector:
           layer = new QgsVectorLayer();
           break;
 
-        case QgsMapLayerType::RasterLayer:
+        case Qgis::LayerType::Raster:
           layer = new QgsRasterLayer();
           break;
 
-        case QgsMapLayerType::PluginLayer:
+        case Qgis::LayerType::Plugin:
         {
-          QString typeName = layerElem.attribute( QStringLiteral( "name" ) );
+          const QString typeName = layerElem.attribute( QStringLiteral( "name" ) );
           layer = QgsApplication::pluginLayerRegistry()->createLayer( typeName );
           break;
         }
 
-        case QgsMapLayerType::MeshLayer:
+        case Qgis::LayerType::Mesh:
           layer = new QgsMeshLayer();
           break;
 
-        case QgsMapLayerType::VectorTileLayer:
+        case Qgis::LayerType::VectorTile:
           layer = new QgsVectorTileLayer;
           break;
 
-        case QgsMapLayerType::PointCloudLayer:
+        case Qgis::LayerType::PointCloud:
           layer = new QgsPointCloudLayer();
           break;
 
-        case QgsMapLayerType::AnnotationLayer:
+        case Qgis::LayerType::TiledScene:
+          layer = new QgsTiledSceneLayer;
+          break;
+
+        case Qgis::LayerType::Group:
+          layer = new QgsGroupLayer( QString(), QgsGroupLayer::LayerOptions( QgsCoordinateTransformContext() ) );
+          break;
+
+        case Qgis::LayerType::Annotation:
           break;
       }
     }
@@ -357,14 +387,14 @@ QList<QgsMapLayer *> QgsLayerDefinition::loadLayerDefinitionLayers( const QStrin
   QFile file( qlrfile );
   if ( !file.open( QIODevice::ReadOnly ) )
   {
-    QgsDebugMsg( QStringLiteral( "Can't open file" ) );
+    QgsDebugError( QStringLiteral( "Can't open file" ) );
     return QList<QgsMapLayer *>();
   }
 
   QDomDocument doc;
   if ( !doc.setContent( &file ) )
   {
-    QgsDebugMsg( QStringLiteral( "Can't set content" ) );
+    QgsDebugError( QStringLiteral( "Can't set content" ) );
     return QList<QgsMapLayer *>();
   }
 
@@ -401,17 +431,17 @@ void QgsLayerDefinition::DependencySorter::init( const QDomDocument &doc )
   {
     deps.resize( 0 ); // preserve capacity - don't use clear
 
-    QString id = layerElem.namedItem( QStringLiteral( "id" ) ).toElement().text();
+    const QString id = layerElem.namedItem( QStringLiteral( "id" ) ).toElement().text();
     layerIds << id;
 
     // dependencies for this layer
-    QDomElement layerDependenciesElem = layerElem.firstChildElement( QStringLiteral( "layerDependencies" ) );
+    const QDomElement layerDependenciesElem = layerElem.firstChildElement( QStringLiteral( "layerDependencies" ) );
     if ( !layerDependenciesElem.isNull() )
     {
-      QDomNodeList dependencyList = layerDependenciesElem.elementsByTagName( QStringLiteral( "layer" ) );
+      const QDomNodeList dependencyList = layerDependenciesElem.elementsByTagName( QStringLiteral( "layer" ) );
       for ( int j = 0; j < dependencyList.size(); ++j )
       {
-        QDomElement depElem = dependencyList.at( j ).toElement();
+        const QDomElement depElem = dependencyList.at( j ).toElement();
         deps << depElem.attribute( QStringLiteral( "id" ) );
       }
     }
@@ -426,6 +456,7 @@ void QgsLayerDefinition::DependencySorter::init( const QDomDocument &doc )
     else
     {
       layersToSort << qMakePair( id, layerElem );
+      mDependentLayerIds.insert( id );
     }
     layerElem = layerElem.nextSiblingElement( );
   }
@@ -462,8 +493,8 @@ void QgsLayerDefinition::DependencySorter::init( const QDomDocument &doc )
     QList< QPair<QString, QDomNode> >::iterator it = layersToSort.begin();
     while ( it != layersToSort.end() )
     {
-      QString idToSort = it->first;
-      QDomNode node = it->second;
+      const QString idToSort = it->first;
+      const QDomNode node = it->second;
       mHasCycle = true;
       bool resolved = true;
       const auto deps { dependencies.value( idToSort ) };
@@ -515,6 +546,11 @@ QgsLayerDefinition::DependencySorter::DependencySorter( const QString &fileName 
   ( void )pFile.open( QIODevice::ReadOnly );
   ( void )doc.setContent( &pFile );
   init( doc );
+}
+
+bool QgsLayerDefinition::DependencySorter::isLayerDependent( const QString &layerId ) const
+{
+  return mDependentLayerIds.contains( layerId );
 }
 
 

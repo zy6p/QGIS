@@ -23,6 +23,9 @@
 #include "qgis_core.h"
 #include "qgis_sip.h"
 #include "qgslogger.h"
+#include "qgssettingstreenode.h"
+
+class QgsSettingsProxy;
 
 /**
  * \ingroup core
@@ -56,7 +59,6 @@
  * - Providers
  * - Misc
  *
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsSettings : public QObject
 {
@@ -75,7 +77,8 @@ class CORE_EXPORT QgsSettings : public QObject
       App,
       Providers,
       Expressions,
-      Misc
+      Misc,
+      Gps, //!< GPS section, since QGIS 3.22
     };
 
     /**
@@ -176,7 +179,7 @@ class CORE_EXPORT QgsSettings : public QObject
     //! Returns a list of all top-level keys that can be read using the QSettings object.
     QStringList childKeys() const;
     //! Returns a list of all key top-level groups that contain keys that can be read using the QSettings object.
-    QStringList childGroups() const;
+    QStringList childGroups( Qgis::SettingsOrigin origin = Qgis::SettingsOrigin::Any ) const;
     //! Returns a list of all key top-level groups (same as childGroups) but only for groups defined in global settings.
     QStringList globalChildGroups() const;
     //! Returns the path to the Global Settings QSettings storage file
@@ -202,6 +205,13 @@ class CORE_EXPORT QgsSettings : public QObject
     void setArrayIndex( int i );
 
     /**
+     * Returns the origin of the setting if it exists at the given \a key
+     * \note it will return Qgis::SettingsOrigin::Any if the key doesn't exist
+     * \since QGIS 3.30
+     */
+    Qgis::SettingsOrigin origin( const QString &key ) const;
+
+    /**
      * Sets the value of setting key to value. If the key already exists, the previous value is overwritten.
      * An optional Section argument can be used to set a value to a specific Section.
      */
@@ -221,7 +231,7 @@ class CORE_EXPORT QgsSettings : public QObject
                         SIP_PYOBJECT type = 0,
                         QgsSettings::Section section = QgsSettings::NoSection ) const / ReleaseGIL /;
     % MethodCode
-    typedef PyObject *( *pyqt5_from_qvariant_by_type )( QVariant &value, PyObject *type );
+    typedef PyObject *( *pyqt_from_qvariant_by_type )( QVariant &value, PyObject *type );
     QVariant value;
 
     // QSettings has an internal mutex so release the GIL to avoid the possibility of deadlocks.
@@ -229,12 +239,13 @@ class CORE_EXPORT QgsSettings : public QObject
     value = sipCpp->value( *a0, *a1, a3 );
     Py_END_ALLOW_THREADS
 
-    pyqt5_from_qvariant_by_type f = ( pyqt5_from_qvariant_by_type ) sipImportSymbol( "pyqt5_from_qvariant_by_type" );
+    pyqt_from_qvariant_by_type f = ( pyqt_from_qvariant_by_type ) sipImportSymbol( SIP_PYQT_FROM_QVARIANT_BY_TYPE );
     sipRes = f( value, a2 );
 
     sipIsErr = !sipRes;
     % End
 #endif
+
 
 #ifndef SIP_RUN
 
@@ -252,11 +263,11 @@ class CORE_EXPORT QgsSettings : public QObject
     T enumValue( const QString &key, const T &defaultValue,
                  const Section section = NoSection )
     {
-      QMetaEnum metaEnum = QMetaEnum::fromType<T>();
+      const QMetaEnum metaEnum = QMetaEnum::fromType<T>();
       Q_ASSERT( metaEnum.isValid() );
       if ( !metaEnum.isValid() )
       {
-        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
+        QgsDebugError( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
 
       T v;
@@ -265,7 +276,7 @@ class CORE_EXPORT QgsSettings : public QObject
       if ( metaEnum.isValid() )
       {
         // read as string
-        QByteArray ba = value( key, metaEnum.valueToKey( static_cast<int>( defaultValue ) ), section ).toString().toUtf8();
+        QByteArray ba = value( key, metaEnum.valueToKey( static_cast<const int>( defaultValue ) ), section ).toString().toUtf8();
         const char *vs = ba.data();
         v = static_cast<T>( metaEnum.keyToValue( vs, &ok ) );
         if ( ok )
@@ -275,7 +286,7 @@ class CORE_EXPORT QgsSettings : public QObject
       // if failed, try to read as int (old behavior)
       // this code shall be removed later (probably after QGIS 3.4 LTR for 3.6)
       // then the method could be marked as const
-      v = static_cast<T>( value( key, static_cast<int>( defaultValue ), section ).toInt( &ok ) );
+      v = static_cast<T>( value( key, static_cast<const int>( defaultValue ), section ).toInt( &ok ) );
       if ( metaEnum.isValid() )
       {
         if ( !ok || !metaEnum.valueToKey( static_cast<int>( v ) ) )
@@ -304,15 +315,15 @@ class CORE_EXPORT QgsSettings : public QObject
     void setEnumValue( const QString &key, const T &value,
                        const Section section = NoSection )
     {
-      QMetaEnum metaEnum = QMetaEnum::fromType<T>();
+      const QMetaEnum metaEnum = QMetaEnum::fromType<T>();
       Q_ASSERT( metaEnum.isValid() );
       if ( metaEnum.isValid() )
       {
-        setValue( key, metaEnum.valueToKey( static_cast<int>( value ) ), section );
+        setValue( key, metaEnum.valueToKey( static_cast<const int>( value ) ), section );
       }
       else
       {
-        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
+        QgsDebugError( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
     }
 
@@ -330,11 +341,11 @@ class CORE_EXPORT QgsSettings : public QObject
     T flagValue( const QString &key, const T &defaultValue,
                  const Section section = NoSection )
     {
-      QMetaEnum metaEnum = QMetaEnum::fromType<T>();
+      const QMetaEnum metaEnum = QMetaEnum::fromType<T>();
       Q_ASSERT( metaEnum.isValid() );
       if ( !metaEnum.isValid() )
       {
-        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
+        QgsDebugError( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
 
       T v = defaultValue;
@@ -343,27 +354,39 @@ class CORE_EXPORT QgsSettings : public QObject
       if ( metaEnum.isValid() )
       {
         // read as string
-        QByteArray ba = value( key, metaEnum.valueToKeys( defaultValue ) ).toString().toUtf8();
+        QByteArray ba = value( key, metaEnum.valueToKeys( static_cast< const int >( defaultValue ) ) ).toString().toUtf8();
         const char *vs = ba.data();
         v = static_cast<T>( metaEnum.keysToValue( vs, &ok ) );
       }
       if ( !ok )
       {
-        // if failed, try to read as int (old behavior)
-        // this code shall be removed later (probably after QGIS 3.4 LTR for 3.6)
-        // then the method could be marked as const
-        v = T( value( key, static_cast<int>( defaultValue ), section ).toInt( &ok ) );
+        // if failed, try to read as int
+        const int intValue = value( key, static_cast<const int>( defaultValue ), section ).toInt( &ok );
         if ( metaEnum.isValid() )
         {
-          if ( !ok || metaEnum.valueToKeys( static_cast<int>( v ) ).isEmpty() )
+          if ( ok )
           {
-            v = defaultValue;
+            // check that the int value does correspond to a flag
+            // see https://stackoverflow.com/a/68495949/1548052
+            const QByteArray keys = metaEnum.valueToKeys( intValue );
+            const int intValueCheck = metaEnum.keysToValue( keys );
+            if ( intValue != intValueCheck )
+            {
+              v = defaultValue;
+            }
+            else
+            {
+              // found property as an integer
+              v = T( intValue );
+              // convert the property to the new form (string)
+              // this code could be removed
+              // then the method could be marked as const
+              setFlagValue( key, v );
+            }
           }
           else
           {
-            // found setting as an integer
-            // convert the setting to the new form (string)
-            setFlagValue( key, v, section );
+            v = defaultValue;
           }
         }
       }
@@ -372,7 +395,7 @@ class CORE_EXPORT QgsSettings : public QObject
     }
 
     /**
-     * Set the value of a setting based on a flaf.
+     * Set the value of a setting based on a flag.
      * The setting will be saved as string.
      * \note The flag needs to be declared with Q_FLAG (not Q_FLAGS).
      * \see flagValue
@@ -382,15 +405,15 @@ class CORE_EXPORT QgsSettings : public QObject
     void setFlagValue( const QString &key, const T &value,
                        const Section section = NoSection )
     {
-      QMetaEnum metaEnum = QMetaEnum::fromType<T>();
+      const QMetaEnum metaEnum = QMetaEnum::fromType<T>();
       Q_ASSERT( metaEnum.isValid() );
       if ( metaEnum.isValid() )
       {
-        setValue( key, metaEnum.valueToKeys( value ), section );
+        setValue( key, metaEnum.valueToKeys( static_cast< const int >( value ) ), section );
       }
       else
       {
-        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
+        QgsDebugError( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
     }
 #endif
@@ -417,6 +440,57 @@ class CORE_EXPORT QgsSettings : public QObject
     //! Removes all entries in the user settings
     void clear();
 
+    /**
+     * Temporarily places a hold on flushing QgsSettings objects and writing
+     * new values to the underlying ini files.
+     *
+     * This can be used in code which access multiple settings to avoid creation and
+     * destruction of many QgsSettings objects for each in turn. This can be
+     * a VERY expensive operation due to flushing of new values to disk.
+     *
+     * \warning This method ONLY affects access to the settings from the current thread!
+     *
+     * \warning A corresponding call to releaseFlush() MUST be made from the SAME thread.
+     *
+     * \see releaseFlush()
+     *
+     * \note Not available in Python bindings
+     *
+     * \since QGIS 3.36
+     */
+    static void holdFlush() SIP_SKIP;
+
+    /**
+     * Releases a previously made hold on flushing QgsSettings objects and writing
+     * new values to the underlying ini files.
+     *
+     * \warning This method ONLY affects access to the settings from the current thread!
+     *
+     * \warning This must ALWAYS be called after a corresponding call to holdFlush() and MUST be made from the SAME thread.
+     *
+     * \see holdFlush()
+     *
+     * \note Not available in Python bindings
+     *
+     * \since QGIS 3.36
+     */
+    static void releaseFlush() SIP_SKIP;
+
+    /**
+     * Returns a proxy for a QgsSettings object.
+     *
+     * This either directly constructs a QgsSettings object, or if a
+     * previous call to holdFlush() has been made then the thread local
+     * QgsSettings object will be used.
+     *
+     * \warning ALWAYS use this function to retrieve a QgsSettings object
+     * for entries, NEVER create one manually!
+     *
+     * \note Not available in Python bindings
+     * \since QGIS 3.36
+     */
+    static QgsSettingsProxy get() SIP_SKIP;
+
   private:
     void init();
     QString sanitizeKey( const QString &key ) const;
@@ -426,5 +500,8 @@ class CORE_EXPORT QgsSettings : public QObject
     Q_DISABLE_COPY( QgsSettings )
 
 };
+
+// as static members cannot be CORE_EXPORTed
+extern thread_local QgsSettings *sQgsSettingsThreadSettings SIP_SKIP;
 
 #endif // QGSSETTINGS_H

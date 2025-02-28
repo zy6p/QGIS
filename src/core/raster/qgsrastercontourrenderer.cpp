@@ -15,7 +15,6 @@
 
 #include "qgsrastercontourrenderer.h"
 
-#include "qgslinesymbollayer.h"
 #include "qgsreadwritecontext.h"
 #include "qgssymbollayerutils.h"
 #include "qgslayertreemodellegendnode.h"
@@ -26,7 +25,7 @@
 QgsRasterContourRenderer::QgsRasterContourRenderer( QgsRasterInterface *input )
   : QgsRasterRenderer( input, QStringLiteral( "contour" ) )
 {
-  mContourSymbol.reset( static_cast<QgsLineSymbol *>( QgsLineSymbol::defaultSymbol( QgsWkbTypes::LineGeometry ) ) );
+  mContourSymbol.reset( static_cast<QgsLineSymbol *>( QgsLineSymbol::defaultSymbol( Qgis::GeometryType::Line ) ) );
 }
 
 QgsRasterContourRenderer::~QgsRasterContourRenderer() = default;
@@ -44,6 +43,11 @@ QgsRasterContourRenderer *QgsRasterContourRenderer::clone() const
   return renderer;
 }
 
+Qgis::RasterRendererFlags QgsRasterContourRenderer::flags() const
+{
+  return Qgis::RasterRendererFlag::UseNoDataForOutOfRangePixels;
+}
+
 QgsRasterRenderer *QgsRasterContourRenderer::create( const QDomElement &elem, QgsRasterInterface *input )
 {
   if ( elem.isNull() )
@@ -54,10 +58,10 @@ QgsRasterRenderer *QgsRasterContourRenderer::create( const QDomElement &elem, Qg
   QgsRasterContourRenderer *r = new QgsRasterContourRenderer( input );
   r->readXml( elem );
 
-  int inputBand = elem.attribute( QStringLiteral( "band" ), QStringLiteral( "-1" ) ).toInt();
-  double contourInterval = elem.attribute( QStringLiteral( "contour-interval" ), QStringLiteral( "100" ) ).toDouble();
-  double contourIndexInterval = elem.attribute( QStringLiteral( "contour-index-interval" ), QStringLiteral( "0" ) ).toDouble();
-  double downscale = elem.attribute( QStringLiteral( "downscale" ), QStringLiteral( "4" ) ).toDouble();
+  const int inputBand = elem.attribute( QStringLiteral( "band" ), QStringLiteral( "-1" ) ).toInt();
+  const double contourInterval = elem.attribute( QStringLiteral( "contour-interval" ), QStringLiteral( "100" ) ).toDouble();
+  const double contourIndexInterval = elem.attribute( QStringLiteral( "contour-index-interval" ), QStringLiteral( "0" ) ).toDouble();
+  const double downscale = elem.attribute( QStringLiteral( "downscale" ), QStringLiteral( "4" ) ).toDouble();
 
   r->setInputBand( inputBand );
   r->setContourInterval( contourInterval );
@@ -103,7 +107,7 @@ void QgsRasterContourRenderer::writeXml( QDomDocument &doc, QDomElement &parentE
   symbols[QStringLiteral( "contour" )] = mContourSymbol.get();
   if ( mContourIndexSymbol )
     symbols[QStringLiteral( "index-contour" )] = mContourIndexSymbol.get();
-  QDomElement symbolsElem = QgsSymbolLayerUtils::saveSymbols( symbols, QStringLiteral( "symbols" ), doc, QgsReadWriteContext() );
+  const QDomElement symbolsElem = QgsSymbolLayerUtils::saveSymbols( symbols, QStringLiteral( "symbols" ), doc, QgsReadWriteContext() );
   rasterRendererElem.appendChild( symbolsElem );
 
   parentElem.appendChild( rasterRendererElem );
@@ -141,23 +145,23 @@ QgsRasterBlock *QgsRasterContourRenderer::block( int bandNo, const QgsRectangle 
 {
   Q_UNUSED( bandNo )
 
-  std::unique_ptr< QgsRasterBlock > outputBlock( new QgsRasterBlock() );
+  auto outputBlock = std::make_unique<QgsRasterBlock>();
   if ( !mInput || !mContourSymbol )
   {
     return outputBlock.release();
   }
 
-  int inputWidth = static_cast<int>( round( width / mDownscale ) );
-  int inputHeight = static_cast<int>( round( height / mDownscale ) );
+  const int inputWidth = static_cast<int>( round( width / mDownscale ) );
+  const int inputHeight = static_cast<int>( round( height / mDownscale ) );
 
   std::unique_ptr< QgsRasterBlock > inputBlock( mInput->block( mInputBand, extent, inputWidth, inputHeight, feedback ) );
   if ( !inputBlock || inputBlock->isEmpty() )
   {
-    QgsDebugMsg( QStringLiteral( "No raster data!" ) );
+    QgsDebugError( QStringLiteral( "No raster data!" ) );
     return outputBlock.release();
   }
 
-  if ( !inputBlock->convert( Qgis::Float64 ) ) // contouring algorithm requires double
+  if ( !inputBlock->convert( Qgis::DataType::Float64 ) ) // contouring algorithm requires double
     return outputBlock.release();
   double *scanline = reinterpret_cast<double *>( inputBlock->bits() );
 
@@ -182,7 +186,7 @@ QgsRasterBlock *QgsRasterContourRenderer::block( int bandNo, const QgsRectangle 
   if ( crData.indexSymbol )
     crData.indexSymbol->startRender( context );
 
-  double contourBase = 0.;
+  const double contourBase = 0.;
   GDALContourGeneratorH cg = GDAL_CG_Create( inputBlock->width(), inputBlock->height(),
                              inputBlock->hasNoDataValue(), inputBlock->noDataValue(),
                              mContourInterval, contourBase,
@@ -221,16 +225,36 @@ QList<QgsLayerTreeModelLegendNode *> QgsRasterContourRenderer::createLegendNodes
 {
   QList<QgsLayerTreeModelLegendNode *> nodes;
 
-  QgsLegendSymbolItem contourItem( mContourSymbol.get(), QString::number( mContourInterval ), QStringLiteral( "contour" ) );
+  const QgsLegendSymbolItem contourItem( mContourSymbol.get(), QString::number( mContourInterval ), QStringLiteral( "contour" ) );
   nodes << new QgsSymbolLegendNode( nodeLayer, contourItem );
 
   if ( mContourIndexInterval > 0 )
   {
-    QgsLegendSymbolItem indexItem( mContourIndexSymbol.get(), QString::number( mContourIndexInterval ), QStringLiteral( "index" ) );
+    const QgsLegendSymbolItem indexItem( mContourIndexSymbol.get(), QString::number( mContourIndexInterval ), QStringLiteral( "index" ) );
     nodes << new QgsSymbolLegendNode( nodeLayer, indexItem );
   }
 
   return nodes;
+}
+
+int QgsRasterContourRenderer::inputBand() const
+{
+  return mInputBand;
+}
+
+bool QgsRasterContourRenderer::setInputBand( int band )
+{
+  if ( !mInput )
+  {
+    mInputBand = band;
+    return true;
+  }
+  else if ( band > 0 && band <= mInput->bandCount() )
+  {
+    mInputBand = band;
+    return true;
+  }
+  return false;
 }
 
 void QgsRasterContourRenderer::setContourSymbol( QgsLineSymbol *symbol )

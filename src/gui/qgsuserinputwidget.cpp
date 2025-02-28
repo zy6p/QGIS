@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsuserinputwidget.h"
+#include "moc_qgsuserinputwidget.cpp"
 
 #include <QFrame>
 
@@ -75,7 +76,7 @@ void QgsUserInputWidget::widgetDestroyed( QObject *obj )
   if ( obj->isWidgetType() )
   {
     QWidget *w = qobject_cast<QWidget *>( obj );
-    auto it = mWidgetList.find( w );
+    const auto it = mWidgetList.find( w );
     if ( it != mWidgetList.end() )
     {
       if ( QFrame *frame = it.value() )
@@ -95,7 +96,7 @@ void QgsUserInputWidget::setLayoutDirection( QBoxLayout::Direction direction )
 {
   mLayout->setDirection( direction );
 
-  bool horizontal = direction == QBoxLayout::LeftToRight || direction == QBoxLayout::RightToLeft;
+  const bool horizontal = direction == QBoxLayout::LeftToRight || direction == QBoxLayout::RightToLeft;
   QMap<QWidget *, QFrame *>::const_iterator i = mWidgetList.constBegin();
   while ( i != mWidgetList.constEnd() )
   {

@@ -28,14 +28,14 @@
 //
 void QgsMapInfoSymbolConversionContext::pushWarning( const QString &warning )
 {
-  QgsDebugMsg( warning );
+  QgsDebugMsgLevel( warning, 2 );
   mWarnings << warning;
 }
 
 
-QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, QgsMapInfoSymbolConversionContext &context, const QColor &foreColor, double size, QgsUnitTypes::RenderUnit sizeUnit, bool interleaved )
+QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, QgsMapInfoSymbolConversionContext &context, const QColor &foreColor, double size, Qgis::RenderUnit sizeUnit, bool interleaved )
 {
-  std::unique_ptr< QgsSimpleLineSymbolLayer > simpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
+  auto simpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
   simpleLine->setWidthUnit( sizeUnit );
   simpleLine->setPenCapStyle( Qt::RoundCap );
   simpleLine->setPenJoinStyle( Qt::RoundJoin );
@@ -293,7 +293,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       break;
 
     default:
-      QgsDebugMsg( QStringLiteral( "Unknown line symbol identifier %1" ).arg( identifier ) );
+      QgsDebugError( QStringLiteral( "Unknown line symbol identifier %1" ).arg( identifier ) );
       return nullptr;
   }
 
@@ -311,11 +311,11 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     simpleLine->setDashPatternOffsetUnit( sizeUnit );
   }
 
-  std::unique_ptr< QgsLineSymbol > symbol = std::make_unique< QgsLineSymbol >( QgsSymbolLayerList() << simpleLine.release() );
+  auto symbol = std::make_unique< QgsLineSymbol >( QgsSymbolLayerList() << simpleLine.release() );
 
   if ( ( identifier >= 26 && identifier < 29 ) || ( identifier >= 31 && identifier < 34 ) || ( identifier >= 36 && identifier < 38 ) || ( identifier >= 47 && identifier <= 53 ) || identifier == 118 )
   {
-    std::unique_ptr< QgsHashedLineSymbolLayer > hash = std::make_unique< QgsHashedLineSymbolLayer >();
+    auto hash = std::make_unique< QgsHashedLineSymbolLayer >();
 
     double spacing = 1;
     double offset = 1;
@@ -432,12 +432,12 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     hash->setHashLength( length * size );
     hash->setHashLengthUnit( sizeUnit );
 
-    std::unique_ptr< QgsSimpleLineSymbolLayer > subSimpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
+    auto subSimpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
     subSimpleLine->setWidthUnit( sizeUnit );
     subSimpleLine->setPenCapStyle( Qt::RoundCap );
     subSimpleLine->setPenJoinStyle( Qt::RoundJoin );
 
-    std::unique_ptr< QgsLineSymbol > subSymbol = std::make_unique< QgsLineSymbol >( QgsSymbolLayerList() << subSimpleLine.release() );
+    auto subSymbol = std::make_unique< QgsLineSymbol >( QgsSymbolLayerList() << subSimpleLine.release() );
     hash->setSubSymbol( subSymbol.release() );
 
     if ( identifier == 31 || identifier == 33 )
@@ -499,7 +499,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         break;
     }
 
-    std::unique_ptr< QgsHashedLineSymbolLayer > hash = std::make_unique< QgsHashedLineSymbolLayer >();
+    auto hash = std::make_unique< QgsHashedLineSymbolLayer >();
     hash->setInterval( spacing * size * 2 );
     hash->setIntervalUnit( sizeUnit );
 
@@ -509,12 +509,12 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     hash->setHashLength( 3.5 * size * 0.5 );
     hash->setHashLengthUnit( sizeUnit );
 
-    std::unique_ptr< QgsSimpleLineSymbolLayer > subSimpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
+    auto subSimpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
     subSimpleLine->setWidthUnit( sizeUnit );
     subSimpleLine->setPenCapStyle( Qt::RoundCap );
     subSimpleLine->setPenJoinStyle( Qt::RoundJoin );
 
-    std::unique_ptr< QgsLineSymbol > subSymbol = std::make_unique< QgsLineSymbol >( QgsSymbolLayerList() << subSimpleLine.release() );
+    auto subSymbol = std::make_unique< QgsLineSymbol >( QgsSymbolLayerList() << subSimpleLine.release() );
     hash->setSubSymbol( subSymbol.release() );
     std::unique_ptr< QgsHashedLineSymbolLayer > hash2( hash->clone() );
 
@@ -553,50 +553,50 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
   }
   else if ( ( identifier >= 38 && identifier < 41 ) || ( identifier >= 54 && identifier <= 61 ) || ( identifier >= 78 && identifier <= 109 ) || ( identifier >= 114 && identifier <= 117 ) )
   {
-    std::unique_ptr< QgsMarkerLineSymbolLayer > marker = std::make_unique< QgsMarkerLineSymbolLayer >();
+    auto marker = std::make_unique< QgsMarkerLineSymbolLayer >();
 
     double spacing = 1;
     double offset = 1;
     double markerSize = 1;
     double angle = 0;
     double lineOffset = 0;
-    QgsMarkerLineSymbolLayer::Placement placement = QgsMarkerLineSymbolLayer::Interval;
-    QgsSimpleMarkerSymbolLayerBase::Shape shape = QgsSimpleMarkerSymbolLayerBase::Circle;
+    Qgis::MarkerLinePlacement placement = Qgis::MarkerLinePlacement::Interval;
+    Qgis::MarkerShape shape = Qgis::MarkerShape::Circle;
     switch ( identifier )
     {
       case 38:
         spacing = 35;
         offset = 25;
         markerSize = 3;
-        shape = QgsSimpleMarkerSymbolLayer::Cross2;
+        shape = Qgis::MarkerShape::Cross2;
         break;
 
       case 39:
         spacing = 35;
         offset = 27.5;
         markerSize = 3;
-        shape = QgsSimpleMarkerSymbolLayer::Cross2;
+        shape = Qgis::MarkerShape::Cross2;
         break;
 
       case 40:
         spacing = 35;
         offset = 27.5;
         markerSize = 3.2;
-        shape = QgsSimpleMarkerSymbolLayer::Cross;
+        shape = Qgis::MarkerShape::Cross;
         break;
 
       case 54:
         spacing = 12;
         offset = 4;
         markerSize = 6;
-        shape = QgsSimpleMarkerSymbolLayer::ArrowHead;
+        shape = Qgis::MarkerShape::ArrowHead;
         break;
 
       case 55:
         spacing = 12;
         offset = 0;
         markerSize = 6;
-        shape = QgsSimpleMarkerSymbolLayer::ArrowHead;
+        shape = Qgis::MarkerShape::ArrowHead;
         angle = 180;
         break;
 
@@ -604,7 +604,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 31;
         offset = 4;
         markerSize = 6;
-        shape = QgsSimpleMarkerSymbolLayer::ArrowHead;
+        shape = Qgis::MarkerShape::ArrowHead;
         angle = 180;
         break;
 
@@ -612,14 +612,14 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 10;
         offset = 4;
         markerSize = 6;
-        shape = QgsSimpleMarkerSymbolLayer::ArrowHead;
+        shape = Qgis::MarkerShape::ArrowHead;
         break;
 
       case 58:
         spacing = 10;
         offset = 0;
         markerSize = 6;
-        shape = QgsSimpleMarkerSymbolLayer::ArrowHead;
+        shape = Qgis::MarkerShape::ArrowHead;
         angle = 180;
         break;
 
@@ -627,15 +627,15 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       case 61:
         offset = 0;
         markerSize = 6;
-        shape = QgsSimpleMarkerSymbolLayer::ArrowHead;
-        placement = QgsMarkerLineSymbolLayer::LastVertex;
+        shape = Qgis::MarkerShape::ArrowHead;
+        placement = Qgis::MarkerLinePlacement::LastVertex;
         break;
 
       case 60:
         offset = 0;
         markerSize = 6;
-        shape = QgsSimpleMarkerSymbolLayer::ArrowHead;
-        placement = QgsMarkerLineSymbolLayer::FirstVertex;
+        shape = Qgis::MarkerShape::ArrowHead;
+        placement = Qgis::MarkerLinePlacement::FirstVertex;
         angle = 180;
         break;
 
@@ -643,16 +643,16 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       case 80:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Octagon;
-        placement = QgsMarkerLineSymbolLayer::FirstVertex;
+        shape = Qgis::MarkerShape::Octagon;
+        placement = Qgis::MarkerLinePlacement::FirstVertex;
         angle = 0;
         break;
 
       case 79:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Octagon;
-        placement = QgsMarkerLineSymbolLayer::LastVertex;
+        shape = Qgis::MarkerShape::Octagon;
+        placement = Qgis::MarkerLinePlacement::LastVertex;
         angle = 0;
         break;
 
@@ -664,8 +664,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 9;
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Octagon;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::Octagon;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         break;
 
@@ -673,16 +673,16 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       case 88:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Square;
-        placement = QgsMarkerLineSymbolLayer::FirstVertex;
+        shape = Qgis::MarkerShape::Square;
+        placement = Qgis::MarkerLinePlacement::FirstVertex;
         angle = 0;
         break;
 
       case 87:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Square;
-        placement = QgsMarkerLineSymbolLayer::LastVertex;
+        shape = Qgis::MarkerShape::Square;
+        placement = Qgis::MarkerLinePlacement::LastVertex;
         angle = 0;
         break;
 
@@ -694,8 +694,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 9;
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Square;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::Square;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         break;
 
@@ -703,16 +703,16 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       case 96:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::EquilateralTriangle;
-        placement = QgsMarkerLineSymbolLayer::FirstVertex;
+        shape = Qgis::MarkerShape::EquilateralTriangle;
+        placement = Qgis::MarkerLinePlacement::FirstVertex;
         angle = 0;
         break;
 
       case 95:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::EquilateralTriangle;
-        placement = QgsMarkerLineSymbolLayer::LastVertex;
+        shape = Qgis::MarkerShape::EquilateralTriangle;
+        placement = Qgis::MarkerLinePlacement::LastVertex;
         angle = 180;
         break;
 
@@ -724,8 +724,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 9;
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Diamond;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::Diamond;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         break;
 
@@ -733,16 +733,16 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       case 104:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Diamond;
-        placement = QgsMarkerLineSymbolLayer::FirstVertex;
+        shape = Qgis::MarkerShape::Diamond;
+        placement = Qgis::MarkerLinePlacement::FirstVertex;
         angle = 0;
         break;
 
       case 103:
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Diamond;
-        placement = QgsMarkerLineSymbolLayer::LastVertex;
+        shape = Qgis::MarkerShape::Diamond;
+        placement = Qgis::MarkerLinePlacement::LastVertex;
         angle = 180;
         break;
 
@@ -754,8 +754,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 9;
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Diamond;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::Diamond;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         break;
 
@@ -763,8 +763,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 18;
         offset = 9;
         markerSize = 8;
-        shape = QgsSimpleMarkerSymbolLayer::SemiCircle;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::SemiCircle;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         lineOffset = -0.8;
         break;
@@ -773,8 +773,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 16;
         offset = 8;
         markerSize = 8;
-        shape = QgsSimpleMarkerSymbolLayer::EquilateralTriangle;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::EquilateralTriangle;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         lineOffset = -2;
         break;
@@ -783,8 +783,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 23;
         offset = 8;
         markerSize = 8;
-        shape = QgsSimpleMarkerSymbolLayer::SemiCircle;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::SemiCircle;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         lineOffset = -0.8;
         break;
@@ -793,8 +793,8 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
         spacing = 9;
         offset = 2;
         markerSize = 4;
-        shape = QgsSimpleMarkerSymbolLayer::Square;
-        placement = QgsMarkerLineSymbolLayer::Interval;
+        shape = Qgis::MarkerShape::Square;
+        placement = Qgis::MarkerLinePlacement::Interval;
         angle = 0;
         lineOffset = -2;
         break;
@@ -827,7 +827,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       }
     }
 
-    marker->setPlacement( placement );
+    marker->setPlacements( placement );
     marker->setInterval( spacing * size );
     marker->setIntervalUnit( sizeUnit );
 
@@ -837,7 +837,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     marker->setOffset( lineOffset * size );
     marker->setOffsetUnit( sizeUnit );
 
-    std::unique_ptr< QgsSimpleMarkerSymbolLayer > subSimpleMarker = std::make_unique< QgsSimpleMarkerSymbolLayer >( shape, markerSize * size );
+    auto subSimpleMarker = std::make_unique< QgsSimpleMarkerSymbolLayer >( shape, markerSize * size );
     subSimpleMarker->setColor( foreColor );
     subSimpleMarker->setSizeUnit( sizeUnit );
     subSimpleMarker->setStrokeWidth( size );
@@ -847,16 +847,16 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     subSimpleMarker->setPenJoinStyle( Qt::RoundJoin );
     subSimpleMarker->setPenCapStyle( Qt::RoundCap );
 
-    if ( shape == QgsSimpleMarkerSymbolLayer::Octagon
-         || shape == QgsSimpleMarkerSymbolLayer::Square
-         || shape == QgsSimpleMarkerSymbolLayer::EquilateralTriangle
-         || shape == QgsSimpleMarkerSymbolLayer::Diamond
-         || shape == QgsSimpleMarkerSymbolLayer::SemiCircle )
+    if ( shape == Qgis::MarkerShape::Octagon
+         || shape == Qgis::MarkerShape::Square
+         || shape == Qgis::MarkerShape::EquilateralTriangle
+         || shape == Qgis::MarkerShape::Diamond
+         || shape == Qgis::MarkerShape::SemiCircle )
     {
       subSimpleMarker->setStrokeStyle( Qt::NoPen );
     }
 
-    std::unique_ptr< QgsMarkerSymbol > subSymbol = std::make_unique< QgsMarkerSymbol >( QgsSymbolLayerList() << subSimpleMarker.release() );
+    auto subSymbol = std::make_unique< QgsMarkerSymbol >( QgsSymbolLayerList() << subSimpleMarker.release() );
     marker->setSubSymbol( subSymbol.release() );
 
     if ( identifier == 56 )
@@ -869,14 +869,14 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     else if ( identifier == 61 )
     {
       std::unique_ptr< QgsMarkerLineSymbolLayer > marker2( marker->clone() );
-      marker2->setPlacement( QgsMarkerLineSymbolLayer::FirstVertex );
+      marker2->setPlacements( Qgis::MarkerLinePlacement::FirstVertex );
       qgis::down_cast< QgsMarkerSymbol * >( marker2->subSymbol() )->setAngle( 180 );
       symbol->appendSymbolLayer( marker2.release() );
     }
     else if ( identifier == 80 || identifier == 88 || identifier == 96 || identifier == 104 )
     {
       std::unique_ptr< QgsMarkerLineSymbolLayer > marker2( marker->clone() );
-      marker2->setPlacement( QgsMarkerLineSymbolLayer::LastVertex );
+      marker2->setPlacements( Qgis::MarkerLinePlacement::LastVertex );
       qgis::down_cast< QgsMarkerSymbol * >( marker2->subSymbol() )->setAngle( 180 );
       symbol->appendSymbolLayer( marker2.release() );
     }
@@ -885,7 +885,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     {
       std::unique_ptr< QgsMarkerLineSymbolLayer > marker2( marker->clone() );
 
-      qgis::down_cast< QgsSimpleMarkerSymbolLayer * >( marker2->subSymbol()->symbolLayer( 0 ) )->setShape( QgsSimpleMarkerSymbolLayer::EquilateralTriangle );
+      qgis::down_cast< QgsSimpleMarkerSymbolLayer * >( marker2->subSymbol()->symbolLayer( 0 ) )->setShape( Qgis::MarkerShape::EquilateralTriangle );
       marker2->setOffsetAlongLine( 16 * size );
       marker2->setOffset( -1.5 * size );
       symbol->appendSymbolLayer( marker2.release() );
@@ -909,7 +909,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
       symbol->appendSymbolLayer( dashLine.release() );
     }
 
-    std::unique_ptr< QgsSimpleLineSymbolLayer > simpleLine2 = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, 1.6 * size );
+    auto simpleLine2 = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, 1.6 * size );
     simpleLine2->setWidthUnit( sizeUnit );
     simpleLine2->setPenCapStyle( Qt::RoundCap );
     simpleLine2->setPenJoinStyle( Qt::RoundJoin );
@@ -922,7 +922,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
   }
   else if ( identifier == 45 )
   {
-    std::unique_ptr< QgsSimpleLineSymbolLayer > simpleLine2 = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, 1.6 * size );
+    auto simpleLine2 = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, 1.6 * size );
     simpleLine2->setWidthUnit( sizeUnit );
     simpleLine2->setPenCapStyle( Qt::RoundCap );
     simpleLine2->setPenJoinStyle( Qt::RoundJoin );
@@ -935,7 +935,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
   }
   else if ( identifier == 46 )
   {
-    std::unique_ptr< QgsHashedLineSymbolLayer > hashLine = std::make_unique< QgsHashedLineSymbolLayer >();
+    auto hashLine = std::make_unique< QgsHashedLineSymbolLayer >();
 
     hashLine->setInterval( 4 * size );
     hashLine->setIntervalUnit( sizeUnit );
@@ -950,12 +950,12 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
   }
   else if ( identifier == 62 )
   {
-    std::unique_ptr< QgsMarkerLineSymbolLayer > markerLine = std::make_unique< QgsMarkerLineSymbolLayer >();
-    markerLine->setPlacement( QgsMarkerLineSymbolLayer::FirstVertex );
+    auto markerLine = std::make_unique< QgsMarkerLineSymbolLayer >();
+    markerLine->setPlacements( Qgis::MarkerLinePlacement::FirstVertex );
     markerLine->setOffsetAlongLine( 2 * size );
     markerLine->setOffsetAlongLineUnit( sizeUnit );
 
-    std::unique_ptr< QgsSimpleMarkerSymbolLayer > subSimpleMarker = std::make_unique< QgsSimpleMarkerSymbolLayer >( QgsSimpleMarkerSymbolLayer::Line, size * 4 );
+    auto subSimpleMarker = std::make_unique< QgsSimpleMarkerSymbolLayer >( Qgis::MarkerShape::Line, size * 4 );
     subSimpleMarker->setColor( foreColor );
     subSimpleMarker->setSizeUnit( sizeUnit );
     subSimpleMarker->setStrokeWidth( 1.25 * size );
@@ -965,7 +965,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     subSimpleMarker->setPenJoinStyle( Qt::RoundJoin );
     subSimpleMarker->setPenCapStyle( Qt::RoundCap );
 
-    std::unique_ptr< QgsMarkerSymbol > subSymbol = std::make_unique< QgsMarkerSymbol >( QgsSymbolLayerList() << subSimpleMarker.release() );
+    auto subSymbol = std::make_unique< QgsMarkerSymbol >( QgsSymbolLayerList() << subSimpleMarker.release() );
     markerLine->setSubSymbol( subSymbol.release() );
 
     symbol->appendSymbolLayer( markerLine.release() );
@@ -1011,7 +1011,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
 
     if ( identifier == 75 || identifier == 76 )
     {
-      std::unique_ptr< QgsSimpleLineSymbolLayer > middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 255, 255, 255 ), upperLine->width() );
+      auto middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 255, 255, 255 ), upperLine->width() );
       middleLine->setWidthUnit( sizeUnit );
       middleLine->setLocked( true );
       middleLine->setPenCapStyle( Qt::RoundCap );
@@ -1029,7 +1029,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
 
     if ( identifier == 64 || identifier == 66 )
     {
-      std::unique_ptr< QgsSimpleLineSymbolLayer > middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( identifier == 64 ? foreColor : QColor( 0, 0, 0 ), 0 );
+      auto middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( identifier == 64 ? foreColor : QColor( 0, 0, 0 ), 0 );
       if ( identifier == 66 )
         middleLine->setLocked( true );
 
@@ -1042,9 +1042,9 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
 
     else if ( identifier == 69 )
     {
-      std::unique_ptr< QgsHashedLineSymbolLayer > hashedLine = std::make_unique< QgsHashedLineSymbolLayer >();
+      auto hashedLine = std::make_unique< QgsHashedLineSymbolLayer >();
 
-      std::unique_ptr< QgsSimpleLineSymbolLayer > middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, 0 );
+      auto middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, 0 );
       hashedLine->setSubSymbol( new QgsLineSymbol( { middleLine.release() } ) );
       hashedLine->setInterval( 18 * size );
       hashedLine->setIntervalUnit( sizeUnit );
@@ -1061,7 +1061,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     }
     else if ( identifier == 77 )
     {
-      std::unique_ptr< QgsSimpleLineSymbolLayer > middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 255, 255, 255 ), qgis::down_cast< QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 1 ) )->width() );
+      auto middleLine = std::make_unique< QgsSimpleLineSymbolLayer >( QColor( 255, 255, 255 ), qgis::down_cast< QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 1 ) )->width() );
       middleLine->setWidthUnit( sizeUnit );
       middleLine->setLocked( true );
       middleLine->setPenCapStyle( Qt::RoundCap );
@@ -1081,7 +1081,7 @@ QgsLineSymbol *QgsMapInfoSymbolConverter::convertLineSymbol( int identifier, Qgs
     qgis::down_cast< QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->setColor( QColor( 0, 0, 0 ) );
     qgis::down_cast< QgsSimpleLineSymbolLayer * >( symbol->symbolLayer( 0 ) )->setLocked( true );
 
-    std::unique_ptr< QgsSimpleLineSymbolLayer > simpleLine2 = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
+    auto simpleLine2 = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, size );
     simpleLine2->setWidthUnit( sizeUnit );
     simpleLine2->setPenCapStyle( Qt::RoundCap );
     simpleLine2->setPenJoinStyle( Qt::RoundJoin );
@@ -1354,7 +1354,7 @@ QgsFillSymbol *QgsMapInfoSymbolConverter::convertFillSymbol( int identifier, Qgs
   QgsSymbolLayerList layers;
   if ( backColor.isValid() && style != Qt::SolidPattern && ( useLineFill || style != Qt::NoBrush ) )
   {
-    std::unique_ptr< QgsSimpleFillSymbolLayer > backgroundFill = std::make_unique< QgsSimpleFillSymbolLayer >( backColor );
+    auto backgroundFill = std::make_unique< QgsSimpleFillSymbolLayer >( backColor );
     backgroundFill->setLocked( true );
     backgroundFill->setStrokeStyle( Qt::NoPen );
     layers << backgroundFill.release();
@@ -1362,21 +1362,21 @@ QgsFillSymbol *QgsMapInfoSymbolConverter::convertFillSymbol( int identifier, Qgs
 
   if ( !useLineFill )
   {
-    std::unique_ptr< QgsSimpleFillSymbolLayer > foregroundFill = std::make_unique< QgsSimpleFillSymbolLayer >( foreColor );
+    auto foregroundFill = std::make_unique< QgsSimpleFillSymbolLayer >( foreColor );
     foregroundFill->setBrushStyle( style );
     foregroundFill->setStrokeStyle( Qt::NoPen );
     layers << foregroundFill.release();
   }
   else
   {
-    std::unique_ptr< QgsLinePatternFillSymbolLayer > lineFill = std::make_unique< QgsLinePatternFillSymbolLayer >();
+    auto lineFill = std::make_unique< QgsLinePatternFillSymbolLayer >();
 
-    std::unique_ptr< QgsSimpleLineSymbolLayer > simpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, lineWidth );
-    simpleLine->setWidthUnit( QgsUnitTypes::RenderPoints );
+    auto simpleLine = std::make_unique< QgsSimpleLineSymbolLayer >( foreColor, lineWidth );
+    simpleLine->setWidthUnit( Qgis::RenderUnit::Points );
     lineFill->setSubSymbol( new QgsLineSymbol( QgsSymbolLayerList() << simpleLine.release() ) );
 
     lineFill->setDistance( lineSpacing );
-    lineFill->setDistanceUnit( QgsUnitTypes::RenderPoints );
+    lineFill->setDistanceUnit( Qgis::RenderUnit::Points );
     lineFill->setLineAngle( lineAngle );
 
     if ( crossFill )
@@ -1391,9 +1391,9 @@ QgsFillSymbol *QgsMapInfoSymbolConverter::convertFillSymbol( int identifier, Qgs
   return new QgsFillSymbol( layers );
 }
 
-QgsMarkerSymbol *QgsMapInfoSymbolConverter::convertMarkerSymbol( int identifier, QgsMapInfoSymbolConversionContext &context, const QColor &color, double size, QgsUnitTypes::RenderUnit sizeUnit )
+QgsMarkerSymbol *QgsMapInfoSymbolConverter::convertMarkerSymbol( int identifier, QgsMapInfoSymbolConversionContext &context, const QColor &color, double size, Qgis::RenderUnit sizeUnit )
 {
-  QgsSimpleMarkerSymbolLayerBase::Shape shape;
+  Qgis::MarkerShape shape;
   bool isFilled = true;
   bool isNull = false;
   bool hasShadow = false;
@@ -1404,108 +1404,108 @@ QgsMarkerSymbol *QgsMapInfoSymbolConverter::convertMarkerSymbol( int identifier,
   {
     case 31:
       // null symbol
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Square; // to initialize the variable
+      shape = Qgis::MarkerShape::Square; // to initialize the variable
       isNull = true;
       break;
 
     case 32:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Square;
+      shape = Qgis::MarkerShape::Square;
       break;
 
     case 33:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Diamond;
+      shape = Qgis::MarkerShape::Diamond;
       break;
 
     case 34:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Circle;
+      shape = Qgis::MarkerShape::Circle;
       break;
 
     case 35:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Star;
+      shape = Qgis::MarkerShape::Star;
       break;
 
     case 36:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Triangle;
+      shape = Qgis::MarkerShape::Triangle;
       break;
 
     case 37:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Triangle;
+      shape = Qgis::MarkerShape::Triangle;
       angle = 180;
       break;
 
     case 38:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Square;
+      shape = Qgis::MarkerShape::Square;
       isFilled = false;
       break;
 
     case 39:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Diamond;
+      shape = Qgis::MarkerShape::Diamond;
       isFilled = false;
       break;
 
     case 40:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Circle;
+      shape = Qgis::MarkerShape::Circle;
       isFilled = false;
       break;
 
     case 41:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Star;
+      shape = Qgis::MarkerShape::Star;
       isFilled = false;
       break;
 
     case 42:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Triangle;
+      shape = Qgis::MarkerShape::Triangle;
       isFilled = false;
       break;
 
     case 43:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Triangle;
+      shape = Qgis::MarkerShape::Triangle;
       angle = 180;
       isFilled = false;
       break;
 
     case 44:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Square;
+      shape = Qgis::MarkerShape::Square;
       hasShadow = true;
       shadowOffset = QPointF( size * 0.1, size * 0.1 );
       break;
 
     case 45:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Triangle;
+      shape = Qgis::MarkerShape::Triangle;
       shadowOffset = QPointF( size * 0.2, size * 0.1 );
       hasShadow = true;
       break;
 
     case 46:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Circle;
+      shape = Qgis::MarkerShape::Circle;
       shadowOffset = QPointF( size * 0.1, size * 0.1 );
       hasShadow = true;
       break;
 
     case 47:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Arrow;
+      shape = Qgis::MarkerShape::Arrow;
       size *= 0.66666;
       angle = 45;
       vertAlign = QgsMarkerSymbolLayer::Top;
       break;
 
     case 48:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Arrow;
+      shape = Qgis::MarkerShape::Arrow;
       size *= 0.66666;
       angle = 225;
       vertAlign = QgsMarkerSymbolLayer::Top;
       break;
 
     case 49:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Cross;
+      shape = Qgis::MarkerShape::Cross;
       break;
 
     case 50:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Cross2;
+      shape = Qgis::MarkerShape::Cross2;
       break;
 
     case 51:
-      shape = QgsSimpleMarkerSymbolLayer::Shape::Cross;
+      shape = Qgis::MarkerShape::Cross;
       break;
 
     default:
@@ -1513,10 +1513,12 @@ QgsMarkerSymbol *QgsMapInfoSymbolConverter::convertMarkerSymbol( int identifier,
       return nullptr;
   }
 
-  std::unique_ptr< QgsSimpleMarkerSymbolLayer > simpleMarker = std::make_unique< QgsSimpleMarkerSymbolLayer >( shape, size );
+  auto simpleMarker = std::make_unique< QgsSimpleMarkerSymbolLayer >( shape, size );
   simpleMarker->setSizeUnit( sizeUnit );
   simpleMarker->setAngle( angle );
   simpleMarker->setVerticalAnchorPoint( vertAlign );
+  simpleMarker->setStrokeWidth( 1.0 );
+  simpleMarker->setStrokeWidthUnit( Qgis::RenderUnit::Points );
 
   if ( isNull )
   {
@@ -1527,7 +1529,6 @@ QgsMarkerSymbol *QgsMapInfoSymbolConverter::convertMarkerSymbol( int identifier,
   {
     simpleMarker->setColor( color );
     simpleMarker->setStrokeColor( QColor( 0, 0, 0 ) );
-    simpleMarker->setStrokeWidth( 0 );
   }
   else
   {
@@ -1552,7 +1553,7 @@ QgsMarkerSymbol *QgsMapInfoSymbolConverter::convertMarkerSymbol( int identifier,
     if ( identifier == 51 )
     {
       std::unique_ptr< QgsSimpleMarkerSymbolLayer > second( simpleMarker->clone() );
-      second->setShape( QgsSimpleMarkerSymbolLayer::Shape::Cross2 );
+      second->setShape( Qgis::MarkerShape::Cross2 );
       symbols << second.release();
     }
     symbols << simpleMarker.release();

@@ -338,8 +338,10 @@ HdfDataset MDAL::DriverXdmf::parseHdf5Node( const XMLFile &xmfFile, xmlNodePtr n
     hdfFile = mHdfFiles[hdf5Name];
   }
 
-  HdfDataset hdfDataset( hdfFile->id(), hdf5Path );
-  return hdfDataset;
+  if ( !hdfFile->isValid() )
+    throw MDAL::Error( MDAL_Status::Err_InvalidData, "invalid or missing file: " + hdf5Name );
+
+  return hdfFile->dataset( hdf5Path );
 }
 
 void MDAL::DriverXdmf::hdf5NamePath( const std::string &dataItemPath, std::string &filePath, std::string &hdf5Path )
@@ -357,7 +359,7 @@ void MDAL::DriverXdmf::hdf5NamePath( const std::string &dataItemPath, std::strin
     path.erase( 0, startpos );
   }
 
-  std::vector<std::string> chunks = MDAL::split( path, ":" );
+  std::vector<std::string> chunks = MDAL::split( path, ':' );
   if ( chunks.size() != 2 )
   {
     throw MDAL::Error( MDAL_Status::Err_UnknownFormat, "must be in format fileName:hdfPath" );

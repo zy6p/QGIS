@@ -16,6 +16,7 @@
 #include "qgsfeaturemodel.h"
 #include "qgsifeatureselectionmanager.h"
 #include "qgsfeatureselectionmodel.h"
+#include "moc_qgsfeatureselectionmodel.cpp"
 #include "qgsvectorlayer.h"
 #include "qgslogger.h"
 
@@ -66,19 +67,19 @@ bool QgsFeatureSelectionModel::isSelected( QgsFeatureId fid )
 
 bool QgsFeatureSelectionModel::isSelected( const QModelIndex &index )
 {
-  return isSelected( index.model()->data( index, QgsAttributeTableModel::FeatureIdRole ).toLongLong() );
+  return isSelected( index.model()->data( index, static_cast<int>( QgsAttributeTableModel::CustomRole::FeatureId ) ).toLongLong() );
 }
 
 void QgsFeatureSelectionModel::selectFeatures( const QItemSelection &selection, QItemSelectionModel::SelectionFlags command )
 {
   QgsFeatureIds ids;
 
-  QgsDebugMsg( QStringLiteral( "Index count: %1" ).arg( selection.indexes().size() ) );
+  QgsDebugMsgLevel( QStringLiteral( "Index count: %1" ).arg( selection.indexes().size() ), 2 );
 
   const auto constIndexes = selection.indexes();
   for ( const QModelIndex &index : constIndexes )
   {
-    QgsFeatureId id = index.model()->data( index, QgsAttributeTableModel::FeatureIdRole ).toLongLong();
+    const QgsFeatureId id = index.model()->data( index, static_cast<int>( QgsAttributeTableModel::CustomRole::FeatureId ) ).toLongLong();
 
     ids << id;
   }
@@ -91,7 +92,7 @@ void QgsFeatureSelectionModel::selectFeatures( const QItemSelection &selection, 
     {
       mClearAndSelectBuffer = true;
       const auto constIds = ids;
-      for ( QgsFeatureId id : constIds )
+      for ( const QgsFeatureId id : constIds )
       {
         if ( !mDeselectedBuffer.remove( id ) )
         {
@@ -109,7 +110,7 @@ void QgsFeatureSelectionModel::selectFeatures( const QItemSelection &selection, 
     if ( !mSyncEnabled )
     {
       const auto constIds = ids;
-      for ( QgsFeatureId id : constIds )
+      for ( const QgsFeatureId id : constIds )
       {
         if ( !mDeselectedBuffer.remove( id ) )
         {
@@ -127,7 +128,7 @@ void QgsFeatureSelectionModel::selectFeatures( const QItemSelection &selection, 
     if ( !mSyncEnabled )
     {
       const auto constIds = ids;
-      for ( QgsFeatureId id : constIds )
+      for ( const QgsFeatureId id : constIds )
       {
         if ( !mSelectedBuffer.remove( id ) )
         {
@@ -173,13 +174,13 @@ void QgsFeatureSelectionModel::layerSelectionChanged( const QgsFeatureIds &selec
   {
     QModelIndexList updatedIndexes;
     const auto constSelected = selected;
-    for ( QgsFeatureId fid : constSelected )
+    for ( const QgsFeatureId fid : constSelected )
     {
       updatedIndexes.append( expandIndexToRow( mFeatureModel->fidToIndex( fid ) ) );
     }
 
     const auto constDeselected = deselected;
-    for ( QgsFeatureId fid : constDeselected )
+    for ( const QgsFeatureId fid : constDeselected )
     {
       updatedIndexes.append( expandIndexToRow( mFeatureModel->fidToIndex( fid ) ) );
     }
@@ -192,12 +193,12 @@ QModelIndexList QgsFeatureSelectionModel::expandIndexToRow( const QModelIndex &i
 {
   QModelIndexList indexes;
   const QAbstractItemModel *model = index.model();
-  int row = index.row();
+  const int row = index.row();
 
   if ( !model )
     return indexes;
 
-  int columns = model->columnCount();
+  const int columns = model->columnCount();
   indexes.reserve( columns );
   for ( int column = 0; column < columns; ++column )
   {

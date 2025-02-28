@@ -21,19 +21,18 @@
 #include <QLineEdit>
 #include <QSignalSpy>
 
-class TestQgsFocusWatcher: public QObject
+class TestQgsFocusWatcher : public QObject
 {
     Q_OBJECT
   private slots:
-    void initTestCase(); // will be called before the first testfunction is executed.
+    void initTestCase();    // will be called before the first testfunction is executed.
     void cleanupTestCase(); // will be called after the last testfunction was executed.
-    void init(); // will be called before each testfunction is executed.
-    void cleanup(); // will be called after every testfunction.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void testSignals();
 
   private:
-
 };
 
 void TestQgsFocusWatcher::initTestCase()
@@ -63,11 +62,11 @@ void TestQgsFocusWatcher::testSignals()
   QgsFocusWatcher *watcher1 = new QgsFocusWatcher( e1 );
   QgsFocusWatcher *watcher2 = new QgsFocusWatcher( e2 );
 
-  QSignalSpy spyFocusIn1( watcher1, SIGNAL( focusIn() ) );
-  QSignalSpy spyFocusOut1( watcher1, SIGNAL( focusOut() ) );
+  const QSignalSpy spyFocusIn1( watcher1, SIGNAL( focusIn() ) );
+  const QSignalSpy spyFocusOut1( watcher1, SIGNAL( focusOut() ) );
   QSignalSpy spyFocusChanged1( watcher1, SIGNAL( focusChanged( bool ) ) );
-  QSignalSpy spyFocusIn2( watcher2, SIGNAL( focusIn() ) );
-  QSignalSpy spyFocusOut2( watcher2, SIGNAL( focusOut() ) );
+  const QSignalSpy spyFocusIn2( watcher2, SIGNAL( focusIn() ) );
+  const QSignalSpy spyFocusOut2( watcher2, SIGNAL( focusOut() ) );
   QSignalSpy spyFocusChanged2( watcher2, SIGNAL( focusChanged( bool ) ) );
 
   e2->setFocus();

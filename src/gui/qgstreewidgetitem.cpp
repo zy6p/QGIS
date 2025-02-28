@@ -16,6 +16,8 @@
  ***************************************************************************/
 
 #include "qgstreewidgetitem.h"
+#include "moc_qgstreewidgetitem.cpp"
+#include "qgsvariantutils.h"
 #include "qgis.h"
 
 QgsTreeWidgetItem::QgsTreeWidgetItem( QTreeWidget *parent, int type )
@@ -67,22 +69,22 @@ void QgsTreeWidgetItem::setAlwaysOnTopPriority( int priority )
 
 int QgsTreeWidgetItem::alwaysOnTopPriority() const
 {
-  QVariant val = data( 0, AlwaysOnTopPriorityRole );
+  const QVariant val = data( 0, AlwaysOnTopPriorityRole );
   return val.isValid() ? val.toInt() : -1;
 }
 
 bool QgsTreeWidgetItem::operator<( const QTreeWidgetItem &other ) const
 {
-  int column = treeWidget()->sortColumn();
+  const int column = treeWidget()->sortColumn();
 
   // check always on top priority - note - no way of determining sort order from tree widget, so
   // these will sometimes be incorrectly placed at the bottom
-  QVariant priority1 = data( 0, AlwaysOnTopPriorityRole );
-  QVariant priority2 = other.data( 0, AlwaysOnTopPriorityRole );
+  const QVariant priority1 = data( 0, AlwaysOnTopPriorityRole );
+  const QVariant priority2 = other.data( 0, AlwaysOnTopPriorityRole );
   if ( priority1.isValid() && priority2.isValid() )
   {
-    int i1 = priority1.toInt();
-    int i2 = priority2.toInt();
+    const int i1 = priority1.toInt();
+    const int i2 = priority2.toInt();
     if ( i1 != i2 )
       return priority1.toInt() < priority2.toInt();
   }
@@ -106,7 +108,7 @@ bool QgsTreeWidgetItem::operator<( const QTreeWidgetItem &other ) const
   if ( !val2.isValid() )
     val2 = other.text( column );
 
-  if ( !val1.isNull() && !val2.isNull() )
+  if ( !QgsVariantUtils::isNull( val1 ) && !QgsVariantUtils::isNull( val2 ) )
   {
     val = val1.toDouble( &ok1 ) < val2.toDouble( &ok2 );
     if ( ok1 && ok2 )

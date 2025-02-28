@@ -62,11 +62,11 @@ class QgsGenericSpatialIndex
      */
     bool insert( T *data, const QgsRectangle &bounds )
     {
-      SpatialIndex::Region r( QgsSpatialIndexUtils::rectangleToRegion( bounds ) );
+      const SpatialIndex::Region r( QgsSpatialIndexUtils::rectangleToRegion( bounds ) );
 
-      QMutexLocker locker( &mMutex );
+      const QMutexLocker locker( &mMutex );
 
-      qint64 id = mNextId++;
+      const qint64 id = mNextId++;
       mIdToData.insert( id, data );
       mDataToId.insert( data, id );
       try
@@ -77,16 +77,16 @@ class QgsGenericSpatialIndex
       catch ( Tools::Exception &e )
       {
         Q_UNUSED( e )
-        QgsDebugMsg( QStringLiteral( "Tools::Exception caught: " ).arg( e.what().c_str() ) );
+        QgsDebugError( QStringLiteral( "Tools::Exception caught: " ).arg( e.what().c_str() ) );
       }
       catch ( const std::exception &e )
       {
         Q_UNUSED( e )
-        QgsDebugMsg( QStringLiteral( "std::exception caught: " ).arg( e.what() ) );
+        QgsDebugError( QStringLiteral( "std::exception caught: " ).arg( e.what() ) );
       }
       catch ( ... )
       {
-        QgsDebugMsg( QStringLiteral( "unknown spatial index exception caught" ) );
+        QgsDebugError( QStringLiteral( "unknown spatial index exception caught" ) );
       }
 
       return false;
@@ -100,16 +100,16 @@ class QgsGenericSpatialIndex
      */
     bool remove( T *data, const QgsRectangle &bounds )
     {
-      SpatialIndex::Region r = QgsSpatialIndexUtils::rectangleToRegion( bounds );
+      const SpatialIndex::Region r = QgsSpatialIndexUtils::rectangleToRegion( bounds );
 
-      QMutexLocker locker( &mMutex );
+      const QMutexLocker locker( &mMutex );
 
       const qint64 id = mDataToId.value( data, 0 );
       if ( id == 0 )
         return false;
 
       // TODO: handle exceptions
-      bool res = mRTree->deleteData( r, id );
+      const bool res = mRTree->deleteData( r, id );
       mDataToId.remove( data );
       mIdToData.remove( id );
       return res;
@@ -123,9 +123,9 @@ class QgsGenericSpatialIndex
     bool intersects( const QgsRectangle &bounds, const std::function< bool( T *data )> &callback ) const
     {
       GenericIndexVisitor<T> visitor( callback, mIdToData );
-      SpatialIndex::Region r = QgsSpatialIndexUtils::rectangleToRegion( bounds );
+      const SpatialIndex::Region r = QgsSpatialIndexUtils::rectangleToRegion( bounds );
 
-      QMutexLocker locker( &mMutex );
+      const QMutexLocker locker( &mMutex );
       mRTree->intersectsWithQuery( r, visitor );
       return true;
     }
@@ -135,7 +135,7 @@ class QgsGenericSpatialIndex
      */
     bool isEmpty( ) const
     {
-      QMutexLocker locker( &mMutex );
+      const QMutexLocker locker( &mMutex );
       return mIdToData.isEmpty();
     }
 
@@ -179,7 +179,7 @@ class QgsGenericSpatialIndex
 
         void visitData( const SpatialIndex::IData &d ) override
         {
-          qint64 id = d.getIdentifier();
+          const qint64 id = d.getIdentifier();
           T *data = mData.value( id );
           mCallback( data );
         }

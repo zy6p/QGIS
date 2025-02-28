@@ -78,7 +78,7 @@ int QgsContrastEnhancement::enhanceContrast( double value )
 
   if ( mLookupTable && NoEnhancement != mContrastEnhancementAlgorithm )
   {
-    double shiftedValue = value + mLookupTableOffset;
+    const double shiftedValue = value + mLookupTableOffset;
     if ( shiftedValue >= 0 && shiftedValue < mRasterDataTypeRange + 1 )
       return mLookupTable[static_cast <int>( shiftedValue )];
     return 0;
@@ -100,8 +100,29 @@ bool QgsContrastEnhancement::generateLookupTable()
     return false;
   if ( NoEnhancement == mContrastEnhancementAlgorithm )
     return false;
-  if ( Qgis::Byte != mRasterDataType && Qgis::UInt16 != mRasterDataType && Qgis::Int16 != mRasterDataType )
-    return false;
+
+  switch ( mRasterDataType )
+  {
+    case Qgis::DataType::Byte:
+    case Qgis::DataType::UInt16:
+    case Qgis::DataType::Int16:
+    case Qgis::DataType::Int8:
+      break;
+
+    case Qgis::DataType::UnknownDataType:
+    case Qgis::DataType::UInt32:
+    case Qgis::DataType::Int32:
+    case Qgis::DataType::Float32:
+    case Qgis::DataType::Float64:
+    case Qgis::DataType::CInt16:
+    case Qgis::DataType::CInt32:
+    case Qgis::DataType::CFloat32:
+    case Qgis::DataType::CFloat64:
+    case Qgis::DataType::ARGB32:
+    case Qgis::DataType::ARGB32_Premultiplied:
+      return false;
+  }
+
   if ( !mLookupTable )
     return false;
 
@@ -227,39 +248,39 @@ void QgsContrastEnhancement::writeXml( QDomDocument &doc, QDomElement &parentEle
 {
   //minimum value
   QDomElement minElem = doc.createElement( QStringLiteral( "minValue" ) );
-  QDomText minText = doc.createTextNode( QgsRasterBlock::printValue( mMinimumValue ) );
+  const QDomText minText = doc.createTextNode( QgsRasterBlock::printValue( mMinimumValue ) );
   minElem.appendChild( minText );
   parentElem.appendChild( minElem );
 
   //maximum value
   QDomElement maxElem = doc.createElement( QStringLiteral( "maxValue" ) );
-  QDomText maxText = doc.createTextNode( QgsRasterBlock::printValue( mMaximumValue ) );
+  const QDomText maxText = doc.createTextNode( QgsRasterBlock::printValue( mMaximumValue ) );
   maxElem.appendChild( maxText );
   parentElem.appendChild( maxElem );
 
   //algorithm
   QDomElement algorithmElem = doc.createElement( QStringLiteral( "algorithm" ) );
-  QDomText algorithmText = doc.createTextNode( contrastEnhancementAlgorithmString( mContrastEnhancementAlgorithm ) );
+  const QDomText algorithmText = doc.createTextNode( contrastEnhancementAlgorithmString( mContrastEnhancementAlgorithm ) );
   algorithmElem.appendChild( algorithmText );
   parentElem.appendChild( algorithmElem );
 }
 
 void QgsContrastEnhancement::readXml( const QDomElement &elem )
 {
-  QDomElement minValueElem = elem.firstChildElement( QStringLiteral( "minValue" ) );
+  const QDomElement minValueElem = elem.firstChildElement( QStringLiteral( "minValue" ) );
   if ( !minValueElem.isNull() )
   {
     mMinimumValue = minValueElem.text().toDouble();
   }
-  QDomElement maxValueElem = elem.firstChildElement( QStringLiteral( "maxValue" ) );
+  const QDomElement maxValueElem = elem.firstChildElement( QStringLiteral( "maxValue" ) );
   if ( !maxValueElem.isNull() )
   {
     mMaximumValue = maxValueElem.text().toDouble();
   }
-  QDomElement algorithmElem = elem.firstChildElement( QStringLiteral( "algorithm" ) );
+  const QDomElement algorithmElem = elem.firstChildElement( QStringLiteral( "algorithm" ) );
   if ( !algorithmElem.isNull() )
   {
-    QString algorithmString = algorithmElem.text();
+    const QString algorithmString = algorithmElem.text();
     ContrastEnhancementAlgorithm algorithm = NoEnhancement;
     // old version ( < 19 Apr 2013) was using enum directly -> for backward compatibility
     if ( algorithmString == QLatin1String( "0" ) )
@@ -314,7 +335,7 @@ void QgsContrastEnhancement::toSld( QDomDocument &doc, QDomElement &element ) co
       return;
     case UserDefinedEnhancement:
       algName = contrastEnhancementAlgorithmString( contrastEnhancementAlgorithm() );
-      QgsDebugMsg( QObject::tr( "No SLD1.0 conversion yet for stretch algorithm %1" ).arg( algName ) );
+      QgsDebugError( QStringLiteral( "No SLD1.0 conversion yet for stretch algorithm %1" ).arg( algName ) );
       return;
   }
 

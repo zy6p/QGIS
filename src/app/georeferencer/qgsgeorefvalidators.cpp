@@ -14,8 +14,10 @@
  ***************************************************************************/
 
 #include <QStringList>
+#include <QRegularExpression>
 
 #include "qgsgeorefvalidators.h"
+#include "moc_qgsgeorefvalidators.cpp"
 
 QgsDMSAndDDValidator::QgsDMSAndDDValidator( QObject *parent )
   : QValidator( parent )
@@ -26,8 +28,8 @@ QValidator::State QgsDMSAndDDValidator::validate( QString &input, int &pos ) con
 {
   Q_UNUSED( pos )
 
-  QRegExp rx( "-?\\d*" );
-  if ( rx.exactMatch( input ) )
+  const thread_local QRegularExpression rx( QRegularExpression::anchoredPattern( QStringLiteral( "-?\\d*" ) ) );
+  if ( rx.match( input ).hasMatch() )
   {
     return Acceptable;
   }
@@ -45,30 +47,30 @@ QValidator::State QgsDMSAndDDValidator::validate( QString &input, int &pos ) con
 
   if ( !input.contains( ' ' ) )
   {
-    rx.setPattern( QStringLiteral( "-?\\d*(\\.|,)(\\d+)?" ) );
-    if ( rx.exactMatch( input ) )
+    const thread_local QRegularExpression rx2( QRegularExpression::anchoredPattern( QStringLiteral( "-?\\d*(\\.|,)(\\d+)?" ) ) );
+    if ( rx2.match( input ).hasMatch() )
       return Acceptable;
   }
   else
   {
-    rx.setPattern( QStringLiteral( "-?\\d{1,3}\\s(\\d{1,2}(\\s(\\d{1,2}((\\.|,)(\\d{1,3})?)?)?)?)?" ) );
-    if ( rx.exactMatch( input ) )
+    const thread_local QRegularExpression rx3( QRegularExpression::anchoredPattern( QStringLiteral( "-?\\d{1,3}\\s(\\d{1,2}(\\s(\\d{1,2}((\\.|,)(\\d{1,3})?)?)?)?)?" ) ) );
+    if ( rx3.match( input ).hasMatch() )
     {
-      rx.setPattern( QStringLiteral( "-?\\d{1,3}\\s60" ) );
-      if ( rx.exactMatch( input ) )
+      const thread_local QRegularExpression rx4( QRegularExpression::anchoredPattern( QStringLiteral( "-?\\d{1,3}\\s60" ) ) );
+      if ( rx4.match( input ).hasMatch() )
       {
-        int in = input.leftRef( input.indexOf( ' ' ) ).toInt();
-        int grad = input.startsWith( '-' ) ? in - 1 : in + 1;
+        const int in = input.left( input.indexOf( ' ' ) ).toInt();
+        const int grad = input.startsWith( '-' ) ? in - 1 : in + 1;
         if ( grad <= 180 )
           input = QString::number( grad );
 
         return Acceptable;
       }
 
-      rx.setPattern( QStringLiteral( "-?\\d{1,3}\\s\\d{1,2}\\s60" ) );
-      if ( rx.exactMatch( input ) )
+      const thread_local QRegularExpression rx5( QRegularExpression::anchoredPattern( QStringLiteral( "-?\\d{1,3}\\s\\d{1,2}\\s60" ) ) );
+      if ( rx5.match( input ).hasMatch() )
       {
-        int min = input.split( ' ' ).at( 1 ).toInt() + 1;
+        const int min = input.split( ' ' ).at( 1 ).toInt() + 1;
         if ( min <= 60 )
           input = input.left( input.indexOf( ' ' ) ) + ' ' + QString::number( min );
 
@@ -78,9 +80,9 @@ QValidator::State QgsDMSAndDDValidator::validate( QString &input, int &pos ) con
       if ( input.at( input.size() - 1 ) == ' ' )
         return Intermediate;
 
-      int pos = input.lastIndexOf( ' ' );
-      QString valStr = input.mid( pos + 1, input.size() - 1 );
-      int val = valStr.toInt();
+      const int pos = input.lastIndexOf( ' ' );
+      const QString valStr = input.mid( pos + 1, input.size() - 1 );
+      const int val = valStr.toInt();
       if ( val <= 60 )
         return Acceptable;
       else

@@ -28,14 +28,15 @@ QgsLayerRestorer::QgsLayerRestorer( const QList<QgsMapLayer *> &layers )
 {
   for ( QgsMapLayer *layer : layers )
   {
-    QgsLayerSettings settings;
-    settings.name = layer->name();
+    mLayerSettings.emplace( layer, QgsLayerSettings() );
+    QgsLayerSettings &settings = mLayerSettings[layer];
 
+    settings.name = layer->name();
     settings.mNamedStyle = layer->styleManager()->currentStyle();
 
     switch ( layer->type() )
     {
-      case QgsMapLayerType::VectorLayer:
+      case Qgis::LayerType::Vector:
       {
         QgsVectorLayer *vLayer = qobject_cast<QgsVectorLayer *>( layer );
 
@@ -44,41 +45,44 @@ QgsLayerRestorer::QgsLayerRestorer( const QList<QgsMapLayer *> &layers )
           settings.mOpacity = vLayer->opacity();
           settings.mSelectedFeatureIds = vLayer->selectedFeatureIds();
           settings.mFilter = vLayer->subsetString();
+          // Labeling opacity
+          if ( vLayer->labelsEnabled() && vLayer->labeling() )
+          {
+            settings.mLabeling.reset( vLayer->labeling()->clone() );
+          }
         }
         break;
       }
-      case QgsMapLayerType::RasterLayer:
+      case Qgis::LayerType::Raster:
       {
         QgsRasterLayer *rLayer = qobject_cast<QgsRasterLayer *>( layer );
 
-        if ( rLayer )
+        if ( rLayer && rLayer->renderer() )
         {
           settings.mOpacity = rLayer->renderer()->opacity();
         }
         break;
       }
 
-      case QgsMapLayerType::MeshLayer:
-      case QgsMapLayerType::VectorTileLayer:
-      case QgsMapLayerType::PluginLayer:
-      case QgsMapLayerType::AnnotationLayer:
-      case QgsMapLayerType::PointCloudLayer:
+      case Qgis::LayerType::Mesh:
+      case Qgis::LayerType::VectorTile:
+      case Qgis::LayerType::Plugin:
+      case Qgis::LayerType::Annotation:
+      case Qgis::LayerType::PointCloud:
+      case Qgis::LayerType::Group:
+      case Qgis::LayerType::TiledScene:
         break;
     }
-
-    mLayerSettings[layer] = settings;
   }
 }
 
 QgsLayerRestorer::~QgsLayerRestorer()
 {
-  for ( QgsMapLayer *layer : mLayerSettings.keys() )
+  for ( auto it = mLayerSettings.begin(); it != mLayerSettings.end(); it++ )
   {
-    QgsLayerSettings settings = mLayerSettings[layer];
-    layer->styleManager()->setCurrentStyle( settings.mNamedStyle );
-    layer->setName( mLayerSettings[layer].name );
+    QgsMapLayer *layer = it->first;
 
-    // if a SLD file has been loaded for rendering, we restore the previous style
+    // Firstly check if a SLD file has been loaded for rendering and removed it
     const QString sldStyleName { layer->customProperty( "sldStyleName", "" ).toString() };
     if ( !sldStyleName.isEmpty() )
     {
@@ -86,9 +90,14 @@ QgsLayerRestorer::~QgsLayerRestorer()
       layer->removeCustomProperty( "sldStyleName" );
     }
 
+    // Then restore the previous style
+    QgsLayerSettings &settings = it->second;
+    layer->styleManager()->setCurrentStyle( settings.mNamedStyle );
+    layer->setName( settings.name );
+
     switch ( layer->type() )
     {
-      case QgsMapLayerType::VectorLayer:
+      case Qgis::LayerType::Vector:
       {
         QgsVectorLayer *vLayer = qobject_cast<QgsVectorLayer *>( layer );
 
@@ -97,25 +106,31 @@ QgsLayerRestorer::~QgsLayerRestorer()
           vLayer->setOpacity( settings.mOpacity );
           vLayer->selectByIds( settings.mSelectedFeatureIds );
           vLayer->setSubsetString( settings.mFilter );
+          if ( settings.mLabeling )
+          {
+            vLayer->setLabeling( settings.mLabeling.release() );
+          }
         }
         break;
       }
-      case QgsMapLayerType::RasterLayer:
+      case Qgis::LayerType::Raster:
       {
         QgsRasterLayer *rLayer = qobject_cast<QgsRasterLayer *>( layer );
 
-        if ( rLayer )
+        if ( rLayer && rLayer->renderer() )
         {
           rLayer->renderer()->setOpacity( settings.mOpacity );
         }
         break;
       }
 
-      case QgsMapLayerType::MeshLayer:
-      case QgsMapLayerType::VectorTileLayer:
-      case QgsMapLayerType::PluginLayer:
-      case QgsMapLayerType::AnnotationLayer:
-      case QgsMapLayerType::PointCloudLayer:
+      case Qgis::LayerType::Mesh:
+      case Qgis::LayerType::VectorTile:
+      case Qgis::LayerType::Plugin:
+      case Qgis::LayerType::Annotation:
+      case Qgis::LayerType::PointCloud:
+      case Qgis::LayerType::Group:
+      case Qgis::LayerType::TiledScene:
         break;
     }
   }
@@ -127,4 +142,4 @@ namespace QgsWms
     : mLayerRestorer( context.layers() )
   {
   }
-}
+} // namespace QgsWms

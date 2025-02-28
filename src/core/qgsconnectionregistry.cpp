@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgsconnectionregistry.h"
+#include "moc_qgsconnectionregistry.cpp"
 #include "qgsproviderregistry.h"
 #include "qgsprovidermetadata.h"
 #include <QRegularExpression>
@@ -27,7 +28,7 @@ QgsConnectionRegistry::QgsConnectionRegistry( QObject *parent SIP_TRANSFERTHIS )
 
 QgsAbstractProviderConnection *QgsConnectionRegistry::createConnection( const QString &id )
 {
-  QRegularExpressionMatch m = QRegularExpression( QStringLiteral( "(.*?)\\://(.*)" ) ).match( id );
+  const QRegularExpressionMatch m = QRegularExpression( QStringLiteral( "(.*?)\\://(.*)" ) ).match( id );
   if ( !m.hasMatch() )
     throw QgsProviderConnectionException( QObject::tr( "Invalid connection id" ) );
 

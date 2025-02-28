@@ -17,6 +17,7 @@
 
 #include "qgssettings.h"
 #include "qgsgeorefconfigdialog.h"
+#include "moc_qgsgeorefconfigdialog.cpp"
 #include "qgis.h"
 #include "qgsgui.h"
 
@@ -84,7 +85,7 @@ void QgsGeorefConfigDialog::buttonBox_rejected()
 
 void QgsGeorefConfigDialog::readSettings()
 {
-  QgsSettings s;
+  const QgsSettings s;
   mShowIDsCheckBox->setChecked( s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/ShowId" ) ).toBool() );
   mShowCoordsCheckBox->setChecked( s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/ShowCoords" ) ).toBool() );
   mShowDockedCheckBox->setChecked( s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/ShowDocked" ) ).toBool() );
@@ -101,14 +102,14 @@ void QgsGeorefConfigDialog::readSettings()
   mLeftMarginSpinBox->setValue( s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/LeftMarginPDF" ), "2.0" ).toDouble() );
   mRightMarginSpinBox->setValue( s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/RightMarginPDF" ), "2.0" ).toDouble() );
 
-  double currentWidth = s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/WidthPDFMap" ), "297" ).toDouble();
-  double currentHeight = s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/HeightPDFMap" ), "420" ).toDouble();
+  const double currentWidth = s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/WidthPDFMap" ), "297" ).toDouble();
+  const double currentHeight = s.value( QStringLiteral( "/Plugin-GeoReferencer/Config/HeightPDFMap" ), "420" ).toDouble();
 
   int paperIndex = 2; //default to A3
   for ( int i = 0; i < mPaperSizeComboBox->count(); ++i )
   {
-    double itemWidth = mPaperSizeComboBox->itemData( i ).toSizeF().width();
-    double itemHeight = mPaperSizeComboBox->itemData( i ).toSizeF().height();
+    const double itemWidth = mPaperSizeComboBox->itemData( i ).toSizeF().width();
+    const double itemHeight = mPaperSizeComboBox->itemData( i ).toSizeF().height();
     if ( qgsDoubleNear( itemWidth, currentWidth ) && qgsDoubleNear( itemHeight, currentHeight ) )
     {
       paperIndex = i;
@@ -137,6 +138,4 @@ void QgsGeorefConfigDialog::writeSettings()
 
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/Config/WidthPDFMap" ), mPaperSizeComboBox->currentData().toSizeF().width() );
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/Config/HeightPDFMap" ), mPaperSizeComboBox->currentData().toSizeF().height() );
-
 }
-

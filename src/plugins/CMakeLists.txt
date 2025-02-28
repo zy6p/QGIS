@@ -6,7 +6,6 @@ endif()
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${QGIS_OUTPUT_DIRECTORY}/${QGIS_PLUGIN_SUBDIR})
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${QGIS_OUTPUT_DIRECTORY}/${QGIS_PLUGIN_SUBDIR})
 
-add_subdirectory(gps_importer)
 add_subdirectory(topology)
 add_subdirectory(geometry_checker)
 
@@ -15,7 +14,10 @@ if (WITH_SPATIALITE)
 endif()
 
 if (GRASS_FOUND)
-  add_subdirectory(grass)
+  set (WITH_GRASS_PLUGIN TRUE CACHE BOOL "Determines whether the GRASS c++ plugin should be built")
+  if (WITH_GRASS_PLUGIN)
+    add_subdirectory(grass)
+  endif()
 endif()
 
 if (CUSTOM_PLUGINS)

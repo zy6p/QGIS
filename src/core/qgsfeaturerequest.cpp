@@ -16,6 +16,7 @@
 
 #include "qgsfields.h"
 #include "qgsgeometry.h"
+#include "qgsgeometryengine.h"
 
 #include <QStringList>
 
@@ -26,26 +27,29 @@ QgsFeatureRequest::QgsFeatureRequest()
 {
 }
 
+QgsFeatureRequest::~QgsFeatureRequest() = default;
+
 QgsFeatureRequest::QgsFeatureRequest( QgsFeatureId fid )
-  : mFilter( FilterFid )
+  : mFilter( Qgis::FeatureRequestFilterType::Fid )
   , mFilterFid( fid )
 {
 }
 
 QgsFeatureRequest::QgsFeatureRequest( const QgsFeatureIds &fids )
-  : mFilter( FilterFids )
+  : mFilter( Qgis::FeatureRequestFilterType::Fids )
   , mFilterFids( fids )
 {
 
 }
 
 QgsFeatureRequest::QgsFeatureRequest( const QgsRectangle &rect )
-  : mFilterRect( rect )
+  : mSpatialFilter( !rect.isNull() ? Qgis::SpatialFilterType::BoundingBox : Qgis::SpatialFilterType::NoFilter )
+  , mFilterRect( rect )
 {
 }
 
 QgsFeatureRequest::QgsFeatureRequest( const QgsExpression &expr, const QgsExpressionContext &context )
-  : mFilter( FilterExpression )
+  : mFilter( Qgis::FeatureRequestFilterType::Expression )
   , mFilterExpression( new QgsExpression( expr ) )
   , mExpressionContext( context )
 {
@@ -63,7 +67,11 @@ QgsFeatureRequest &QgsFeatureRequest::operator=( const QgsFeatureRequest &rh )
 
   mFlags = rh.mFlags;
   mFilter = rh.mFilter;
+  mSpatialFilter = rh.mSpatialFilter;
   mFilterRect = rh.mFilterRect;
+  mReferenceGeometry = rh.mReferenceGeometry;
+  mReferenceGeometryEngine = rh.mReferenceGeometryEngine;
+  mDistanceWithin = rh.mDistanceWithin;
   mFilterFid = rh.mFilterFid;
   mFilterFids = rh.mFilterFids;
   if ( rh.mFilterExpression )
@@ -81,35 +89,99 @@ QgsFeatureRequest &QgsFeatureRequest::operator=( const QgsFeatureRequest &rh )
   mSimplifyMethod = rh.mSimplifyMethod;
   mLimit = rh.mLimit;
   mOrderBy = rh.mOrderBy;
+  mTransform = rh.mTransform;
   mCrs = rh.mCrs;
   mTransformContext = rh.mTransformContext;
   mTransformErrorCallback = rh.mTransformErrorCallback;
   mTimeout = rh.mTimeout;
   mRequestMayBeNested = rh.mRequestMayBeNested;
+  mFeedback = rh.mFeedback;
   return *this;
 }
+
+// Relaxed Equality operator
+bool QgsFeatureRequest::compare( const QgsFeatureRequest &rh ) const
+{
+  if ( &rh == this )
+    return true;
+
+  return mFlags == rh.mFlags &&
+         mFilter == rh.mFilter &&
+         mSpatialFilter == rh.mSpatialFilter &&
+         mFilterRect == rh.mFilterRect &&
+         ( ( mReferenceGeometry.isNull() && rh.mReferenceGeometry.isNull() ) || mReferenceGeometry.equals( rh.mReferenceGeometry ) ) &&
+         mDistanceWithin == rh.mDistanceWithin &&
+         mFilterFid == rh.mFilterFid &&
+         mFilterFids == rh.mFilterFids &&
+         ( mFilterExpression ? rh.mFilterExpression && *mFilterExpression == *rh.mFilterExpression : !rh.mFilterExpression ) &&
+         mInvalidGeometryFilter == rh.mInvalidGeometryFilter &&
+         mAttrs == rh.mAttrs &&
+         mSimplifyMethod == rh.mSimplifyMethod &&
+         mLimit == rh.mLimit &&
+         mOrderBy == rh.mOrderBy &&
+         mTransform == rh.mTransform &&
+         mCrs == rh.mCrs &&
+         mTransformContext == rh.mTransformContext &&
+         mTimeout == rh.mTimeout &&
+         mRequestMayBeNested == rh.mRequestMayBeNested;
+}
+
 
 QgsFeatureRequest &QgsFeatureRequest::setFilterRect( const QgsRectangle &rect )
 {
   mFilterRect = rect;
+  mReferenceGeometry = QgsGeometry();
+  mDistanceWithin = 0;
+  if ( mFilterRect.isNull() )
+  {
+    mSpatialFilter = Qgis::SpatialFilterType::NoFilter;
+  }
+  else
+  {
+    mSpatialFilter = Qgis::SpatialFilterType::BoundingBox;
+  }
+  return *this;
+}
+
+QgsRectangle QgsFeatureRequest::filterRect() const
+{
+  return mFilterRect;
+}
+
+QgsFeatureRequest &QgsFeatureRequest::setDistanceWithin( const QgsGeometry &geometry, double distance )
+{
+  mReferenceGeometry = geometry;
+  if ( !mReferenceGeometry.isEmpty() )
+  {
+    mReferenceGeometryEngine.reset( QgsGeometry::createGeometryEngine( mReferenceGeometry.constGet() ) );
+    mReferenceGeometryEngine->prepareGeometry();
+  }
+  else
+  {
+    mReferenceGeometryEngine.reset();
+  }
+  mDistanceWithin = distance;
+  mSpatialFilter = Qgis::SpatialFilterType::DistanceWithin;
+  mFilterRect = mReferenceGeometry.boundingBox().buffered( mDistanceWithin );
+
   return *this;
 }
 
 QgsFeatureRequest &QgsFeatureRequest::setFilterFid( QgsFeatureId fid )
 {
-  mFilter = FilterFid;
+  mFilter = Qgis::FeatureRequestFilterType::Fid;
   mFilterFid = fid;
   return *this;
 }
 
 QgsFeatureRequest &QgsFeatureRequest::setFilterFids( const QgsFeatureIds &fids )
 {
-  mFilter = FilterFids;
+  mFilter = Qgis::FeatureRequestFilterType::Fids;
   mFilterFids = fids;
   return *this;
 }
 
-QgsFeatureRequest &QgsFeatureRequest::setInvalidGeometryCheck( QgsFeatureRequest::InvalidGeometryCheck check )
+QgsFeatureRequest &QgsFeatureRequest::setInvalidGeometryCheck( Qgis::InvalidGeometryCheck check )
 {
   mInvalidGeometryFilter = check;
   return *this;
@@ -123,7 +195,7 @@ QgsFeatureRequest &QgsFeatureRequest::setInvalidGeometryCallback( const std::fun
 
 QgsFeatureRequest &QgsFeatureRequest::setFilterExpression( const QString &expression )
 {
-  mFilter = FilterExpression;
+  mFilter = Qgis::FeatureRequestFilterType::Expression;
   mFilterExpression.reset( new QgsExpression( expression ) );
   return *this;
 }
@@ -170,13 +242,13 @@ QgsFeatureRequest &QgsFeatureRequest::setOrderBy( const QgsFeatureRequest::Order
   return *this;
 }
 
-QgsFeatureRequest &QgsFeatureRequest::setLimit( long limit )
+QgsFeatureRequest &QgsFeatureRequest::setLimit( long long limit )
 {
   mLimit = limit;
   return *this;
 }
 
-QgsFeatureRequest &QgsFeatureRequest::setFlags( QgsFeatureRequest::Flags flags )
+QgsFeatureRequest &QgsFeatureRequest::setFlags( Qgis::FeatureRequestFlags flags )
 {
   mFlags = flags;
   return *this;
@@ -184,7 +256,7 @@ QgsFeatureRequest &QgsFeatureRequest::setFlags( QgsFeatureRequest::Flags flags )
 
 QgsFeatureRequest &QgsFeatureRequest::setSubsetOfAttributes( const QgsAttributeList &attrs )
 {
-  mFlags |= SubsetOfAttributes;
+  mFlags |= Qgis::FeatureRequestFlag::SubsetOfAttributes;
   mAttrs = attrs;
   return *this;
 }
@@ -202,13 +274,13 @@ QgsFeatureRequest &QgsFeatureRequest::setSubsetOfAttributes( const QStringList &
     return *this;
   }
 
-  mFlags |= SubsetOfAttributes;
+  mFlags |= Qgis::FeatureRequestFlag::SubsetOfAttributes;
   mAttrs.clear();
 
   const auto constAttrNames = attrNames;
   for ( const QString &attrName : constAttrNames )
   {
-    int attrNum = fields.lookupField( attrName );
+    const int attrNum = fields.lookupField( attrName );
     if ( attrNum != -1 && !mAttrs.contains( attrNum ) )
       mAttrs.append( attrNum );
   }
@@ -224,13 +296,13 @@ QgsFeatureRequest &QgsFeatureRequest::setSubsetOfAttributes( const QSet<QString>
     return *this;
   }
 
-  mFlags |= SubsetOfAttributes;
+  mFlags |= Qgis::FeatureRequestFlag::SubsetOfAttributes;
   mAttrs.clear();
 
   const auto constAttrNames = attrNames;
   for ( const QString &attrName : constAttrNames )
   {
-    int attrNum = fields.lookupField( attrName );
+    const int attrNum = fields.lookupField( attrName );
     if ( attrNum != -1 && !mAttrs.contains( attrNum ) )
       mAttrs.append( attrNum );
   }
@@ -244,6 +316,10 @@ QgsFeatureRequest &QgsFeatureRequest::setSimplifyMethod( const QgsSimplifyMethod
   return *this;
 }
 
+QgsCoordinateTransform QgsFeatureRequest::coordinateTransform() const
+{
+  return mTransform;
+}
 
 QgsCoordinateReferenceSystem QgsFeatureRequest::destinationCrs() const
 {
@@ -253,6 +329,25 @@ QgsCoordinateReferenceSystem QgsFeatureRequest::destinationCrs() const
 QgsCoordinateTransformContext QgsFeatureRequest::transformContext() const
 {
   return mTransformContext;
+}
+
+QgsCoordinateTransform QgsFeatureRequest::calculateTransform( const QgsCoordinateReferenceSystem &sourceCrs ) const
+{
+  if ( mTransform.isValid() )
+  {
+    return mTransform;
+  }
+  else if ( sourceCrs.isValid() && mCrs != sourceCrs )
+  {
+    return QgsCoordinateTransform( sourceCrs, mCrs, mTransformContext );
+  }
+  return QgsCoordinateTransform();
+}
+
+QgsFeatureRequest &QgsFeatureRequest::setCoordinateTransform( const QgsCoordinateTransform &transform )
+{
+  mTransform = transform;
+  return *this;
 }
 
 QgsFeatureRequest &QgsFeatureRequest::setDestinationCrs( const QgsCoordinateReferenceSystem &crs, const QgsCoordinateTransformContext &context )
@@ -270,32 +365,54 @@ QgsFeatureRequest &QgsFeatureRequest::setTransformErrorCallback( const std::func
 
 bool QgsFeatureRequest::acceptFeature( const QgsFeature &feature )
 {
-  if ( !mFilterRect.isNull() )
-  {
-    if ( !feature.hasGeometry() ||
-         (
-           ( mFlags & ExactIntersect && !feature.geometry().intersects( mFilterRect ) )
-           ||
-           ( !( mFlags & ExactIntersect ) && !feature.geometry().boundingBoxIntersects( mFilterRect ) )
-         )
-       )
-      return false;
-  }
-
+  // check the attribute/id filter first, it's more likely to be faster than
+  // the spatial filter
   switch ( mFilter )
   {
-    case QgsFeatureRequest::FilterNone:
-      return true;
+    case Qgis::FeatureRequestFilterType::NoFilter:
+      break;
 
-    case QgsFeatureRequest::FilterFid:
-      return ( feature.id() == mFilterFid );
+    case Qgis::FeatureRequestFilterType::Fid:
+      if ( feature.id() != mFilterFid )
+        return false;
+      break;
 
-    case QgsFeatureRequest::FilterExpression:
+    case Qgis::FeatureRequestFilterType::Expression:
       mExpressionContext.setFeature( feature );
-      return ( mFilterExpression->evaluate( &mExpressionContext ).toBool() );
+      if ( !mFilterExpression->evaluate( &mExpressionContext ).toBool() )
+        return false;
+      break;
 
-    case QgsFeatureRequest::FilterFids:
-      return ( mFilterFids.contains( feature.id() ) );
+    case Qgis::FeatureRequestFilterType::Fids:
+      if ( !mFilterFids.contains( feature.id() ) )
+        return false;
+      break;
+  }
+
+  switch ( mSpatialFilter )
+  {
+    case Qgis::SpatialFilterType::NoFilter:
+      break;
+
+    case Qgis::SpatialFilterType::BoundingBox:
+      if ( !feature.hasGeometry() ||
+           (
+             ( ( mFlags & Qgis::FeatureRequestFlag::ExactIntersect ) && !feature.geometry().intersects( mFilterRect ) )
+             ||
+             ( !( mFlags & Qgis::FeatureRequestFlag::ExactIntersect ) && !feature.geometry().boundingBoxIntersects( mFilterRect ) )
+           )
+         )
+        return false;
+      break;
+
+    case Qgis::SpatialFilterType::DistanceWithin:
+      if ( !feature.hasGeometry()
+           || !mReferenceGeometryEngine
+           || !feature.geometry().boundingBoxIntersects( mFilterRect )
+           || !mReferenceGeometryEngine->distanceWithin( feature.geometry().constGet(), mDistanceWithin )
+         )
+        return false;
+      break;
   }
 
   return true;
@@ -332,6 +449,16 @@ QgsFeatureRequest &QgsFeatureRequest::setRequestMayBeNested( bool requestMayBeNe
 {
   mRequestMayBeNested = requestMayBeNested;
   return *this;
+}
+
+void QgsFeatureRequest::setFeedback( QgsFeedback *feedback )
+{
+  mFeedback = feedback;
+}
+
+QgsFeedback *QgsFeatureRequest::feedback() const
+{
+  return mFeedback;
 }
 
 
@@ -440,6 +567,25 @@ QgsFeatureRequest::OrderBy::OrderBy( const QList<QgsFeatureRequest::OrderByClaus
   }
 }
 
+bool QgsFeatureRequest::OrderBy::operator== ( const QgsFeatureRequest::OrderBy &other ) const
+{
+  if ( this == &other )
+    return true;
+  if ( size() != other.size() )
+    return false;
+  for ( int i = 0; i < size(); ++i )
+  {
+    if ( at( i ) != other.at( i ) )
+      return false;
+  }
+  return true;
+}
+
+bool QgsFeatureRequest::OrderBy::operator!= ( const QgsFeatureRequest::OrderBy &other ) const
+{
+  return !operator==( other );
+}
+
 QList<QgsFeatureRequest::OrderByClause> QgsFeatureRequest::OrderBy::list() const
 {
   return *this;
@@ -465,14 +611,14 @@ void QgsFeatureRequest::OrderBy::load( const QDomElement &elem )
 {
   clear();
 
-  QDomNodeList clauses = elem.childNodes();
+  const QDomNodeList clauses = elem.childNodes();
 
   for ( int i = 0; i < clauses.size(); ++i )
   {
-    QDomElement clauseElem = clauses.at( i ).toElement();
-    QString expression = clauseElem.text();
-    bool asc = clauseElem.attribute( QStringLiteral( "asc" ) ).toInt() != 0;
-    bool nullsFirst  = clauseElem.attribute( QStringLiteral( "nullsFirst" ) ).toInt() != 0;
+    const QDomElement clauseElem = clauses.at( i ).toElement();
+    const QString expression = clauseElem.text();
+    const bool asc = clauseElem.attribute( QStringLiteral( "asc" ) ).toInt() != 0;
+    const bool nullsFirst  = clauseElem.attribute( QStringLiteral( "nullsFirst" ) ).toInt() != 0;
 
     append( OrderByClause( expression, asc, nullsFirst ) );
   }
@@ -501,7 +647,7 @@ QSet<int> QgsFeatureRequest::OrderBy::usedAttributeIndices( const QgsFields &fie
     const auto referencedColumns = clause.expression().referencedColumns();
     for ( const QString &fieldName : referencedColumns )
     {
-      int idx = fields.lookupField( fieldName );
+      const int idx = fields.lookupField( fieldName );
       if ( idx >= 0 )
       {
         usedAttributeIdx.insert( idx );

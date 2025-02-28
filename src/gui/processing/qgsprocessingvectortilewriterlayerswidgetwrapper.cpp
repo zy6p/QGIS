@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsprocessingvectortilewriterlayerswidgetwrapper.h"
+#include "moc_qgsprocessingvectortilewriterlayerswidgetwrapper.cpp"
 
 #include <QBoxLayout>
 #include <QLineEdit>
@@ -40,7 +41,7 @@ QgsProcessingVectorTileWriteLayerDetailsWidget::QgsProcessingVectorTileWriteLaye
 
   mContext.setProject( project );
 
-  QgsVectorTileWriter::Layer layer = QgsProcessingParameterVectorTileWriterLayers::variantMapAsLayer( value.toMap(), mContext );
+  const QgsVectorTileWriter::Layer layer = QgsProcessingParameterVectorTileWriterLayers::variantMapAsLayer( value.toMap(), mContext );
   mLayer = layer.layer();
 
   if ( !mLayer )
@@ -81,11 +82,11 @@ QVariant QgsProcessingVectorTileWriteLayerDetailsWidget::value() const
 QgsProcessingVectorTileWriterLayersPanelWidget::QgsProcessingVectorTileWriterLayersPanelWidget(
   const QVariant &value,
   QgsProject *project,
-  QWidget *parent )
+  QWidget *parent
+)
   : QgsProcessingMultipleSelectionPanelWidget( QVariantList(), QVariantList(), parent )
   , mProject( project )
 {
-
   connect( listView(), &QListView::doubleClicked, this, &QgsProcessingVectorTileWriterLayersPanelWidget::configureLayer );
 
   QPushButton *configureLayerButton = new QPushButton( tr( "Configure Layer…" ) );
@@ -103,16 +104,16 @@ QgsProcessingVectorTileWriterLayersPanelWidget::QgsProcessingVectorTileWriterLay
   const QVariantList valueList = value.toList();
   for ( const QVariant &v : valueList )
   {
-    QgsVectorTileWriter::Layer layer = QgsProcessingParameterVectorTileWriterLayers::variantMapAsLayer( v.toMap(), mContext );
+    const QgsVectorTileWriter::Layer layer = QgsProcessingParameterVectorTileWriterLayers::variantMapAsLayer( v.toMap(), mContext );
     if ( !layer.layer() )
-      continue;  // skip any invalid layers
+      continue; // skip any invalid layers
 
     addOption( v, titleForLayer( layer ), true );
 
     seenVectorLayers.insert( layer.layer() );
   }
 
-  const QList<QgsVectorLayer *> options = QgsProcessingUtils::compatibleVectorLayers( project, QList< int >() );
+  const QList<QgsVectorLayer *> options = QgsProcessingUtils::compatibleVectorLayers( project, QList<int>() );
   for ( const QgsVectorLayer *layer : options )
   {
     if ( seenVectorLayers.contains( layer ) )
@@ -121,7 +122,7 @@ QgsProcessingVectorTileWriterLayersPanelWidget::QgsProcessingVectorTileWriterLay
     QVariantMap vm;
     vm["layer"] = layer->id();
 
-    QString title = layer->name();
+    const QString title = layer->name();
 
     addOption( vm, title, false );
   }
@@ -137,7 +138,7 @@ void QgsProcessingVectorTileWriterLayersPanelWidget::configureLayer()
   }
 
   QStandardItem *item = mModel->itemFromIndex( selection[0] );
-  QVariant value = item->data( Qt::UserRole );
+  const QVariant value = item->data( Qt::UserRole );
 
   QgsPanelWidget *panel = QgsPanelWidget::findParentPanel( this );
   if ( panel && panel->dockMode() )
@@ -146,8 +147,7 @@ void QgsProcessingVectorTileWriterLayersPanelWidget::configureLayer()
     widget->setPanelTitle( tr( "Configure Layer" ) );
     widget->buttonBox()->hide();
 
-    connect( widget, &QgsProcessingVectorTileWriteLayerDetailsWidget::widgetChanged, this, [ = ]()
-    {
+    connect( widget, &QgsProcessingVectorTileWriteLayerDetailsWidget::widgetChanged, this, [=]() {
       setItemValue( item, widget->value() );
     } );
     panel->openPanel( widget );
@@ -179,7 +179,6 @@ void QgsProcessingVectorTileWriterLayersPanelWidget::copyLayer()
   }
 
   QStandardItem *item = mModel->itemFromIndex( selection[0] );
-  QVariant value = item->data( Qt::UserRole );
   mModel->insertRow( selection[0].row() + 1, item->clone() );
 }
 
@@ -187,7 +186,7 @@ void QgsProcessingVectorTileWriterLayersPanelWidget::setItemValue( QStandardItem
 {
   mContext.setProject( mProject );
 
-  QgsVectorTileWriter::Layer layer = QgsProcessingParameterVectorTileWriterLayers::variantMapAsLayer( value.toMap(), mContext );
+  const QgsVectorTileWriter::Layer layer = QgsProcessingParameterVectorTileWriterLayers::variantMapAsLayer( value.toMap(), mContext );
 
   item->setText( titleForLayer( layer ) );
   item->setData( value, Qt::UserRole );
@@ -243,7 +242,7 @@ QgsProcessingVectorTileWriterLayersWidget::QgsProcessingVectorTileWriterLayersWi
 void QgsProcessingVectorTileWriterLayersWidget::setValue( const QVariant &value )
 {
   if ( value.isValid() )
-    mValue = value.type() == QVariant::List ? value.toList() : QVariantList() << value;
+    mValue = value.userType() == QMetaType::Type::QVariantList ? value.toList() : QVariantList() << value;
   else
     mValue.clear();
 
@@ -263,8 +262,7 @@ void QgsProcessingVectorTileWriterLayersWidget::showDialog()
   {
     QgsProcessingVectorTileWriterLayersPanelWidget *widget = new QgsProcessingVectorTileWriterLayersPanelWidget( mValue, mProject );
     widget->setPanelTitle( tr( "Input layers" ) );
-    connect( widget, &QgsProcessingMultipleSelectionPanelWidget::selectionChanged, this, [ = ]()
-    {
+    connect( widget, &QgsProcessingMultipleSelectionPanelWidget::selectionChanged, this, [=]() {
       setValue( widget->selectedOptions() );
     } );
     connect( widget, &QgsProcessingMultipleSelectionPanelWidget::acceptClicked, widget, &QgsPanelWidget::acceptPanel );
@@ -290,7 +288,7 @@ void QgsProcessingVectorTileWriterLayersWidget::showDialog()
 
 void QgsProcessingVectorTileWriterLayersWidget::updateSummaryText()
 {
-  mLineEdit->setText( tr( "%1 vector layers selected" ).arg( mValue.count() ) );
+  mLineEdit->setText( tr( "%n vector layer(s) selected", nullptr, mValue.count() ) );
 }
 
 //
@@ -316,8 +314,7 @@ QWidget *QgsProcessingVectorTileWriterLayersWidgetWrapper::createWidget()
 {
   mPanel = new QgsProcessingVectorTileWriterLayersWidget( nullptr );
   mPanel->setProject( widgetContext().project() );
-  connect( mPanel, &QgsProcessingVectorTileWriterLayersWidget::changed, this, [ = ]
-  {
+  connect( mPanel, &QgsProcessingVectorTileWriterLayersWidget::changed, this, [=] {
     emit widgetValueHasChanged( this );
   } );
   return mPanel;

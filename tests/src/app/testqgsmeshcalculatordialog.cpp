@@ -34,10 +34,10 @@ class TestQgsMeshCalculatorDialog : public QObject
     TestQgsMeshCalculatorDialog();
 
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init() {} // will be called before each testfunction is executed.
-    void cleanup() {} // will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init() {}          // will be called before each testfunction is executed.
+    void cleanup() {}       // will be called after every testfunction.
 
     void testCalc();
 
@@ -51,14 +51,14 @@ TestQgsMeshCalculatorDialog::TestQgsMeshCalculatorDialog() = default;
 //runs before all tests
 void TestQgsMeshCalculatorDialog::initTestCase()
 {
-  qDebug() << "TestQgisAppClipboard::initTestCase()";
+  qDebug() << "TestQgsMeshCalculatorDialog::initTestCase()";
   // init QGIS's paths - true means that all path will be inited from prefix
   QgsApplication::init();
   QgsApplication::initQgis();
   mQgisApp = new QgisApp();
 
-  QString testDataDir = QStringLiteral( TEST_DATA_DIR ) + QStringLiteral( "/mesh/" );
-  QString uri( testDataDir + "/quad_and_triangle.2dm" );
+  const QString testDataDir = QStringLiteral( TEST_DATA_DIR ) + QStringLiteral( "/mesh/" );
+  const QString uri( testDataDir + "/quad_and_triangle.2dm" );
   mpMeshLayer = new QgsMeshLayer( uri, "Triangle and Quad MDAL", "mdal" );
   mpMeshLayer->dataProvider()->addDataset( testDataDir + "/quad_and_triangle_vertex_scalar.dat" );
   mpMeshLayer->dataProvider()->addDataset( testDataDir + "/quad_and_triangle_vertex_scalar2.dat" );
@@ -70,7 +70,8 @@ void TestQgsMeshCalculatorDialog::initTestCase()
   mpMeshLayer->dataProvider()->addDataset( testDataDir + "/quad_and_triangle_els_face_vector.dat" );
 
   QgsProject::instance()->addMapLayers(
-    QList<QgsMapLayer *>() << mpMeshLayer );
+    QList<QgsMapLayer *>() << mpMeshLayer
+  );
 }
 
 //runs after all tests
@@ -84,13 +85,13 @@ void TestQgsMeshCalculatorDialog::testCalc()
   if ( !QgsTest::runFlakyTests() )
     QSKIP( "This test is disabled on Travis CI environment" );
 
-  std::unique_ptr< QgsMeshCalculatorDialog > dialog( new QgsMeshCalculatorDialog( mpMeshLayer ) );
+  auto dialog = std::make_unique<QgsMeshCalculatorDialog>( mpMeshLayer );
 
-  int groupCount = mpMeshLayer->dataProvider()->datasetGroupCount();
+  const int groupCount = mpMeshLayer->dataProvider()->datasetGroupCount();
 
   QTemporaryFile tmpFile;
   tmpFile.open(); // fileName is not available until open
-  QString tmpName = tmpFile.fileName();
+  const QString tmpName = tmpFile.fileName();
   tmpFile.close();
 
   // this next part is fragile, and may need to be modified if the dialog changes:
@@ -100,11 +101,11 @@ void TestQgsMeshCalculatorDialog::testCalc()
   std::unique_ptr<QgsMeshCalculator> calculator = dialog->calculator();
 
   QgsFeedback feedback;
-  QgsMeshCalculator::Result res = calculator->processCalculation( &feedback );
+  const QgsMeshCalculator::Result res = calculator->processCalculation( &feedback );
   QCOMPARE( res, QgsMeshCalculator::Success );
 
   // check result
-  int newGroupCount = mpMeshLayer->dataProvider()->datasetGroupCount();
+  const int newGroupCount = mpMeshLayer->dataProvider()->datasetGroupCount();
   QCOMPARE( groupCount + 1, newGroupCount );
 }
 

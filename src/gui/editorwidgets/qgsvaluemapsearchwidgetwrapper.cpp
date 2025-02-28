@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsvaluemapsearchwidgetwrapper.h"
+#include "moc_qgsvaluemapsearchwidgetwrapper.cpp"
 #include "qgstexteditconfigdlg.h"
 #include "qgsvaluemapconfigdlg.h"
 #include "qgsvaluemapfieldformatter.h"
@@ -32,7 +33,10 @@ QgsValueMapSearchWidgetWrapper::QgsValueMapSearchWidgetWrapper( QgsVectorLayer *
 
 QWidget *QgsValueMapSearchWidgetWrapper::createWidget( QWidget *parent )
 {
-  return new QComboBox( parent );
+  auto combo = new QComboBox( parent );
+  combo->setMinimumContentsLength( 1 );
+  combo->setSizeAdjustPolicy( QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon );
+  return combo;
 }
 
 void QgsValueMapSearchWidgetWrapper::comboBoxIndexChanged( int idx )
@@ -83,8 +87,8 @@ QString QgsValueMapSearchWidgetWrapper::createExpression( QgsSearchWidgetWrapper
   //clear any unsupported flags
   flags &= supportedFlags();
 
-  QVariant::Type fldType = layer()->fields().at( mFieldIdx ).type();
-  QString fieldName = createFieldIdentifier();
+  const QMetaType::Type fldType = layer()->fields().at( mFieldIdx ).type();
+  const QString fieldName = createFieldIdentifier();
 
   if ( flags & IsNull )
     return fieldName + " IS NULL";
@@ -95,15 +99,15 @@ QString QgsValueMapSearchWidgetWrapper::createExpression( QgsSearchWidgetWrapper
   if ( mComboBox->currentIndex() == 0 )
     return QString();
 
-  QString currentKey = mComboBox->currentData().toString();
+  const QString currentKey = mComboBox->currentData().toString();
 
   switch ( fldType )
   {
-    case QVariant::Int:
-    case QVariant::UInt:
-    case QVariant::Double:
-    case QVariant::LongLong:
-    case QVariant::ULongLong:
+    case QMetaType::Type::Int:
+    case QMetaType::Type::UInt:
+    case QMetaType::Type::Double:
+    case QMetaType::Type::LongLong:
+    case QMetaType::Type::ULongLong:
     {
       if ( flags & EqualTo )
         return fieldName + '=' + currentKey;
@@ -151,13 +155,11 @@ void QgsValueMapSearchWidgetWrapper::initWidget( QWidget *editor )
 void QgsValueMapSearchWidgetWrapper::setExpression( const QString &expression )
 {
   QString exp = expression;
-  QString fieldName = layer()->fields().at( mFieldIdx ).name();
+  const QString fieldName = layer()->fields().at( mFieldIdx ).name();
   QString str;
 
   str = QStringLiteral( "%1 = '%2'" )
-        .arg( QgsExpression::quotedColumnRef( fieldName ),
-              exp.replace( '\'', QLatin1String( "''" ) ) );
+          .arg( QgsExpression::quotedColumnRef( fieldName ), exp.replace( '\'', QLatin1String( "''" ) ) );
 
   mExpression = str;
 }
-

@@ -14,12 +14,12 @@
  ***************************************************************************/
 
 #include "qgis_core.h"
+#include "qgis.h"
+
 #include <QString>
-#include <QRegExp>
+#include <QRegularExpression>
 #include <QList>
 #include <QDomDocument>
-#include <QFont> // for enum values
-#include "qgis.h"
 
 #ifndef QGSSTRINGUTILS_H
 #define QGSSTRINGUTILS_H
@@ -32,7 +32,6 @@
  * \ingroup core
  * \class QgsStringReplacement
  * \brief A representation of a single string replacement.
- * \since QGIS 3.0
  */
 
 class CORE_EXPORT QgsStringReplacement
@@ -71,7 +70,7 @@ class CORE_EXPORT QgsStringReplacement
      */
     QString process( const QString &input ) const;
 
-    bool operator==( const QgsStringReplacement &other )
+    bool operator==( const QgsStringReplacement &other ) const
     {
       return mMatch == other.mMatch
              && mReplacement == other.mReplacement
@@ -101,7 +100,7 @@ class CORE_EXPORT QgsStringReplacement
 
     bool mWholeWordOnly;
 
-    QRegExp mRx;
+    QRegularExpression mRx;
 };
 
 
@@ -109,7 +108,6 @@ class CORE_EXPORT QgsStringReplacement
  * \ingroup core
  * \class QgsStringReplacementCollection
  * \brief A collection of string replacements (specified using QgsStringReplacement objects).
- * \since QGIS 3.0
  */
 
 class CORE_EXPORT QgsStringReplacementCollection
@@ -177,32 +175,19 @@ class CORE_EXPORT QgsStringReplacementCollection
  * \ingroup core
  * \class QgsStringUtils
  * \brief Utility functions for working with strings.
- * \since QGIS 2.11
  */
 
 class CORE_EXPORT QgsStringUtils
 {
   public:
 
-    //! Capitalization options
-    enum Capitalization
-    {
-      MixedCase = QFont::MixedCase, //!< Mixed case, ie no change
-      AllUppercase = QFont::AllUppercase, //!< Convert all characters to uppercase
-      AllLowercase = QFont::AllLowercase,  //!< Convert all characters to lowercase
-      ForceFirstLetterToCapital = QFont::Capitalize, //!< Convert just the first letter of each word to uppercase, leave the rest untouched
-      TitleCase = QFont::Capitalize + 1000, //!< Simple title case conversion - does not fully grammatically parse the text and uses simple rules only. Note that this method does not convert any characters to lowercase, it only uppercases required letters. Callers must ensure that input strings are already lowercased.
-      UpperCamelCase = QFont::Capitalize + 1001, //!< Convert the string to upper camel case. Note that this method does not unaccent characters.
-    };
-
     /**
      * Converts a string by applying capitalization rules to the string.
      * \param string input string
      * \param capitalization capitalization type to apply
      * \returns capitalized string
-     * \since QGIS 3.0
      */
-    static QString capitalize( const QString &string, Capitalization capitalization );
+    static QString capitalize( const QString &string, Qgis::Capitalization capitalization );
 
     /**
      * Makes a raw string safe for inclusion as a HTML/XML string literal.
@@ -262,7 +247,7 @@ class CORE_EXPORT QgsStringUtils
      * \param search search term string
      * \return Normalized value of how likely is the \a search to be in the \a candidate
      * \note Use this function only to calculate the fuzzy score between two strings and later compare these values, but do not depend on the actual numbers. They are implementation detail that may change in a future release.
-     * \since 3.14
+     * \since QGIS 3.14
      */
     static double fuzzyScore( const QString &candidate, const QString &search );
 
@@ -272,9 +257,16 @@ class CORE_EXPORT QgsStringUtils
      * \param string string to insert links into
      * \param foundLinks if specified, will be set to TRUE if any links were inserted into the string
      * \returns string with inserted links
-     * \since QGIS 3.0
      */
     static QString insertLinks( const QString &string, bool *foundLinks = nullptr );
+
+    /**
+     * Returns whether the string is a URL (http,https,ftp,file)
+     * \param string the string to check
+     * \returns whether the string is an URL
+     * \since QGIS 3.22
+     */
+    static bool isUrl( const QString &string );
 
     /**
      * Automatically wraps a \a string by inserting new line characters at appropriate locations in the string.
@@ -305,6 +297,36 @@ class CORE_EXPORT QgsStringUtils
      * \since QGIS 3.10
      */
     static QString htmlToMarkdown( const QString &html );
+
+    /**
+     * Returns an escaped string matching the behavior of QRegExp::escape.
+     * \param string String to escape
+     * \returns Escaped string
+     * \since QGIS 3.22
+     */
+    static QString qRegExpEscape( const QString &string );
+
+    /**
+     * Truncates a \a string to the specified maximum character length.
+     *
+     * If the \a string exceeds the maximum character length, then the string
+     * will be truncated by removing characters from the middle of the string
+     * and replacing them with a horizontal ellipsis character.
+     *
+     * \since QGIS 3.22
+     */
+    static QString truncateMiddleOfString( const QString &string, int maxLength );
+
+    /**
+     * Given a \a candidate string, returns TRUE if the \a candidate contains
+     * all the individual words from another string, regardless of their order.
+     *
+     * \note The search does NOT need to match whole words in the \a candidate string,
+     * so eg a candidate string of "Worldmap_Winkel_II" will return TRUE for \a words "winkle world"
+     *
+     * \since QGIS 3.42
+     */
+    static bool containsByWord( const QString &candidate, const QString &words, Qt::CaseSensitivity sensitivity = Qt::CaseInsensitive );
 
 };
 

@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslockedfeature.h"
+#include "moc_qgslockedfeature.cpp"
 #include "qgsvertexeditor.h"
 
 #include "qgsfeatureiterator.h"
@@ -30,11 +31,10 @@
 #include "qgsproject.h"
 #include "qgsstatusbar.h"
 #include "qgsmapcanvas.h"
+#include "qgssettingsentryimpl.h"
 
 
-QgsLockedFeature::QgsLockedFeature( QgsFeatureId featureId,
-                                    QgsVectorLayer *layer,
-                                    QgsMapCanvas *canvas )
+QgsLockedFeature::QgsLockedFeature( QgsFeatureId featureId, QgsVectorLayer *layer, QgsMapCanvas *canvas )
   : mFeatureId( featureId )
   , mLayer( layer )
   , mCanvas( canvas )
@@ -123,7 +123,7 @@ void QgsLockedFeature::geometryChanged( QgsFeatureId fid, const QgsGeometry &geo
 
 void QgsLockedFeature::validateGeometry( QgsGeometry *g )
 {
-  if ( QgsSettingsRegistryCore::settingsDigitizingValidateGeometries.value() == 0 )
+  if ( QgsSettingsRegistryCore::settingsDigitizingValidateGeometries->value() == 0 )
     return;
 
   if ( !g )
@@ -143,13 +143,13 @@ void QgsLockedFeature::validateGeometry( QgsGeometry *g )
   while ( !mGeomErrorMarkers.isEmpty() )
   {
     QgsVertexMarker *vm = mGeomErrorMarkers.takeFirst();
-    QgsDebugMsg( "deleting " + vm->toolTip() );
+    QgsDebugMsgLevel( "deleting " + vm->toolTip(), 2 );
     delete vm;
   }
 
-  QgsGeometry::ValidationMethod method = QgsGeometry::ValidatorQgisInternal;
-  if ( QgsSettingsRegistryCore::settingsDigitizingValidateGeometries.value() == 2 )
-    method = QgsGeometry::ValidatorGeos;
+  Qgis::GeometryValidationEngine method = Qgis::GeometryValidationEngine::QgisInternal;
+  if ( QgsSettingsRegistryCore::settingsDigitizingValidateGeometries->value() == 2 )
+    method = Qgis::GeometryValidationEngine::Geos;
   mValidator = new QgsGeometryValidator( *g, nullptr, method );
   connect( mValidator, &QgsGeometryValidator::errorFound, this, &QgsLockedFeature::addError );
   connect( mValidator, &QThread::finished, this, &QgsLockedFeature::validationFinished );
@@ -228,10 +228,9 @@ QgsGeometry *QgsLockedFeature::geometry()
 
 void QgsLockedFeature::createVertexMap()
 {
-
   if ( !mGeometry )
   {
-    QgsDebugMsg( QStringLiteral( "Loading feature" ) );
+    QgsDebugMsgLevel( QStringLiteral( "Loading feature" ), 2 );
     updateGeometry( nullptr );
   }
 
@@ -292,7 +291,7 @@ void QgsLockedFeature::invertVertexSelection( int vertexNr )
 
   QgsVertexEntry *entry = mVertexMap.at( vertexNr );
 
-  bool selected = !entry->isSelected();
+  const bool selected = !entry->isSelected();
 
   entry->setSelected( selected );
   emit selectionChanged();
@@ -301,7 +300,7 @@ void QgsLockedFeature::invertVertexSelection( int vertexNr )
 void QgsLockedFeature::invertVertexSelection( const QVector<int> &vertexIndices )
 {
   const auto constVertexIndices = vertexIndices;
-  for ( int index : constVertexIndices )
+  for ( const int index : constVertexIndices )
   {
     if ( index < 0 || index >= mVertexMap.size() )
       continue;

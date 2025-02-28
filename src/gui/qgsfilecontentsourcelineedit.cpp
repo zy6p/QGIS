@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgsfilecontentsourcelineedit.h"
+#include "moc_qgsfilecontentsourcelineedit.cpp"
 #include "qgssettings.h"
 #include "qgsmessagebar.h"
 #include "qgsfilterlineedit.h"
@@ -27,6 +28,7 @@
 #include <QMenu>
 #include <QToolButton>
 #include <QUrl>
+#include <QMovie>
 
 //
 // QgsAbstractFileContentSourceLineEdit
@@ -61,8 +63,7 @@ QgsAbstractFileContentSourceLineEdit::QgsAbstractFileContentSourceLineEdit( QWid
   connect( extractFileAction, &QAction::triggered, this, &QgsAbstractFileContentSourceLineEdit::extractFile );
   sourceMenu->addAction( extractFileAction );
 
-  connect( sourceMenu, &QMenu::aboutToShow, this, [this, extractFileAction]
-  {
+  connect( sourceMenu, &QMenu::aboutToShow, this, [this, extractFileAction] {
     extractFileAction->setEnabled( mMode == ModeBase64 );
   } );
 
@@ -75,8 +76,7 @@ QgsAbstractFileContentSourceLineEdit::QgsAbstractFileContentSourceLineEdit( QWid
   connect( mFileToolButton, &QToolButton::clicked, this, &QgsAbstractFileContentSourceLineEdit::selectFile );
 
   connect( mFileLineEdit, &QLineEdit::textEdited, this, &QgsAbstractFileContentSourceLineEdit::mFileLineEdit_textEdited );
-  connect( mFileLineEdit, &QgsFilterLineEdit::cleared, this, [ = ]
-  {
+  connect( mFileLineEdit, &QgsFilterLineEdit::cleared, this, [=] {
     mMode = ModeFile;
     mFileLineEdit->setPlaceholderText( QString() );
     mBase64.clear();
@@ -84,7 +84,6 @@ QgsAbstractFileContentSourceLineEdit::QgsAbstractFileContentSourceLineEdit( QWid
   } );
 
   mPropertyOverrideButton->setVisible( mPropertyOverrideButtonVisible );
-
 }
 
 QString QgsAbstractFileContentSourceLineEdit::source() const
@@ -140,11 +139,8 @@ void QgsAbstractFileContentSourceLineEdit::setSource( const QString &source )
 void QgsAbstractFileContentSourceLineEdit::selectFile()
 {
   QgsSettings s;
-  QString file = QFileDialog::getOpenFileName( nullptr,
-                 selectFileTitle(),
-                 defaultPath(),
-                 fileFilter() );
-  QFileInfo fi( file );
+  const QString file = QFileDialog::getOpenFileName( nullptr, selectFileTitle(), defaultPath(), fileFilter() );
+  const QFileInfo fi( file );
   if ( file.isEmpty() || !fi.exists() || file == source() )
   {
     return;
@@ -174,11 +170,8 @@ void QgsAbstractFileContentSourceLineEdit::selectUrl()
 void QgsAbstractFileContentSourceLineEdit::embedFile()
 {
   QgsSettings s;
-  QString file = QFileDialog::getOpenFileName( nullptr,
-                 embedFileTitle(),
-                 defaultPath(),
-                 fileFilter() );
-  QFileInfo fi( file );
+  const QString file = QFileDialog::getOpenFileName( nullptr, embedFileTitle(), defaultPath(), fileFilter() );
+  const QFileInfo fi( file );
   if ( file.isEmpty() || !fi.exists() )
   {
     return;
@@ -193,8 +186,8 @@ void QgsAbstractFileContentSourceLineEdit::embedFile()
     return;
   }
 
-  QByteArray blob = fileSource.readAll();
-  QByteArray encoded = blob.toBase64();
+  const QByteArray blob = fileSource.readAll();
+  const QByteArray encoded = blob.toBase64();
 
   QString path( encoded );
   path.prepend( QLatin1String( "base64:" ) );
@@ -213,21 +206,21 @@ void QgsAbstractFileContentSourceLineEdit::embedFile()
 void QgsAbstractFileContentSourceLineEdit::extractFile()
 {
   QgsSettings s;
-  QString file = QFileDialog::getSaveFileName( nullptr,
-                 extractFileTitle(),
-                 defaultPath(),
-                 fileFilter() );
+  const QString file = QFileDialog::getSaveFileName( nullptr, extractFileTitle(), defaultPath(), fileFilter() );
+  // return dialog focus on Mac
+  activateWindow();
+  raise();
   if ( file.isEmpty() )
   {
     return;
   }
 
-  QFileInfo fi( file );
+  const QFileInfo fi( file );
   s.setValue( settingsKey(), fi.absolutePath() );
 
   // decode current base64 embedded file
-  QByteArray base64 = mBase64.mid( 7 ).toLocal8Bit(); // strip 'base64:' prefix
-  QByteArray decoded = QByteArray::fromBase64( base64, QByteArray::OmitTrailingEquals );
+  const QByteArray base64 = mBase64.mid( 7 ).toLocal8Bit(); // strip 'base64:' prefix
+  const QByteArray decoded = QByteArray::fromBase64( base64, QByteArray::OmitTrailingEquals );
 
   QFile fileOut( file );
   fileOut.open( QIODevice::WriteOnly );
@@ -236,9 +229,7 @@ void QgsAbstractFileContentSourceLineEdit::extractFile()
 
   if ( mMessageBar )
   {
-    mMessageBar->pushMessage( extractFileTitle(),
-                              tr( "Successfully extracted file to <a href=\"%1\">%2</a>" ).arg( QUrl::fromLocalFile( file ).toString(), QDir::toNativeSeparators( file ) ),
-                              Qgis::Success, 0 );
+    mMessageBar->pushMessage( extractFileTitle(), tr( "Successfully extracted file to <a href=\"%1\">%2</a>" ).arg( QUrl::fromLocalFile( file ).toString(), QDir::toNativeSeparators( file ) ), Qgis::MessageLevel::Success, 0 );
   }
 }
 
@@ -249,7 +240,7 @@ void QgsAbstractFileContentSourceLineEdit::mFileLineEdit_textEdited( const QStri
   mMode = ModeFile;
   if ( !text.isEmpty() && !QFileInfo::exists( text ) )
   {
-    QUrl url( text );
+    const QUrl url( text );
     if ( !url.isValid() )
     {
       return;
@@ -282,7 +273,6 @@ QgsMessageBar *QgsAbstractFileContentSourceLineEdit::messageBar() const
 }
 
 
-
 //
 // QgsPictureSourceLineEditBase
 //
@@ -306,8 +296,19 @@ QString QgsPictureSourceLineEditBase::fileFilter() const
       }
       return QString( "%1 (%2);;%3 (*.*)" ).arg( tr( "Images" ), formatsFilter.join( QLatin1Char( ' ' ) ), tr( "All files" ) );
     }
-    DEFAULT_BUILTIN_UNREACHABLE
+
+    case AnimatedImage:
+    {
+      QStringList formatsFilter;
+      const QByteArrayList supportedFormats = QMovie::supportedFormats();
+      for ( const auto &format : supportedFormats )
+      {
+        formatsFilter.append( QString( QStringLiteral( "*.%1" ) ).arg( QString( format ) ) );
+      }
+      return QString( "%1 (%2);;%3 (*.*)" ).arg( tr( "Animated Images" ), formatsFilter.join( QLatin1Char( ' ' ) ), tr( "All files" ) );
+    }
   }
+  BUILTIN_UNREACHABLE
 }
 
 QString QgsPictureSourceLineEditBase::selectFileTitle() const
@@ -317,12 +318,11 @@ QString QgsPictureSourceLineEditBase::selectFileTitle() const
     case Svg:
       return tr( "Select SVG File" );
     case Image:
-    {
       return tr( "Select Image File" );
-    }
-
-    DEFAULT_BUILTIN_UNREACHABLE
+    case AnimatedImage:
+      return tr( "Select Animated Image File" );
   }
+  BUILTIN_UNREACHABLE
 }
 
 QString QgsPictureSourceLineEditBase::fileFromUrlTitle() const
@@ -332,12 +332,11 @@ QString QgsPictureSourceLineEditBase::fileFromUrlTitle() const
     case Svg:
       return tr( "SVG From URL" );
     case Image:
-    {
       return tr( "Image From URL" );
-    }
-
-    DEFAULT_BUILTIN_UNREACHABLE
+    case AnimatedImage:
+      return tr( "Animated Image From URL" );
   }
+  BUILTIN_UNREACHABLE
 }
 
 QString QgsPictureSourceLineEditBase::fileFromUrlText() const
@@ -347,12 +346,11 @@ QString QgsPictureSourceLineEditBase::fileFromUrlText() const
     case Svg:
       return tr( "Enter SVG URL" );
     case Image:
-    {
       return tr( "Enter image URL" );
-    }
-
-    DEFAULT_BUILTIN_UNREACHABLE
+    case AnimatedImage:
+      return tr( "Enter animated image URL" );
   }
+  BUILTIN_UNREACHABLE
 }
 
 QString QgsPictureSourceLineEditBase::embedFileTitle() const
@@ -362,12 +360,11 @@ QString QgsPictureSourceLineEditBase::embedFileTitle() const
     case Svg:
       return tr( "Embed SVG File" );
     case Image:
-    {
       return tr( "Embed Image File" );
-    }
-
-    DEFAULT_BUILTIN_UNREACHABLE
+    case AnimatedImage:
+      return tr( "Embed Animated Image File" );
   }
+  BUILTIN_UNREACHABLE
 }
 
 QString QgsPictureSourceLineEditBase::extractFileTitle() const
@@ -377,12 +374,11 @@ QString QgsPictureSourceLineEditBase::extractFileTitle() const
     case Svg:
       return tr( "Extract SVG File" );
     case Image:
-    {
       return tr( "Extract Image File" );
-    }
-
-    DEFAULT_BUILTIN_UNREACHABLE
+    case AnimatedImage:
+      return tr( "Extract Animated Image File" );
   }
+  BUILTIN_UNREACHABLE
 }
 
 QString QgsPictureSourceLineEditBase::defaultSettingsKey() const
@@ -392,13 +388,11 @@ QString QgsPictureSourceLineEditBase::defaultSettingsKey() const
     case Svg:
       return QStringLiteral( "/UI/lastSVGDir" );
     case Image:
-    {
       return QStringLiteral( "/UI/lastImageDir" );
-    }
-    DEFAULT_BUILTIN_UNREACHABLE
+    case AnimatedImage:
+      return QStringLiteral( "/UI/lastAnimatedImageDir" );
   }
+  BUILTIN_UNREACHABLE
 }
 
 ///@endcond
-
-

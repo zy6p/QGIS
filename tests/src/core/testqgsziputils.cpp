@@ -21,15 +21,15 @@
 #include "qgsziputils.h"
 #include "qgsapplication.h"
 
-class TestQgsZipUtils: public QObject
+class TestQgsZipUtils : public QObject
 {
     Q_OBJECT
 
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init();// will be called before each testfunction is executed.
-    void cleanup();// will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void unzipWithSubdirs();
     void unzipWithSubdirs2();
@@ -53,12 +53,10 @@ void TestQgsZipUtils::cleanupTestCase()
 
 void TestQgsZipUtils::init()
 {
-
 }
 
 void TestQgsZipUtils::cleanup()
 {
-
 }
 
 void TestQgsZipUtils::unzipWithSubdirs()
@@ -92,9 +90,9 @@ void TestQgsZipUtils::specialChars()
 
 void TestQgsZipUtils::testZip()
 {
-  QString txtFile = QString( TEST_DATA_DIR ) + "/zip/aæýì.txt";
+  const QString txtFile = QString( TEST_DATA_DIR ) + "/zip/aæýì.txt";
 
-  QString zipDirPath = QDir::tempPath() + "/test_special_chars æì";
+  const QString zipDirPath = QDir::tempPath() + "/test_special_chars æì";
   QStringList files;
 
   // Create a root folder otherwise nothing is unzipped
@@ -126,11 +124,11 @@ void TestQgsZipUtils::testZip()
  */
 void TestQgsZipUtils::genericTest( QString zipName, int expectedEntries, bool includeFolders, const QStringList &testFileNames )
 {
-  QFile zipFile( QString( TEST_DATA_DIR ) + QStringLiteral( "/zip/%1.zip" ).arg( zipName ) );
+  const QFile zipFile( QString( TEST_DATA_DIR ) + QStringLiteral( "/zip/%1.zip" ).arg( zipName ) );
   QVERIFY( zipFile.exists() );
 
-  QFileInfo fileInfo( zipFile );
-  QString unzipDirPath = QDir::tempPath() + '/' + zipName;
+  const QFileInfo fileInfo( zipFile );
+  const QString unzipDirPath = QDir::tempPath() + '/' + zipName;
   QStringList files;
 
   // Create a root folder otherwise nothing is unzipped
@@ -146,11 +144,11 @@ void TestQgsZipUtils::genericTest( QString zipName, int expectedEntries, bool in
 
   if ( includeFolders )
   {
-    dir.setFilter( QDir::Files |  QDir::NoDotAndDotDot | QDir::Dirs );
+    dir.setFilter( QDir::Files | QDir::NoDotAndDotDot | QDir::Dirs );
   }
   else
   {
-    dir.setFilter( QDir::Files |  QDir::NoDotAndDotDot );
+    dir.setFilter( QDir::Files | QDir::NoDotAndDotDot );
   }
   // Get list of entries from the root folder
   QDirIterator it( dir, QDirIterator::Subdirectories );
@@ -162,13 +160,13 @@ void TestQgsZipUtils::genericTest( QString zipName, int expectedEntries, bool in
   QCOMPARE( files.count(), filesFromResultDir.count() );
 
   // Test if specific files are included in the root folder
-  for ( QString fileName : testFileNames )
+  for ( const QString &fileName : testFileNames )
   {
     QVERIFY( filesFromResultDir.contains( unzipDirPath + fileName ) );
   }
 
   // Delete unzipped data
-  bool testDataRemoved = dir.removeRecursively();
+  const bool testDataRemoved = dir.removeRecursively();
   QVERIFY( testDataRemoved );
 }
 

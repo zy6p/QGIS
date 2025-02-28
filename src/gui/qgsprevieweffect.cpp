@@ -17,6 +17,7 @@
 
 #include <QPainter>
 #include "qgsprevieweffect.h"
+#include "moc_qgsprevieweffect.cpp"
 
 
 QgsPreviewEffect::QgsPreviewEffect( QObject *parent )
@@ -56,7 +57,7 @@ void QgsPreviewEffect::draw( QPainter *painter )
   {
     case QgsPreviewEffect::PreviewMono:
     {
-      QImage bwImage = image.convertToFormat( QImage::Format_Mono );
+      const QImage bwImage = image.convertToFormat( QImage::Format_Mono );
       painter->drawImage( offset, bwImage );
       break;
     }
@@ -69,7 +70,7 @@ void QgsPreviewEffect::draw( QPainter *painter )
 
       for ( int y = 0; y < image.height(); y++ )
       {
-        line = ( QRgb * )image.scanLine( y );
+        line = ( QRgb * ) image.scanLine( y );
         for ( int x = 0; x < image.width(); x++ )
         {
           line[x] = simulateColorBlindness( line[x], mMode );
@@ -80,7 +81,6 @@ void QgsPreviewEffect::draw( QPainter *painter )
       break;
     }
   }
-
 }
 
 QRgb QgsPreviewEffect::simulateColorBlindness( QRgb &originalColor, QgsPreviewEffect::PreviewMode mode )

@@ -15,6 +15,7 @@
  ***************************************************************************/
 
 #include "qgsdatasourceselectdialog.h"
+#include "moc_qgsdatasourceselectdialog.cpp"
 
 #include "qgis.h"
 #include "qgsbrowsermodel.h"
@@ -30,15 +31,18 @@
 #include <QDialogButtonBox>
 #include <QFileInfo>
 #include <QUrl>
+#include <QActionGroup>
+#include <QDir>
 
 QgsDataSourceSelectWidget::QgsDataSourceSelectWidget(
   QgsBrowserGuiModel *browserModel,
   bool setFilterByLayerType,
-  QgsMapLayerType layerType,
-  QWidget *parent )
+  Qgis::LayerType layerType,
+  QWidget *parent
+)
   : QgsPanelWidget( parent )
 {
-  if ( ! browserModel )
+  if ( !browserModel )
   {
     mBrowserModel = new QgsBrowserGuiModel( this );
     mBrowserModel->initialize();
@@ -62,6 +66,7 @@ QgsDataSourceSelectWidget::QgsDataSourceSelectWidget(
   else
   {
     mBrowserTreeView->setModel( &mBrowserProxyModel );
+    mBrowserTreeView->setBrowserModel( mBrowserModel );
     setValid( false );
   }
 
@@ -98,7 +103,7 @@ QgsDataSourceSelectWidget::QgsDataSourceSelectWidget(
   action->setCheckable( true );
   menu->addAction( action );
 
-  connect( mActionRefresh, &QAction::triggered, this, [ = ] { refreshModel( QModelIndex() ); } );
+  connect( mActionRefresh, &QAction::triggered, this, [=] { refreshModel( QModelIndex() ); } );
   connect( mBrowserTreeView, &QgsBrowserTreeView::clicked, this, &QgsDataSourceSelectWidget::onLayerSelected );
   connect( mBrowserTreeView, &QgsBrowserTreeView::doubleClicked, this, &QgsDataSourceSelectWidget::itemDoubleClicked );
   connect( mActionCollapse, &QAction::triggered, mBrowserTreeView, &QgsBrowserTreeView::collapseAll );
@@ -114,6 +119,8 @@ QgsDataSourceSelectWidget::QgsDataSourceSelectWidget(
   {
     mActionShowFilter->trigger();
   }
+
+  setAcceptDrops( true );
 }
 
 QgsDataSourceSelectWidget::~QgsDataSourceSelectWidget() = default;
@@ -121,19 +128,19 @@ QgsDataSourceSelectWidget::~QgsDataSourceSelectWidget() = default;
 void QgsDataSourceSelectWidget::showEvent( QShowEvent *e )
 {
   QgsPanelWidget::showEvent( e );
-  QString lastSelectedPath( QgsSettings().value( QStringLiteral( "datasourceSelectLastSelectedItem" ),
-                            QString(), QgsSettings::Section::Gui ).toString() );
-  if ( ! lastSelectedPath.isEmpty() )
+  const QString lastSelectedPath( QgsSettings().value( QStringLiteral( "datasourceSelectLastSelectedItem" ), QString(), QgsSettings::Section::Gui ).toString() );
+  if ( !lastSelectedPath.isEmpty() )
   {
-    QModelIndexList items = mBrowserProxyModel.match(
-                              mBrowserProxyModel.index( 0, 0 ),
-                              QgsBrowserGuiModel::PathRole,
-                              QVariant::fromValue( lastSelectedPath ),
-                              1,
-                              Qt::MatchRecursive );
-    if ( items.count( ) > 0 )
+    const QModelIndexList items = mBrowserProxyModel.match(
+      mBrowserProxyModel.index( 0, 0 ),
+      static_cast<int>( QgsBrowserModel::CustomRole::Path ),
+      QVariant::fromValue( lastSelectedPath ),
+      1,
+      Qt::MatchRecursive
+    );
+    if ( items.count() > 0 )
     {
-      QModelIndex expandIndex = items.at( 0 );
+      const QModelIndex expandIndex = items.at( 0 );
       if ( expandIndex.isValid() )
       {
         mBrowserTreeView->scrollTo( expandIndex, QgsBrowserTreeView::ScrollHint::PositionAtTop );
@@ -143,11 +150,63 @@ void QgsDataSourceSelectWidget::showEvent( QShowEvent *e )
   }
 }
 
+QString QgsDataSourceSelectWidget::acceptableFilePath( QDropEvent *event ) const
+{
+  if ( event->mimeData()->hasUrls() )
+  {
+    const QList<QUrl> urls = event->mimeData()->urls();
+    for ( const QUrl &url : urls )
+    {
+      const QString local = url.toLocalFile();
+      if ( local.isEmpty() )
+        continue;
+
+      if ( QFile::exists( local ) )
+      {
+        return local;
+      }
+    }
+  }
+  return QString();
+}
+
+void QgsDataSourceSelectWidget::dragEnterEvent( QDragEnterEvent *event )
+{
+  const QString filePath = acceptableFilePath( event );
+  if ( !filePath.isEmpty() )
+  {
+    event->acceptProposedAction();
+  }
+  else
+  {
+    event->ignore();
+  }
+}
+
+void QgsDataSourceSelectWidget::dropEvent( QDropEvent *event )
+{
+  const QString filePath = acceptableFilePath( event );
+  if ( !filePath.isEmpty() )
+  {
+    event->acceptProposedAction();
+
+    const QFileInfo fi( filePath );
+    if ( fi.isDir() )
+    {
+      expandPath( filePath, true );
+    }
+    else
+    {
+      expandPath( fi.dir().path(), true );
+    }
+  }
+}
+
 void QgsDataSourceSelectWidget::showFilterWidget( bool visible )
 {
   QgsSettings().setValue( QStringLiteral( "datasourceSelectFilterVisible" ), visible, QgsSettings::Section::Gui );
   mWidgetFilter->setVisible( visible );
-  if ( ! visible )
+  if ( !visible )
   {
     mLeFilter->setText( QString() );
     setFilter();
@@ -168,12 +227,11 @@ void QgsDataSourceSelectWidget::setDescription( const QString &description )
       mDescriptionLabel->setWordWrap( true );
       mDescriptionLabel->setMargin( 4 );
       mDescriptionLabel->setTextInteractionFlags( Qt::TextBrowserInteraction );
-      connect( mDescriptionLabel, &QLabel::linkActivated, this, [ = ]( const QString & link )
-      {
-        QUrl url( link );
-        QFileInfo file( url.toLocalFile() );
+      connect( mDescriptionLabel, &QLabel::linkActivated, this, [=]( const QString &link ) {
+        const QUrl url( link );
+        const QFileInfo file( url.toLocalFile() );
         if ( file.exists() && !file.isDir() )
-          QgsGui::instance()->nativePlatformInterface()->openFileExplorerAndSelectFile( url.toLocalFile() );
+          QgsGui::nativePlatformInterface()->openFileExplorerAndSelectFile( url.toLocalFile() );
         else
           QDesktopServices::openUrl( url );
       } );
@@ -192,16 +250,19 @@ void QgsDataSourceSelectWidget::setDescription( const QString &description )
   }
 }
 
+void QgsDataSourceSelectWidget::expandPath( const QString &path, bool selectPath )
+{
+  mBrowserTreeView->expandPath( path, selectPath );
+}
+
 void QgsDataSourceSelectWidget::setFilter()
 {
-  QString filter = mLeFilter->text();
+  const QString filter = mLeFilter->text();
   mBrowserProxyModel.setFilterString( filter );
 }
 
-
 void QgsDataSourceSelectWidget::refreshModel( const QModelIndex &index )
 {
-
   QgsDataItem *item = mBrowserModel->dataItem( index );
   if ( item )
   {
@@ -209,29 +270,29 @@ void QgsDataSourceSelectWidget::refreshModel( const QModelIndex &index )
   }
   else
   {
-    QgsDebugMsg( QStringLiteral( "invalid item" ) );
+    QgsDebugMsgLevel( QStringLiteral( "invalid item" ), 2 );
   }
 
-  if ( item && ( item->capabilities2() & QgsDataItem::Fertile ) )
+  if ( item && ( item->capabilities2() & Qgis::BrowserItemCapability::Fertile ) )
   {
     mBrowserModel->refresh( index );
   }
 
   for ( int i = 0; i < mBrowserModel->rowCount( index ); i++ )
   {
-    QModelIndex idx = mBrowserModel->index( i, 0, index );
-    QModelIndex proxyIdx = mBrowserProxyModel.mapFromSource( idx );
+    const QModelIndex idx = mBrowserModel->index( i, 0, index );
+    const QModelIndex proxyIdx = mBrowserProxyModel.mapFromSource( idx );
     QgsDataItem *child = mBrowserModel->dataItem( idx );
 
     // Check also expanded descendants so that the whole expanded path does not get collapsed if one item is collapsed.
     // Fast items (usually root items) are refreshed so that when collapsed, it is obvious they are if empty (no expand symbol).
-    if ( mBrowserTreeView->isExpanded( proxyIdx ) || mBrowserTreeView->hasExpandedDescendant( proxyIdx ) || ( child && child->capabilities2() & QgsDataItem::Fast ) )
+    if ( mBrowserTreeView->isExpanded( proxyIdx ) || mBrowserTreeView->hasExpandedDescendant( proxyIdx ) || ( child && child->capabilities2() & Qgis::BrowserItemCapability::Fast ) )
     {
       refreshModel( idx );
     }
     else
     {
-      if ( child && ( child->capabilities2() & QgsDataItem::Fertile ) )
+      if ( child && ( child->capabilities2() & Qgis::BrowserItemCapability::Fertile ) )
       {
         child->depopulate();
       }
@@ -245,15 +306,13 @@ void QgsDataSourceSelectWidget::setValid( bool valid )
   mIsValid = valid;
   if ( prev != mIsValid )
     emit validationChanged( mIsValid );
-
 }
-
 
 void QgsDataSourceSelectWidget::setFilterSyntax( QAction *action )
 {
   if ( !action )
     return;
-  mBrowserProxyModel.setFilterSyntax( static_cast< QgsBrowserProxyModel::FilterSyntax >( action->data().toInt() ) );
+  mBrowserProxyModel.setFilterSyntax( static_cast<QgsBrowserProxyModel::FilterSyntax>( action->data().toInt() ) );
 }
 
 void QgsDataSourceSelectWidget::setCaseSensitive( bool caseSensitive )
@@ -261,12 +320,13 @@ void QgsDataSourceSelectWidget::setCaseSensitive( bool caseSensitive )
   mBrowserProxyModel.setFilterCaseSensitivity( caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive );
 }
 
-void QgsDataSourceSelectWidget::setLayerTypeFilter( QgsMapLayerType layerType )
+void QgsDataSourceSelectWidget::setLayerTypeFilter( Qgis::LayerType layerType )
 {
   mBrowserProxyModel.setFilterByLayerType( true );
   mBrowserProxyModel.setLayerType( layerType );
   // reset model and button
   mBrowserTreeView->setModel( &mBrowserProxyModel );
+  mBrowserTreeView->setBrowserModel( mBrowserModel );
   setValid( false );
 }
 
@@ -285,13 +345,12 @@ void QgsDataSourceSelectWidget::onLayerSelected( const QModelIndex &index )
     if ( dataItem )
     {
       const QgsLayerItem *layerItem = qobject_cast<const QgsLayerItem *>( dataItem );
-      if ( layerItem && ( ! mBrowserProxyModel.filterByLayerType() ||
-                          ( layerItem->mapLayerType() == mBrowserProxyModel.layerType() ) ) )
+      if ( layerItem && ( !mBrowserProxyModel.filterByLayerType() || ( layerItem->mapLayerType() == mBrowserProxyModel.layerType() ) ) )
       {
         isLayerCompatible = true;
         mUri = layerItem->mimeUris().isEmpty() ? QgsMimeDataUtils::Uri() : layerItem->mimeUris().first();
         // Store last viewed item
-        QgsSettings().setValue( QStringLiteral( "datasourceSelectLastSelectedItem" ),  mBrowserProxyModel.data( index, QgsBrowserGuiModel::PathRole ).toString(), QgsSettings::Section::Gui );
+        QgsSettings().setValue( QStringLiteral( "datasourceSelectLastSelectedItem" ), mBrowserProxyModel.data( index, static_cast<int>( QgsBrowserModel::CustomRole::Path ) ).toString(), QgsSettings::Section::Gui );
       }
     }
   }
@@ -310,7 +369,7 @@ void QgsDataSourceSelectWidget::itemDoubleClicked( const QModelIndex &index )
 // QgsDataSourceSelectDialog
 //
 
-QgsDataSourceSelectDialog::QgsDataSourceSelectDialog( QgsBrowserGuiModel *browserModel, bool setFilterByLayerType, QgsMapLayerType layerType, QWidget *parent )
+QgsDataSourceSelectDialog::QgsDataSourceSelectDialog( QgsBrowserGuiModel *browserModel, bool setFilterByLayerType, Qgis::LayerType layerType, QWidget *parent )
   : QDialog( parent )
 {
   setWindowTitle( tr( "Select a Data Source" ) );
@@ -336,7 +395,7 @@ QgsDataSourceSelectDialog::QgsDataSourceSelectDialog( QgsBrowserGuiModel *browse
   setLayout( vl );
 }
 
-void QgsDataSourceSelectDialog::setLayerTypeFilter( QgsMapLayerType layerType )
+void QgsDataSourceSelectDialog::setLayerTypeFilter( Qgis::LayerType layerType )
 {
   mWidget->setLayerTypeFilter( layerType );
 }
@@ -344,6 +403,11 @@ void QgsDataSourceSelectDialog::setLayerTypeFilter( QgsMapLayerType layerType )
 void QgsDataSourceSelectDialog::setDescription( const QString &description )
 {
   mWidget->setDescription( description );
+}
+
+void QgsDataSourceSelectDialog::expandPath( const QString &path, bool selectPath )
+{
+  mWidget->expandPath( path, selectPath );
 }
 
 QgsMimeDataUtils::Uri QgsDataSourceSelectDialog::uri() const
@@ -369,5 +433,4 @@ void QgsDataSourceSelectDialog::setCaseSensitive( bool caseSensitive )
 void QgsDataSourceSelectDialog::setFilter()
 {
   mWidget->setFilter();
-
 }

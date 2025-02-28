@@ -18,8 +18,7 @@
 #include "qgshillshadefilter.h"
 #include <cmath>
 
-QgsHillshadeFilter::QgsHillshadeFilter( const QString &inputFile, const QString &outputFile, const QString &outputFormat, double lightAzimuth,
-                                        double lightAngle )
+QgsHillshadeFilter::QgsHillshadeFilter( const QString &inputFile, const QString &outputFile, const QString &outputFormat, double lightAzimuth, double lightAngle )
   : QgsDerivativeFilter( inputFile, outputFile, outputFormat )
   , mLightAzimuth( static_cast<float>( lightAzimuth ) )
   , mLightAngle( static_cast<float>( lightAngle ) )
@@ -29,20 +28,17 @@ QgsHillshadeFilter::QgsHillshadeFilter( const QString &inputFile, const QString 
 {
 }
 
-float QgsHillshadeFilter::processNineCellWindow( float *x11, float *x21, float *x31,
-    float *x12, float *x22, float *x32,
-    float *x13, float *x23, float *x33 )
+float QgsHillshadeFilter::processNineCellWindow( float *x11, float *x21, float *x31, float *x12, float *x22, float *x32, float *x13, float *x23, float *x33 )
 {
-
-  float derX = calcFirstDerX( x11, x21, x31, x12, x22, x32, x13, x23, x33 );
-  float derY = calcFirstDerY( x11, x21, x31, x12, x22, x32, x13, x23, x33 );
+  const float derX = calcFirstDerX( x11, x21, x31, x12, x22, x32, x13, x23, x33 );
+  const float derY = calcFirstDerY( x11, x21, x31, x12, x22, x32, x13, x23, x33 );
 
   if ( derX == mOutputNodataValue || derY == mOutputNodataValue )
   {
     return mOutputNodataValue;
   }
 
-  float slope_rad = std::atan( std::sqrt( derX * derX + derY * derY ) );
+  const float slope_rad = std::atan( std::sqrt( derX * derX + derY * derY ) );
   float aspect_rad = 0;
   if ( derX == 0 && derY == 0 ) //aspect undefined, take a neutral value. Better solutions?
   {
@@ -52,9 +48,7 @@ float QgsHillshadeFilter::processNineCellWindow( float *x11, float *x21, float *
   {
     aspect_rad = M_PI + std::atan2( derX, derY );
   }
-  return std::max( 0.0f, 255.0f * ( ( mCosZenithRad * std::cos( slope_rad ) ) +
-                                    ( mSinZenithRad * std::sin( slope_rad ) *
-                                      std::cos( mAzimuthRad - aspect_rad ) ) ) );
+  return std::max( 0.0f, 255.0f * ( ( mCosZenithRad * std::cos( slope_rad ) ) + ( mSinZenithRad * std::sin( slope_rad ) * std::cos( mAzimuthRad - aspect_rad ) ) ) );
 }
 
 void QgsHillshadeFilter::setLightAzimuth( float azimuth )
@@ -74,11 +68,9 @@ void QgsHillshadeFilter::setLightAngle( float angle )
 
 void QgsHillshadeFilter::addExtraRasterParams( std::vector<float> &params )
 {
-
   params.push_back( mCosZenithRad ); // cos_zenith_rad 5
   params.push_back( mSinZenithRad ); // sin_zenith_rad 6
-  params.push_back( mAzimuthRad ); // azimuth_rad 7
-
+  params.push_back( mAzimuthRad );   // azimuth_rad 7
 }
 
 #endif

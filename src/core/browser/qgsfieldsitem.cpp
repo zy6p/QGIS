@@ -16,12 +16,14 @@
  ***************************************************************************/
 
 #include "qgsfieldsitem.h"
+#include "moc_qgsfieldsitem.cpp"
 #include "qgsiconutils.h"
 #include "qgsproviderregistry.h"
 #include "qgsprovidermetadata.h"
 #include "qgslogger.h"
 #include "qgsapplication.h"
 #include "qgsvectorlayer.h"
+#include "qgsfieldmodel.h"
 
 QgsFieldsItem::QgsFieldsItem( QgsDataItem *parent,
                               const QString &path,
@@ -29,12 +31,12 @@ QgsFieldsItem::QgsFieldsItem( QgsDataItem *parent,
                               const QString &providerKey,
                               const QString &schema,
                               const QString &tableName )
-  : QgsDataItem( QgsDataItem::Fields, parent, tr( "Fields" ), path, providerKey )
+  : QgsDataItem( Qgis::BrowserItemType::Fields, parent, tr( "Fields" ), path, providerKey )
   , mSchema( schema )
   , mTableName( tableName )
   , mConnectionUri( connectionUri )
 {
-  mCapabilities |= ( Fertile | Collapse );
+  mCapabilities |= ( Qgis::BrowserItemCapability::Fertile | Qgis::BrowserItemCapability::Collapse | Qgis::BrowserItemCapability::RefreshChildrenWhenItemIsRefreshed );
   QgsProviderMetadata *md { QgsProviderRegistry::instance()->providerMetadata( providerKey ) };
   if ( md )
   {
@@ -42,10 +44,14 @@ QgsFieldsItem::QgsFieldsItem( QgsDataItem *parent,
     {
       std::unique_ptr<QgsAbstractDatabaseProviderConnection> conn { static_cast<QgsAbstractDatabaseProviderConnection *>( md->createConnection( mConnectionUri, {} ) ) };
       mTableProperty = std::make_unique<QgsAbstractDatabaseProviderConnection::TableProperty>( conn->table( schema, tableName ) );
+      if ( conn->capabilities() & QgsAbstractDatabaseProviderConnection::Capability::RenameField )
+      {
+        mCanRename = true;
+      }
     }
     catch ( QgsProviderConnectionException &ex )
     {
-      QgsDebugMsg( QStringLiteral( "Error creating fields item: %1" ).arg( ex.what() ) );
+      QgsDebugError( QStringLiteral( "Error creating fields item: %1" ).arg( ex.what() ) );
     }
   }
 }
@@ -115,13 +121,13 @@ QgsVectorLayer *QgsFieldsItem::layer()
     catch ( const QgsProviderConnectionException & )
     {
       // This should never happen!
-      QgsDebugMsg( QStringLiteral( "Error getting connection from %1" ).arg( mConnectionUri ) );
+      QgsDebugError( QStringLiteral( "Error getting connection from %1" ).arg( mConnectionUri ) );
     }
   }
   else
   {
     // This should never happen!
-    QgsDebugMsg( QStringLiteral( "Error getting metadata for provider %1" ).arg( providerKey() ) );
+    QgsDebugError( QStringLiteral( "Error getting metadata for provider %1" ).arg( providerKey() ) );
   }
   return nullptr;
 }
@@ -142,12 +148,19 @@ QString QgsFieldsItem::schema() const
 }
 
 QgsFieldItem::QgsFieldItem( QgsDataItem *parent, const QgsField &field )
-  : QgsDataItem( QgsDataItem::Type::Field, parent, field.name(), parent->path() + '/' + field.name(), parent->providerKey() )
+  : QgsDataItem( Qgis::BrowserItemType::Field, parent, field.name(), parent->path() + '/' + field.name(), parent->providerKey() )
   , mField( field )
 {
   // Precondition
-  Q_ASSERT( static_cast<QgsFieldsItem *>( parent ) );
-  setState( QgsDataItem::State::Populated );
+  QgsFieldsItem *fieldsItem = qgis::down_cast<QgsFieldsItem *>( parent );
+  Q_ASSERT( fieldsItem );
+
+  if ( fieldsItem->canRenameFields() )
+    mCapabilities |= Qgis::BrowserItemCapability::Rename;
+
+  setState( Qgis::BrowserItemState::Populated );
+
+  setToolTip( QgsFieldModel::fieldToolTip( field ) );
 }
 
 QgsFieldItem::~QgsFieldItem()
@@ -160,27 +173,28 @@ QIcon QgsFieldItem::icon()
   QgsFieldsItem *parentFields { static_cast<QgsFieldsItem *>( parent() ) };
   if ( parentFields && parentFields->tableProperty() &&
        parentFields->tableProperty()->geometryColumn() == mName &&
-       parentFields->tableProperty()->geometryColumnTypes().count() )
+       !parentFields->tableProperty()->geometryColumnTypes().isEmpty() )
   {
     if ( mField.typeName() == QLatin1String( "raster" ) )
     {
       return QgsIconUtils::iconRaster();
     }
-    const QgsWkbTypes::GeometryType geomType { QgsWkbTypes::geometryType( parentFields->tableProperty()->geometryColumnTypes().first().wkbType ) };
+    const Qgis::GeometryType geomType { QgsWkbTypes::geometryType( parentFields->tableProperty()->geometryColumnTypes().first().wkbType ) };
     switch ( geomType )
     {
-      case QgsWkbTypes::GeometryType::LineGeometry:
+      case Qgis::GeometryType::Line:
         return QgsIconUtils::iconLine();
-      case QgsWkbTypes::GeometryType::PointGeometry:
+      case Qgis::GeometryType::Point:
         return QgsIconUtils::iconPoint();
-      case QgsWkbTypes::GeometryType::PolygonGeometry:
+      case Qgis::GeometryType::Polygon:
         return QgsIconUtils::iconPolygon();
-      case QgsWkbTypes::GeometryType::UnknownGeometry:
-      case QgsWkbTypes::GeometryType::NullGeometry:
+      case Qgis::GeometryType::Unknown:
+        return QgsIconUtils::iconGeometryCollection();
+      case Qgis::GeometryType::Null:
         return QgsIconUtils::iconDefaultLayer();
     }
   }
-  const QIcon icon { QgsFields::iconForFieldType( mField.type() ) };
+  const QIcon icon { QgsFields::iconForFieldType( mField.type(), mField.subType(), mField.typeName() ) };
   // Try subtype if icon is null
   if ( icon.isNull() )
   {
@@ -189,4 +203,17 @@ QIcon QgsFieldItem::icon()
   return icon;
 }
 
+bool QgsFieldItem::equal( const QgsDataItem *other )
+{
+  if ( type() != other->type() )
+  {
+    return false;
+  }
+
+  const QgsFieldItem *o = qobject_cast<const QgsFieldItem *>( other );
+  if ( !o )
+    return false;
+
+  return ( mPath == o->mPath && mName == o->mName && mField == o->mField && mField.comment() == o->mField.comment() );
+}
 

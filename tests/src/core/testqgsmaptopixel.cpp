@@ -19,29 +19,64 @@
 #include <qgsrectangle.h>
 #include <qgsmaptopixel.h>
 #include <qgspoint.h>
-#include "qgslogger.h"
 
-class TestQgsMapToPixel: public QObject
+class TestQgsMapToPixel : public QObject
 {
     Q_OBJECT
   private slots:
+    void isValid();
     void rotation();
     void getters();
     void fromScale();
     void equality();
     void toMapCoordinates();
+    void transformBounds();
 };
+
+void TestQgsMapToPixel::isValid()
+{
+  // test QgsMapToPixel::isValid()
+
+  // constructors with parameters should result in valid QgsMapToPixel
+  QgsMapToPixel m2p( 1, 5, 5, 10, 10, 90 );
+  QVERIFY( m2p.isValid() );
+  m2p = QgsMapToPixel( 90 );
+  QVERIFY( m2p.isValid() );
+  m2p = QgsMapToPixel::fromScale( 90, Qgis::DistanceUnit::Meters );
+  QVERIFY( m2p.isValid() );
+
+  // default constructor should result in invalid m2p
+  m2p = QgsMapToPixel();
+  QVERIFY( !m2p.isValid() );
+
+  // but setting parameters on an invalid m2p should turn it valid
+  m2p.setMapUnitsPerPixel( 90 );
+  QVERIFY( m2p.isValid() );
+
+  m2p = QgsMapToPixel();
+  m2p.setMapRotation( 90, 1, 2 );
+  QVERIFY( m2p.isValid() );
+
+  m2p = QgsMapToPixel();
+  m2p.setParameters( 90, 1, 2, 50, 70, 0 );
+  QVERIFY( m2p.isValid() );
+
+  m2p = QgsMapToPixel();
+  bool ok = false;
+  m2p.setParameters( 90, 1, 2, 50, 70, 0, &ok );
+  QVERIFY( m2p.isValid() );
+}
 
 void TestQgsMapToPixel::rotation()
 {
   QgsMapToPixel m2p( 1, 5, 5, 10, 10, 90 );
 
-  QgsPointXY p( 5, 5 ); // in geographical units
+  QgsPointXY p( 5, 5 );              // in geographical units
   QgsPointXY d = m2p.transform( p ); // to device pixels
-  QCOMPARE( d.x(), 5.0 ); // center doesn't move
+  QCOMPARE( d.x(), 5.0 );            // center doesn't move
   QCOMPARE( d.y(), 5.0 );
 
-  QgsPointXY b = m2p.toMapCoordinates( d.x(), d.y() ); // transform back
+  const QgsPointXY b = m2p.toMapCoordinates( d.x(), d.y() ); // transform back
   QCOMPARE( p, b );
 
   m2p.transform( &p ); // in place transform
@@ -73,7 +108,6 @@ void TestQgsMapToPixel::rotation()
   QCOMPARE( p.y(), 5.5 );
   d = m2p.transform( p );
   QCOMPARE( d, QgsPointXY( 10, 0 ) );
-
 }
 
 void TestQgsMapToPixel::getters()
@@ -97,19 +131,19 @@ void TestQgsMapToPixel::getters()
 
 void TestQgsMapToPixel::fromScale()
 {
-  QgsMapToPixel m2p = QgsMapToPixel::fromScale( 1000, QgsUnitTypes::DistanceMeters, 96.0 );
+  QgsMapToPixel m2p = QgsMapToPixel::fromScale( 1000, Qgis::DistanceUnit::Meters, 96.0 );
   QGSCOMPARENEAR( m2p.mapUnitsPerPixel(), 0.264583, 0.000001 );
-  m2p = QgsMapToPixel::fromScale( 10000, QgsUnitTypes::DistanceMeters, 96.0 );
+  m2p = QgsMapToPixel::fromScale( 10000, Qgis::DistanceUnit::Meters, 96.0 );
   QGSCOMPARENEAR( m2p.mapUnitsPerPixel(), 2.645833, 0.000001 );
-  m2p = QgsMapToPixel::fromScale( 1000, QgsUnitTypes::DistanceMeters, 72.0 );
+  m2p = QgsMapToPixel::fromScale( 1000, Qgis::DistanceUnit::Meters, 72.0 );
   QGSCOMPARENEAR( m2p.mapUnitsPerPixel(), 0.352778, 0.000001 );
-  m2p = QgsMapToPixel::fromScale( 1000, QgsUnitTypes::DistanceKilometers, 96.0 );
+  m2p = QgsMapToPixel::fromScale( 1000, Qgis::DistanceUnit::Kilometers, 96.0 );
   QGSCOMPARENEAR( m2p.mapUnitsPerPixel(), 0.000265, 0.000001 );
 }
 
 void TestQgsMapToPixel::equality()
 {
-  QgsMapToPixel m2p( 1, 5, 6, 10, 100, 90 );
+  const QgsMapToPixel m2p( 1, 5, 6, 10, 100, 90 );
   QgsMapToPixel m2p2( 1, 5, 6, 10, 100, 90 );
   QVERIFY( m2p == m2p2 );
   QVERIFY( !( m2p != m2p2 ) );
@@ -139,7 +173,7 @@ void TestQgsMapToPixel::equality()
 
 void TestQgsMapToPixel::toMapCoordinates()
 {
-  QgsMapToPixel m2p( 1, 5, 5, 10, 10, 90 );
+  const QgsMapToPixel m2p( 1, 5, 5, 10, 10, 90 );
   QgsPointXY p = m2p.toMapCoordinates( 5, 5 );
   QCOMPARE( p, QgsPointXY( 5, 5 ) );
 
@@ -150,9 +184,25 @@ void TestQgsMapToPixel::toMapCoordinates()
   QCOMPARE( p, QgsPointXY( 20, 20 ) );
 }
 
+void TestQgsMapToPixel::transformBounds()
+{
+  // no rotation
+  const QgsMapToPixel m2p( 1.5, 5, 15, 20, 10, 0 );
+  QRectF result = m2p.transformBounds( QRectF( 10, 20, 30, 40 ) );
+
+  QGSCOMPARENEAR( result.left(), 13.3333333333, 6 );
+  QGSCOMPARENEAR( result.right(), 33.3333333333, 6 );
+  QCOMPARE( result.top(), -25 );
+  QGSCOMPARENEAR( result.bottom(), 1.66666666667, 6 );
+
+  // with rotation
+  const QgsMapToPixel m2pRotated( 1.5, 5, 15, 20, 10, 45 );
+  result = m2pRotated.transformBounds( QRectF( 10, 20, 30, 40 ) );
+  QGSCOMPARENEAR( result.left(), 14.7140452079, 6 );
+  QGSCOMPARENEAR( result.right(), 47.7123616633, 6 );
+  QGSCOMPARENEAR( result.top(), -13.8561808316, 6 );
+  QGSCOMPARENEAR( result.bottom(), 19.1421356237, 6 );
+}
+
 QGSTEST_MAIN( TestQgsMapToPixel )
 #include "testqgsmaptopixel.moc"
-
-
-
-

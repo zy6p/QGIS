@@ -49,6 +49,7 @@ class QgsCoordinateTransformContextPrivate : public QSharedData
 
     QgsCoordinateTransformContextPrivate( const QgsCoordinateTransformContextPrivate &other )
       : QSharedData( other )
+      , mLock{}
     {
       other.mLock.lockForRead();
       mSourceDestDatumTransforms = other.mSourceDestDatumTransforms;
@@ -64,6 +65,7 @@ class QgsCoordinateTransformContextPrivate : public QSharedData
         QString operation;
         bool allowFallback = true;
 
+        // TODO c++20 - replace with = default
         bool operator==( const OperationDetails &other ) const
         {
           return operation == other.operation && allowFallback == other.allowFallback;

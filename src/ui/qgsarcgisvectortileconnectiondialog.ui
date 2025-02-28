@@ -164,7 +164,7 @@
       <enum>Qt::Horizontal</enum>
      </property>
      <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::Ok</set>
      </property>
     </widget>
    </item>
@@ -174,7 +174,7 @@
   <customwidget>
    <class>QgsAuthSettingsWidget</class>
    <extends>QWidget</extends>
-   <header>auth/qgsauthsettingswidget.h</header>
+   <header>qgsauthsettingswidget.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

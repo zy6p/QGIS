@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "qgsdetaileditemdelegate.h"
+#include "moc_qgsdetaileditemdelegate.cpp"
 #include "qgsdetaileditemwidget.h"
 #include "qgsdetaileditemdata.h"
 #include "qgsrendercontext.h"
@@ -44,16 +45,13 @@ QgsDetailedItemDelegate::~QgsDetailedItemDelegate()
   delete mpWidget;
 }
 
-void QgsDetailedItemDelegate::paint( QPainter *thepPainter,
-                                     const QStyleOptionViewItem &option,
-                                     const QModelIndex &index ) const
+void QgsDetailedItemDelegate::paint( QPainter *thepPainter, const QStyleOptionViewItem &option, const QModelIndex &index ) const
 {
   // After painting we need to restore the painter to its original state
-  QgsScopedQPainterState painterState( thepPainter );
-  if ( index.data( Qt::UserRole ).canConvert<QgsDetailedItemData>() )
+  const QgsScopedQPainterState painterState( thepPainter );
+  if ( index.data( Qt::UserRole ).userType() == qMetaTypeId<QgsDetailedItemData>() )
   {
-    QgsDetailedItemData myData =
-      index.data( Qt::UserRole ).value<QgsDetailedItemData>();
+    const QgsDetailedItemData myData = index.data( Qt::UserRole ).value<QgsDetailedItemData>();
     if ( myData.isRenderedAsWidget() )
     {
       paintAsWidget( thepPainter, option, myData );
@@ -66,15 +64,14 @@ void QgsDetailedItemDelegate::paint( QPainter *thepPainter,
 }
 
 
-
 QSize QgsDetailedItemDelegate::sizeHint(
   const QStyleOptionViewItem &option,
-  const QModelIndex &index ) const
+  const QModelIndex &index
+) const
 {
-  if ( index.data( Qt::UserRole ).canConvert<QgsDetailedItemData>() )
+  if ( index.data( Qt::UserRole ).userType() == qMetaTypeId<QgsDetailedItemData>() )
   {
-    QgsDetailedItemData myData =
-      index.data( Qt::UserRole ).value<QgsDetailedItemData>();
+    const QgsDetailedItemData myData = index.data( Qt::UserRole ).value<QgsDetailedItemData>();
     if ( myData.isRenderedAsWidget() )
     {
       return QSize( 378, mpWidget->height() );
@@ -92,9 +89,7 @@ QSize QgsDetailedItemDelegate::sizeHint(
   }
 }
 
-void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
-    const QStyleOptionViewItem &option,
-    const QgsDetailedItemData &data ) const
+void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter, const QStyleOptionViewItem &option, const QgsDetailedItemData &data ) const
 {
   //
   // Get the strings and checkbox properties
@@ -109,11 +104,11 @@ void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
   // Calculate the widget height and other metrics
   //
 
-  QFontMetrics myTitleMetrics( titleFont( option ) );
-  QFontMetrics myDetailMetrics( detailFont( option ) );
+  const QFontMetrics myTitleMetrics( titleFont( option ) );
+  const QFontMetrics myDetailMetrics( detailFont( option ) );
   int myTextStartX = option.rect.x() + horizontalSpacing();
   int myTextStartY = option.rect.y() + verticalSpacing();
-  int myHeight = myTitleMetrics.height() + verticalSpacing();
+  const int myHeight = myTitleMetrics.height() + verticalSpacing();
 
   //
   // Draw the item background with a gradient if its highlighted
@@ -134,16 +129,14 @@ void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
   //
   if ( data.isCheckable() )
   {
-    thepPainter->drawPixmap( option.rect.x(),
-                             option.rect.y() + mpCheckBox->height(),
-                             myCbxPixmap );
+    thepPainter->drawPixmap( option.rect.x(), option.rect.y() + mpCheckBox->height(), myCbxPixmap );
     myTextStartX = option.rect.x() + myCbxPixmap.width() + horizontalSpacing();
   }
   //
   // Draw the decoration (pixmap)
   //
   bool myIconFlag = false;
-  QPixmap myDecoPixmap = data.icon();
+  const QPixmap myDecoPixmap = data.icon();
   if ( !myDecoPixmap.isNull() )
   {
     myIconFlag = true;
@@ -158,9 +151,7 @@ void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
       if ( myDecoPixmap.height() < iconHeight )
         offsetY = ( iconHeight - myDecoPixmap.height() ) / 2;
 
-      thepPainter->drawPixmap( myTextStartX + offsetX,
-                               myTextStartY + offsetY,
-                               myDecoPixmap );
+      thepPainter->drawPixmap( myTextStartX + offsetX, myTextStartY + offsetY, myDecoPixmap );
     }
     else
     {
@@ -175,9 +166,7 @@ void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
   //
   myTextStartY += myHeight / 2;
   thepPainter->setFont( titleFont( option ) );
-  thepPainter->drawText( myTextStartX,
-                         myTextStartY,
-                         data.title() );
+  thepPainter->drawText( myTextStartX, myTextStartY, data.title() );
   //
   // Draw the description with word wrapping if needed
   //
@@ -190,15 +179,12 @@ void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
   {
     myTextStartY += myDetailMetrics.height() + verticalSpacing();
   }
-  QStringList myList =
-    wordWrap( data.detail(), myDetailMetrics, option.rect.width() - myTextStartX );
+  const QStringList myList = wordWrap( data.detail(), myDetailMetrics, option.rect.width() - myTextStartX );
   QStringListIterator myLineWrapIterator( myList );
   while ( myLineWrapIterator.hasNext() )
   {
-    QString myLine = myLineWrapIterator.next();
-    thepPainter->drawText( myTextStartX,
-                           myTextStartY,
-                           myLine );
+    const QString myLine = myLineWrapIterator.next();
+    thepPainter->drawText( myTextStartX, myTextStartY, myLine );
     myTextStartY += myDetailMetrics.height() - verticalSpacing();
   }
 
@@ -206,9 +192,7 @@ void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
   // Draw the category. Not sure if we need word wrapping for it.
   //
   thepPainter->setFont( categoryFont( option ) ); //return to original font set by client
-  thepPainter->drawText( myTextStartX,
-                         myTextStartY,
-                         data.category() );
+  thepPainter->drawText( myTextStartX, myTextStartY, data.category() );
 
   //
   // Draw the category with word wrapping if needed
@@ -238,11 +222,8 @@ void QgsDetailedItemDelegate::paintManually( QPainter *thepPainter,
 } //render by manual painting
 
 
-void QgsDetailedItemDelegate::paintAsWidget( QPainter *thepPainter,
-    const QStyleOptionViewItem &option,
-    const QgsDetailedItemData &data ) const
+void QgsDetailedItemDelegate::paintAsWidget( QPainter *thepPainter, const QStyleOptionViewItem &option, const QgsDetailedItemData &data ) const
 {
-
   mpWidget->setChecked( data.isChecked() );
   mpWidget->setData( data );
   mpWidget->resize( option.rect.width(), mpWidget->height() );
@@ -253,21 +234,16 @@ void QgsDetailedItemDelegate::paintAsWidget( QPainter *thepPainter,
   {
     drawHighlight( option, thepPainter, height( option, data ) );
   }
-  QPixmap myPixmap = mpWidget->grab();
-  thepPainter->drawPixmap( option.rect.x(),
-                           option.rect.y(),
-                           myPixmap );
-}//render as widget
+  const QPixmap myPixmap = mpWidget->grab();
+  thepPainter->drawPixmap( option.rect.x(), option.rect.y(), myPixmap );
+} //render as widget
 
-void QgsDetailedItemDelegate::drawHighlight( const QStyleOptionViewItem &option,
-    QPainter *thepPainter,
-    int height ) const
+void QgsDetailedItemDelegate::drawHighlight( const QStyleOptionViewItem &option, QPainter *thepPainter, int height ) const
 {
-  QColor myColor1 = option.palette.highlight().color();
+  const QColor myColor1 = option.palette.highlight().color();
   QColor myColor2 = myColor1;
   myColor2 = myColor2.lighter( 110 ); //10% lighter
-  QLinearGradient myGradient( QPointF( 0, option.rect.y() ),
-                              QPointF( 0, option.rect.y() + height ) );
+  QLinearGradient myGradient( QPointF( 0, option.rect.y() ), QPointF( 0, option.rect.y() + height ) );
   myGradient.setColorAt( 0, myColor1 );
   myGradient.setColorAt( 0.1, myColor2 );
   myGradient.setColorAt( 0.5, myColor1 );
@@ -276,18 +252,15 @@ void QgsDetailedItemDelegate::drawHighlight( const QStyleOptionViewItem &option,
   thepPainter->fillRect( option.rect, QBrush( myGradient ) );
 }
 
-int QgsDetailedItemDelegate::height( const QStyleOptionViewItem &option,
-                                     const QgsDetailedItemData &data ) const
+int QgsDetailedItemDelegate::height( const QStyleOptionViewItem &option, const QgsDetailedItemData &data ) const
 {
-  QFontMetrics myTitleMetrics( titleFont( option ) );
-  QFontMetrics myDetailMetrics( detailFont( option ) );
-  QFontMetrics myCategoryMetrics( categoryFont( option ) );
+  const QFontMetrics myTitleMetrics( titleFont( option ) );
+  const QFontMetrics myDetailMetrics( detailFont( option ) );
+  const QFontMetrics myCategoryMetrics( categoryFont( option ) );
   //we don't word wrap the title so its easy to measure
   int myHeight = myTitleMetrics.height() + verticalSpacing();
   //the detail needs to be measured though
-  QStringList myList = wordWrap( data.detail(),
-                                 myDetailMetrics,
-                                 option.rect.width() - ( mpCheckBox->width() + horizontalSpacing() ) );
+  const QStringList myList = wordWrap( data.detail(), myDetailMetrics, option.rect.width() - ( mpCheckBox->width() + horizontalSpacing() ) );
   myHeight += ( myList.count() + 1 ) * ( myDetailMetrics.height() - verticalSpacing() );
   //we don't word wrap the category so its easy to measure
   myHeight += myCategoryMetrics.height() + verticalSpacing();
@@ -304,7 +277,7 @@ int QgsDetailedItemDelegate::height( const QStyleOptionViewItem &option,
 
 QFont QgsDetailedItemDelegate::detailFont( const QStyleOptionViewItem &option ) const
 {
-  QFont myFont = option.font;
+  const QFont myFont = option.font;
   return myFont;
 }
 
@@ -324,9 +297,7 @@ QFont QgsDetailedItemDelegate::titleFont( const QStyleOptionViewItem &option ) c
 }
 
 
-QStringList QgsDetailedItemDelegate::wordWrap( const QString &string,
-    const QFontMetrics &metrics,
-    int width ) const
+QStringList QgsDetailedItemDelegate::wordWrap( const QString &string, const QFontMetrics &metrics, int width ) const
 {
   if ( string.isEmpty() )
     return QStringList();
@@ -341,7 +312,7 @@ QStringList QgsDetailedItemDelegate::wordWrap( const QString &string,
   int myPreviousSpacePos = 0;
   for ( int i = 0; i < string.count(); ++i )
   {
-    QChar myChar = string.at( i );
+    const QChar myChar = string.at( i );
     if ( myChar == QChar( ' ' ) )
     {
       myStringToPreviousSpace = myCumulativeLine;
@@ -358,7 +329,7 @@ QStringList QgsDetailedItemDelegate::wordWrap( const QString &string,
       myStringToPreviousSpace.clear();
       myCumulativeLine.clear();
     }
-  }//end of i loop
+  } //end of i loop
   //add whatever is left in the string to the list
   if ( !myCumulativeLine.trimmed().isEmpty() )
   {
@@ -369,9 +340,7 @@ QStringList QgsDetailedItemDelegate::wordWrap( const QString &string,
   //qDebug(theString);
   //qDebug(myList.join("\n").toLocal8Bit());
   return myList;
-
 }
-
 
 
 int QgsDetailedItemDelegate::verticalSpacing() const

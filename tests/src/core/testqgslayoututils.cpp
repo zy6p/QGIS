@@ -15,26 +15,28 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "qgslayout.h"
 #include "qgstest.h"
 #include "qgslayoututils.h"
 #include "qgsproject.h"
 #include "qgslayoutitemmap.h"
 #include "qgsfontutils.h"
-#include "qgsrenderchecker.h"
 #include "qgsvectorlayer.h"
+#include "qgslayout.h"
+#include "qgslayoutrendercontext.h"
 
 #include <QStyleOptionGraphicsItem>
 
-class TestQgsLayoutUtils: public QObject
+class TestQgsLayoutUtils : public QgsTest
 {
     Q_OBJECT
 
+  public:
+    TestQgsLayoutUtils()
+      : QgsTest( QStringLiteral( "Layout Utils Tests" ), QStringLiteral( "composer_utils" ) ) {}
+
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init();// will be called before each testfunction is executed.
-    void cleanup();// will be called after every testfunction.
+    void initTestCase(); // will be called before the first testfunction is executed.
+    void cleanupTestCase();
     void rotate();
     void normalizedAngle(); //test normalised angle function
     void snappedAngle();
@@ -42,33 +44,27 @@ class TestQgsLayoutUtils: public QObject
     void createRenderContextFromMap();
     void relativePosition();
     void relativeResizeRect();
-    void pointsToMM(); //test conversion of point size to mm
-    void mmToPoints(); //test conversion of mm to point size
-    void scaledFontPixelSize(); //test creating a scaled font
-    void fontAscentMM(); //test calculating font ascent in mm
-    void fontDescentMM(); //test calculating font descent in mm
-    void fontHeightMM(); //test calculating font height in mm
+    void pointsToMM();            //test conversion of point size to mm
+    void mmToPoints();            //test conversion of mm to point size
+    void scaledFontPixelSize();   //test creating a scaled font
+    void fontAscentMM();          //test calculating font ascent in mm
+    void fontDescentMM();         //test calculating font descent in mm
+    void fontHeightMM();          //test calculating font height in mm
     void fontHeightCharacterMM(); //test calculating font character height in mm
-    void textWidthMM(); //test calculating text width in mm
-    void textHeightMM(); //test calculating text height in mm
-    void drawTextPos(); //test drawing text at a pos
-    void drawTextRect(); //test drawing text in a rect
-    void largestRotatedRect(); //test largest rotated rect helper function
+    void textWidthMM();           //test calculating text width in mm
+    void textHeightMM();          //test calculating text height in mm
+    void drawTextPos();           //test drawing text at a pos
+    void drawTextRect();          //test drawing text in a rect
+    void largestRotatedRect();    //test largest rotated rect helper function
     void decodePaperOrientation();
     void mapLayerFromString();
 
   private:
-
-    bool renderCheck( const QString &testName, QImage &image, int mismatchCount = 0 );
-
-    QString mReport;
     QFont mTestFont;
 };
 
 void TestQgsLayoutUtils::initTestCase()
 {
-  mReport = QStringLiteral( "<h1>Layout Utils Tests</h1>\n" );
-
   QgsFontUtils::loadStandardTestFonts( QStringList() << QStringLiteral( "Oblique" ) );
   mTestFont = QgsFontUtils::getStandardTestFont( QStringLiteral( "Oblique " ) );
   mTestFont.setItalic( true );
@@ -76,30 +72,13 @@ void TestQgsLayoutUtils::initTestCase()
 
 void TestQgsLayoutUtils::cleanupTestCase()
 {
-  QString myReportFile = QDir::tempPath() + QDir::separator() + "qgistest.html";
-  QFile myFile( myReportFile );
-  if ( myFile.open( QIODevice::WriteOnly | QIODevice::Append ) )
-  {
-    QTextStream myQTextStream( &myFile );
-    myQTextStream << mReport;
-    myFile.close();
-  }
-}
-
-void TestQgsLayoutUtils::init()
-{
-
-}
-
-void TestQgsLayoutUtils::cleanup()
-{
-
+  QgsApplication::exitQgis();
 }
 
 void TestQgsLayoutUtils::rotate()
 {
   // pairs of lines from before -> expected after position and angle to rotate
-  QList< QPair< QLineF, double > > testVals;
+  QList<QPair<QLineF, double>> testVals;
   testVals << qMakePair( QLineF( 0, 1, 0, 1 ), 0.0 );
   testVals << qMakePair( QLineF( 0, 1, -1, 0 ), 90.0 );
   testVals << qMakePair( QLineF( 0, 1, 0, -1 ), 180.0 );
@@ -107,7 +86,7 @@ void TestQgsLayoutUtils::rotate()
   testVals << qMakePair( QLineF( 0, 1, 0, 1 ), 360.0 );
 
   //test rotate helper function
-  QList< QPair< QLineF, double > >::const_iterator it = testVals.constBegin();
+  QList<QPair<QLineF, double>>::const_iterator it = testVals.constBegin();
   for ( ; it != testVals.constEnd(); ++it )
   {
     double x = ( *it ).first.x1();
@@ -120,7 +99,7 @@ void TestQgsLayoutUtils::rotate()
 
 void TestQgsLayoutUtils::normalizedAngle()
 {
-  QList< QPair< double, double > > testVals;
+  QList<QPair<double, double>> testVals;
   testVals << qMakePair( 0.0, 0.0 );
   testVals << qMakePair( 90.0, 90.0 );
   testVals << qMakePair( 180.0, 180.0 );
@@ -135,18 +114,17 @@ void TestQgsLayoutUtils::normalizedAngle()
   testVals << qMakePair( -760.0, 320.0 );
 
   //test normalized angle helper function
-  QList< QPair< double, double > >::const_iterator it = testVals.constBegin();
+  QList<QPair<double, double>>::const_iterator it = testVals.constBegin();
   for ( ; it != testVals.constEnd(); ++it )
 
   {
-    double result = QgsLayoutUtils::normalizedAngle( ( *it ).first );
+    const double result = QgsLayoutUtils::normalizedAngle( ( *it ).first );
     qDebug() << QStringLiteral( "actual: %1 expected: %2" ).arg( result ).arg( ( *it ).second );
     QGSCOMPARENEAR( result, ( *it ).second, 4 * std::numeric_limits<double>::epsilon() );
-
   }
 
   //test with allowing negative angles
-  QList< QPair< double, double > > negativeTestVals;
+  QList<QPair<double, double>> negativeTestVals;
   negativeTestVals << qMakePair( 0.0, 0.0 );
   negativeTestVals << qMakePair( 90.0, 90.0 );
   negativeTestVals << qMakePair( 360.0, 0.0 );
@@ -160,16 +138,15 @@ void TestQgsLayoutUtils::normalizedAngle()
   for ( ; it != negativeTestVals.constEnd(); ++it )
 
   {
-    double result = QgsLayoutUtils::normalizedAngle( ( *it ).first, true );
+    const double result = QgsLayoutUtils::normalizedAngle( ( *it ).first, true );
     qDebug() << QStringLiteral( "actual: %1 expected: %2" ).arg( result ).arg( ( *it ).second );
     QGSCOMPARENEAR( result, ( *it ).second, 4 * std::numeric_limits<double>::epsilon() );
-
   }
 }
 
 void TestQgsLayoutUtils::snappedAngle()
 {
-  QList< QPair< double, double > > testVals;
+  QList<QPair<double, double>> testVals;
   testVals << qMakePair( 0.0, 0.0 );
   testVals << qMakePair( 10.0, 0.0 );
   testVals << qMakePair( 20.0, 0.0 );
@@ -209,7 +186,7 @@ void TestQgsLayoutUtils::snappedAngle()
   testVals << qMakePair( 360.0, 0.0 );
 
   //test snapped angle helper function
-  QList< QPair< double, double > >::const_iterator it = testVals.constBegin();
+  QList<QPair<double, double>>::const_iterator it = testVals.constBegin();
   for ( ; it != testVals.constEnd(); ++it )
   {
     QGSCOMPARENEAR( QgsLayoutUtils::snappedAngle( ( *it ).first ), ( *it ).second, 4 * std::numeric_limits<double>::epsilon() );
@@ -235,7 +212,7 @@ void TestQgsLayoutUtils::createRenderContextFromLayout()
   QVERIFY( !rc.painter() );
 
   //create layout with no reference map
-  QgsRectangle extent( 2000, 2800, 2500, 2900 );
+  const QgsRectangle extent( 2000, 2800, 2500, 2900 );
   QgsProject project;
   QgsLayout l( &project );
   rc = QgsLayoutUtils::createRenderContextForLayout( &l, &p );
@@ -268,29 +245,29 @@ void TestQgsLayoutUtils::createRenderContextFromLayout()
   // check render context flags are correctly set
   l.renderContext().setFlags( QgsLayoutRenderContext::Flags() );
   rc = QgsLayoutUtils::createRenderContextForLayout( &l, nullptr );
-  QVERIFY( !( rc.flags() & QgsRenderContext::Antialiasing ) );
-  QVERIFY( !( rc.flags() & QgsRenderContext::UseAdvancedEffects ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::ForceVectorOutput ) );
+  QVERIFY( !( rc.flags() & Qgis::RenderContextFlag::Antialiasing ) );
+  QVERIFY( !( rc.flags() & Qgis::RenderContextFlag::UseAdvancedEffects ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::ForceVectorOutput ) );
 
   l.renderContext().setFlag( QgsLayoutRenderContext::FlagAntialiasing );
   rc = QgsLayoutUtils::createRenderContextForLayout( &l, nullptr );
-  QVERIFY( ( rc.flags() & QgsRenderContext::Antialiasing ) );
-  QVERIFY( !( rc.flags() & QgsRenderContext::UseAdvancedEffects ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::ForceVectorOutput ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::Antialiasing ) );
+  QVERIFY( !( rc.flags() & Qgis::RenderContextFlag::UseAdvancedEffects ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::ForceVectorOutput ) );
 
   l.renderContext().setFlag( QgsLayoutRenderContext::FlagUseAdvancedEffects );
   rc = QgsLayoutUtils::createRenderContextForLayout( &l, nullptr );
-  QVERIFY( ( rc.flags() & QgsRenderContext::Antialiasing ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::UseAdvancedEffects ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::ForceVectorOutput ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::Antialiasing ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::UseAdvancedEffects ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::ForceVectorOutput ) );
 
   // check text format is correctly set
-  l.renderContext().setTextRenderFormat( QgsRenderContext::TextFormatAlwaysOutlines );
+  l.renderContext().setTextRenderFormat( Qgis::TextRenderFormat::AlwaysOutlines );
   rc = QgsLayoutUtils::createRenderContextForLayout( &l, nullptr );
-  QCOMPARE( rc.textRenderFormat(), QgsRenderContext::TextFormatAlwaysOutlines );
-  l.renderContext().setTextRenderFormat( QgsRenderContext::TextFormatAlwaysText );
+  QCOMPARE( rc.textRenderFormat(), Qgis::TextRenderFormat::AlwaysOutlines );
+  l.renderContext().setTextRenderFormat( Qgis::TextRenderFormat::AlwaysText );
   rc = QgsLayoutUtils::createRenderContextForLayout( &l, nullptr );
-  QCOMPARE( rc.textRenderFormat(), QgsRenderContext::TextFormatAlwaysText );
+  QCOMPARE( rc.textRenderFormat(), Qgis::TextRenderFormat::AlwaysText );
 
   p.end();
 }
@@ -313,7 +290,7 @@ void TestQgsLayoutUtils::createRenderContextFromMap()
   QVERIFY( !rc.painter() );
 
   //create composition with no reference map
-  QgsRectangle extent( 2000, 2800, 2500, 2900 );
+  const QgsRectangle extent( 2000, 2800, 2500, 2900 );
   QgsProject project;
   QgsLayout l( &project );
 
@@ -348,29 +325,29 @@ void TestQgsLayoutUtils::createRenderContextFromMap()
   // check render context flags are correctly set
   l.renderContext().setFlags( QgsLayoutRenderContext::Flags() );
   rc = QgsLayoutUtils::createRenderContextForMap( map2, &p );
-  QVERIFY( !( rc.flags() & QgsRenderContext::Antialiasing ) );
-  QVERIFY( !( rc.flags() & QgsRenderContext::UseAdvancedEffects ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::ForceVectorOutput ) );
+  QVERIFY( !( rc.flags() & Qgis::RenderContextFlag::Antialiasing ) );
+  QVERIFY( !( rc.flags() & Qgis::RenderContextFlag::UseAdvancedEffects ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::ForceVectorOutput ) );
 
   l.renderContext().setFlag( QgsLayoutRenderContext::FlagAntialiasing );
   rc = QgsLayoutUtils::createRenderContextForMap( map2, &p );
-  QVERIFY( ( rc.flags() & QgsRenderContext::Antialiasing ) );
-  QVERIFY( !( rc.flags() & QgsRenderContext::UseAdvancedEffects ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::ForceVectorOutput ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::Antialiasing ) );
+  QVERIFY( !( rc.flags() & Qgis::RenderContextFlag::UseAdvancedEffects ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::ForceVectorOutput ) );
 
   l.renderContext().setFlag( QgsLayoutRenderContext::FlagUseAdvancedEffects );
   rc = QgsLayoutUtils::createRenderContextForMap( map2, &p );
-  QVERIFY( ( rc.flags() & QgsRenderContext::Antialiasing ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::UseAdvancedEffects ) );
-  QVERIFY( ( rc.flags() & QgsRenderContext::ForceVectorOutput ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::Antialiasing ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::UseAdvancedEffects ) );
+  QVERIFY( ( rc.flags() & Qgis::RenderContextFlag::ForceVectorOutput ) );
 
   // check text format is correctly set
-  l.renderContext().setTextRenderFormat( QgsRenderContext::TextFormatAlwaysOutlines );
+  l.renderContext().setTextRenderFormat( Qgis::TextRenderFormat::AlwaysOutlines );
   rc = QgsLayoutUtils::createRenderContextForMap( map2, &p );
-  QCOMPARE( rc.textRenderFormat(), QgsRenderContext::TextFormatAlwaysOutlines );
-  l.renderContext().setTextRenderFormat( QgsRenderContext::TextFormatAlwaysText );
+  QCOMPARE( rc.textRenderFormat(), Qgis::TextRenderFormat::AlwaysOutlines );
+  l.renderContext().setTextRenderFormat( Qgis::TextRenderFormat::AlwaysText );
   rc = QgsLayoutUtils::createRenderContextForMap( map2, &p );
-  QCOMPARE( rc.textRenderFormat(), QgsRenderContext::TextFormatAlwaysText );
+  QCOMPARE( rc.textRenderFormat(), Qgis::TextRenderFormat::AlwaysText );
 
   p.end();
 }
@@ -447,7 +424,7 @@ void TestQgsLayoutUtils::scaledFontPixelSize()
   mTestFont.setPointSize( 12 );
 
   //test scaling of font for painting
-  QFont scaledFont = QgsLayoutUtils::scaledFontPixelSize( mTestFont );
+  const QFont scaledFont = QgsLayoutUtils::scaledFontPixelSize( mTestFont );
   QCOMPARE( scaledFont.pixelSize(), 42 );
   QCOMPARE( scaledFont.family(), mTestFont.family() );
 }
@@ -479,7 +456,6 @@ void TestQgsLayoutUtils::fontHeightCharacterMM()
   QGSCOMPARENEAR( QgsLayoutUtils::fontHeightCharacterMM( mTestFont, QChar( 'a' ) ), 2.4, 0.15 );
   QGSCOMPARENEAR( QgsLayoutUtils::fontHeightCharacterMM( mTestFont, QChar( 'l' ) ), 3.15, 0.16 );
   QGSCOMPARENEAR( QgsLayoutUtils::fontHeightCharacterMM( mTestFont, QChar( 'g' ) ), 3.2, 0.11 );
-
 }
 
 void TestQgsLayoutUtils::textWidthMM()
@@ -487,7 +463,6 @@ void TestQgsLayoutUtils::textWidthMM()
   //platform specific font rendering differences mean this test needs to be very lenient
   mTestFont.setPointSize( 12 );
   QGSCOMPARENEAR( QgsLayoutUtils::textWidthMM( mTestFont, QString( "test string" ) ), 20, 2 );
-
 }
 
 void TestQgsLayoutUtils::textHeightMM()
@@ -498,7 +473,6 @@ void TestQgsLayoutUtils::textHeightMM()
   QGSCOMPARENEAR( QgsLayoutUtils::textHeightMM( mTestFont, QString( "test\nstring" ) ), 8.7, 0.2 );
   QGSCOMPARENEAR( QgsLayoutUtils::textHeightMM( mTestFont, QString( "test\nstring" ), 2 ), 13.5, 0.2 );
   QGSCOMPARENEAR( QgsLayoutUtils::textHeightMM( mTestFont, QString( "test\nstring\nstring" ) ), 13.5, 0.2 );
-
 }
 
 void TestQgsLayoutUtils::drawTextPos()
@@ -514,7 +488,7 @@ void TestQgsLayoutUtils::drawTextPos()
   testPainter.begin( &testImage );
   QgsLayoutUtils::drawText( &testPainter, QPointF( 5, 15 ), QStringLiteral( "Abc123" ), mTestFont, Qt::white );
   testPainter.end();
-  QVERIFY( renderCheck( "composerutils_drawtext_pos", testImage, 100 ) );
+  QGSVERIFYIMAGECHECK( "composerutils_drawtext_pos", "composerutils_drawtext_pos", testImage, QString(), 100 );
 
   //test drawing with pen color set on painter and no specified color
   //text should be drawn using painter pen color
@@ -523,7 +497,7 @@ void TestQgsLayoutUtils::drawTextPos()
   testPainter.setPen( QPen( Qt::green ) );
   QgsLayoutUtils::drawText( &testPainter, QPointF( 5, 15 ), QStringLiteral( "Abc123" ), mTestFont );
   testPainter.end();
-  QVERIFY( renderCheck( "composerutils_drawtext_posnocolor", testImage, 100 ) );
+  QGSVERIFYIMAGECHECK( "composerutils_drawtext_posnocolor", "composerutils_drawtext_posnocolor", testImage, QString(), 100 );
 }
 
 void TestQgsLayoutUtils::drawTextRect()
@@ -539,7 +513,7 @@ void TestQgsLayoutUtils::drawTextRect()
   testPainter.begin( &testImage );
   QgsLayoutUtils::drawText( &testPainter, QRectF( 5, 15, 200, 50 ), QStringLiteral( "Abc123" ), mTestFont, Qt::white );
   testPainter.end();
-  QVERIFY( renderCheck( "composerutils_drawtext_rect", testImage, 100 ) );
+  QGSVERIFYIMAGECHECK( "composerutils_drawtext_rect", "composerutils_drawtext_rect", testImage, QString(), 100 );
 
   //test drawing with pen color set on painter and no specified color
   //text should be drawn using painter pen color
@@ -548,28 +522,28 @@ void TestQgsLayoutUtils::drawTextRect()
   testPainter.setPen( QPen( Qt::green ) );
   QgsLayoutUtils::drawText( &testPainter, QRectF( 5, 15, 200, 50 ), QStringLiteral( "Abc123" ), mTestFont );
   testPainter.end();
-  QVERIFY( renderCheck( "composerutils_drawtext_rectnocolor", testImage, 100 ) );
+  QGSVERIFYIMAGECHECK( "composerutils_drawtext_rectnocolor", "composerutils_drawtext_rectnocolor", testImage, QString(), 100 );
 
   //test alignment settings
   testImage.fill( qRgb( 152, 219, 249 ) );
   testPainter.begin( &testImage );
   QgsLayoutUtils::drawText( &testPainter, QRectF( 5, 15, 200, 50 ), QStringLiteral( "Abc123" ), mTestFont, Qt::black, Qt::AlignRight, Qt::AlignBottom );
   testPainter.end();
-  QVERIFY( renderCheck( "composerutils_drawtext_rectalign", testImage, 100 ) );
+  QGSVERIFYIMAGECHECK( "composerutils_drawtext_rectalign", "composerutils_drawtext_rectalign", testImage, QString(), 100 );
 
   //test extra flags - render without clipping
   testImage.fill( qRgb( 152, 219, 249 ) );
   testPainter.begin( &testImage );
   QgsLayoutUtils::drawText( &testPainter, QRectF( 5, 15, 20, 50 ), QStringLiteral( "Abc123" ), mTestFont, Qt::white, Qt::AlignLeft, Qt::AlignTop, Qt::TextDontClip );
   testPainter.end();
-  QVERIFY( renderCheck( "composerutils_drawtext_rectflag", testImage, 100 ) );
+  QGSVERIFYIMAGECHECK( "composerutils_drawtext_rectflag", "composerutils_drawtext_rectflag", testImage, QString(), 100 );
 }
 
 void TestQgsLayoutUtils::largestRotatedRect()
 {
-  QRectF wideRect = QRectF( 0, 0, 2, 1 );
-  QRectF highRect = QRectF( 0, 0, 1, 2 );
-  QRectF bounds = QRectF( 0, 0, 4, 2 );
+  const QRectF wideRect = QRectF( 0, 0, 2, 1 );
+  const QRectF highRect = QRectF( 0, 0, 1, 2 );
+  const QRectF bounds = QRectF( 0, 0, 4, 2 );
 
   //simple cases
   //0 rotation
@@ -604,11 +578,10 @@ void TestQgsLayoutUtils::largestRotatedRect()
     result = QgsLayoutUtils::largestRotatedRectWithinBounds( wideRect, bounds, rotation );
     QTransform t;
     t.rotate( rotation );
-    QRectF rotatedRectBounds = t.mapRect( result );
+    const QRectF rotatedRectBounds = t.mapRect( result );
     //one of the rotated rects dimensions must equal the bounding rectangles dimensions (ie, it has been constrained by one dimension)
     //and the other dimension must be less than or equal to bounds dimension
-    QVERIFY( ( qgsDoubleNear( rotatedRectBounds.width(), bounds.width(), 0.001 ) && ( rotatedRectBounds.height() <= bounds.height() ) )
-             || ( qgsDoubleNear( rotatedRectBounds.height(), bounds.height(), 0.001 ) && ( rotatedRectBounds.width() <= bounds.width() ) ) );
+    QVERIFY( ( qgsDoubleNear( rotatedRectBounds.width(), bounds.width(), 0.001 ) && ( rotatedRectBounds.height() <= bounds.height() ) ) || ( qgsDoubleNear( rotatedRectBounds.height(), bounds.height(), 0.001 ) && ( rotatedRectBounds.width() <= bounds.width() ) ) );
 
     //also verify that aspect ratio of rectangle has not changed
     QGSCOMPARENEAR( result.width() / result.height(), wideRect.width() / wideRect.height(), 4 * std::numeric_limits<double>::epsilon() );
@@ -619,11 +592,10 @@ void TestQgsLayoutUtils::largestRotatedRect()
     result = QgsLayoutUtils::largestRotatedRectWithinBounds( highRect, bounds, rotation );
     QTransform t;
     t.rotate( rotation );
-    QRectF rotatedRectBounds = t.mapRect( result );
+    const QRectF rotatedRectBounds = t.mapRect( result );
     //one of the rotated rects dimensions must equal the bounding rectangles dimensions (ie, it has been constrained by one dimension)
     //and the other dimension must be less than or equal to bounds dimension
-    QVERIFY( ( qgsDoubleNear( rotatedRectBounds.width(), bounds.width(), 0.001 ) && ( rotatedRectBounds.height() <= bounds.height() ) )
-             || ( qgsDoubleNear( rotatedRectBounds.height(), bounds.height(), 0.001 ) && ( rotatedRectBounds.width() <= bounds.width() ) ) );
+    QVERIFY( ( qgsDoubleNear( rotatedRectBounds.width(), bounds.width(), 0.001 ) && ( rotatedRectBounds.height() <= bounds.height() ) ) || ( qgsDoubleNear( rotatedRectBounds.height(), bounds.height(), 0.001 ) && ( rotatedRectBounds.width() <= bounds.width() ) ) );
 
     //also verify that aspect ratio of rectangle has not changed
     QGSCOMPARENEAR( result.width() / result.height(), highRect.width() / highRect.height(), 4 * std::numeric_limits<double>::epsilon() );
@@ -666,22 +638,6 @@ void TestQgsLayoutUtils::mapLayerFromString()
   QCOMPARE( QgsLayoutUtils::mapLayerFromString( l2->id(), &p ), l2 );
   QCOMPARE( QgsLayoutUtils::mapLayerFromString( l2a->id(), &p ), l2a );
   QVERIFY( !QgsLayoutUtils::mapLayerFromString( "none", &p ) );
-
-}
-
-bool TestQgsLayoutUtils::renderCheck( const QString &testName, QImage &image, int mismatchCount )
-{
-  mReport += "<h2>" + testName + "</h2>\n";
-  QString myTmpDir = QDir::tempPath() + '/';
-  QString myFileName = myTmpDir + testName + ".png";
-  image.save( myFileName, "PNG" );
-  QgsRenderChecker myChecker;
-  myChecker.setControlPathPrefix( QStringLiteral( "composer_utils" ) );
-  myChecker.setControlName( "expected_" + testName );
-  myChecker.setRenderedImage( myFileName );
-  bool myResultFlag = myChecker.compareImages( testName, mismatchCount );
-  mReport += myChecker.report();
-  return myResultFlag;
 }
 
 QGSTEST_MAIN( TestQgsLayoutUtils )

@@ -38,10 +38,10 @@ QString QgsClassificationStandardDeviation::id() const
   return METHOD_ID;
 }
 
-QgsClassificationMethod *QgsClassificationStandardDeviation::clone() const
+std::unique_ptr< QgsClassificationMethod > QgsClassificationStandardDeviation::clone() const
 {
-  QgsClassificationStandardDeviation *c = new QgsClassificationStandardDeviation();
-  copyBase( c );
+  auto c = std::make_unique< QgsClassificationStandardDeviation >();
+  copyBase( c.get() );
   c->mStdDev = mStdDev;
   return c;
 }
@@ -53,8 +53,9 @@ QIcon QgsClassificationStandardDeviation::icon() const
 
 
 QList<double> QgsClassificationStandardDeviation::calculateBreaks( double &minimum, double &maximum,
-    const QList<double> &values, int nclasses )
+    const QList<double> &values, int nclasses, QString &error )
 {
+  Q_UNUSED( error )
   // C++ implementation of the standard deviation class interval algorithm
   // as implemented in the 'classInt' package available for the R statistical
   // prgramming language.
@@ -68,7 +69,7 @@ QList<double> QgsClassificationStandardDeviation::calculateBreaks( double &minim
 
   double mean = 0.0;
   mStdDev = 0.0;
-  int n = values.count();
+  const int n = values.count();
 
   for ( int i = 0; i < n; i++ )
   {
@@ -120,8 +121,8 @@ QString QgsClassificationStandardDeviation::labelForRange( const double lowerVal
 
 QString QgsClassificationStandardDeviation::valueToLabel( const double value ) const
 {
-  double normalized = ( value - mEffectiveSymmetryPoint ) / mStdDev;
-  return QObject::tr( " %1 Std Dev" ).arg( QString::number( normalized, 'f', 2 ) );
+  const double normalized = ( value - mEffectiveSymmetryPoint ) / mStdDev;
+  return QObject::tr( " %1 Std Dev" ).arg( QLocale().toString( normalized, 'f', 2 ) );
 }
 
 

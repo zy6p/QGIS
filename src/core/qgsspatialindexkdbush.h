@@ -23,6 +23,7 @@ class QgsFeedback;
 class QgsFeatureSource;
 class QgsSpatialIndexKDBushPrivate;
 class QgsRectangle;
+class QgsFeature;
 
 #include "qgis_core.h"
 #include "qgsspatialindexkdbushdata.h"
@@ -76,10 +77,29 @@ class CORE_EXPORT QgsSpatialIndexKDBush
      */
     explicit QgsSpatialIndexKDBush( const QgsFeatureSource &source, QgsFeedback *feedback = nullptr );
 
-    //! Copy constructor
-    QgsSpatialIndexKDBush( const QgsSpatialIndexKDBush &other );
+#ifndef SIP_RUN
 
-    //! Assignment operator
+    /**
+     * Constructor - creates KDBush index and bulk loads it with features from the source.
+     *
+     * This constructor allows for a \a callback function to be specified, which is
+     * called for each added feature in turn. It allows for bulk spatial index load along with other feature
+     * based operations on a single iteration through a feature source. If \a callback returns FALSE, the
+     * load and iteration is canceled.
+     *
+     * The optional \a feedback object can be used to allow cancellation of bulk feature loading. Ownership
+     * of \a feedback is not transferred, and callers must take care that the lifetime of feedback exceeds
+     * that of the spatial index construction.
+     *
+     * Any non-single point features encountered during iteration will be ignored and not included in the index.
+     *
+     * \note Not available in Python bindings
+     * \since QGIS 3.22
+     */
+    explicit QgsSpatialIndexKDBush( QgsFeatureIterator &fi, const std::function< bool( const QgsFeature & ) > &callback, QgsFeedback *feedback = nullptr );
+#endif
+
+    QgsSpatialIndexKDBush( const QgsSpatialIndexKDBush &other );
     QgsSpatialIndexKDBush &operator=( const QgsSpatialIndexKDBush &other );
 
     ~QgsSpatialIndexKDBush();

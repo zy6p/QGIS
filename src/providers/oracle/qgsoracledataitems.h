@@ -33,7 +33,7 @@ class QgsOracleRootItem;
 class QgsOracleConnectionItem;
 class QgsOracleOwnerItem;
 class QgsOracleLayerItem;
-class QgsProxyProgressTask;
+class QgsOracleColumnTypeTask;
 
 class QgsOracleRootItem : public QgsConnectionsRootItem
 {
@@ -77,19 +77,19 @@ class QgsOracleConnectionItem : public QgsDataCollectionItem
 
   public slots:
     void editConnection();
+    void duplicateConnection();
     void deleteConnection();
     void refreshConnection();
 
     void setLayerType( const QgsOracleLayerProperty &layerProperty );
 
-    void threadStarted();
-    void threadFinished();
+    void taskStarted();
+    void taskFinished();
 
   private:
     void stop();
-    QMap<QString, QgsOracleOwnerItem * > mOwnerMap;
-    QgsOracleColumnTypeThread *mColumnTypeThread = nullptr;
-    QgsProxyProgressTask *mColumnTypeTask = nullptr;
+    QMap<QString, QgsOracleOwnerItem *> mOwnerMap;
+    QgsOracleColumnTypeTask *mColumnTypeTask = nullptr;
     void setAllAsPopulated();
 };
 
@@ -109,12 +109,12 @@ class QgsOracleOwnerItem : public QgsDataCollectionItem
 };
 
 Q_NOWARN_DEPRECATED_PUSH // deleteLayer deprecated
-class QgsOracleLayerItem : public QgsLayerItem
+  class QgsOracleLayerItem : public QgsLayerItem
 {
     Q_OBJECT
 
   public:
-    QgsOracleLayerItem( QgsDataItem *parent, const QString &name, const QString &path, QgsLayerItem::LayerType layerType, const QgsOracleLayerProperty &layerProperties );
+    QgsOracleLayerItem( QgsDataItem *parent, const QString &name, const QString &path, Qgis::BrowserLayerType layerType, const QgsOracleLayerProperty &layerProperties );
 
     QString createUri();
 
@@ -135,7 +135,7 @@ class QgsOracleDataItemProvider : public QgsDataItemProvider
     QString name() override;
     QString dataProviderKey() const override;
 
-    int capabilities() const override;
+    Qgis::DataItemProviderCapabilities capabilities() const override;
 
     QgsDataItem *createDataItem( const QString &pathIn, QgsDataItem *parentItem ) override;
 };

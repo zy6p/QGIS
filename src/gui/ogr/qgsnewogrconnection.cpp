@@ -15,12 +15,14 @@
  *                                                                         *
  ***************************************************************************/
 #include <QMessageBox>
-#include <QRegExpValidator>
+#include <QRegularExpressionValidator>
+#include <QRegularExpression>
 
 #include "qgsnewogrconnection.h"
+#include "moc_qgsnewogrconnection.cpp"
 #include "qgslogger.h"
 #include "qgsproviderregistry.h"
-#include "qgsogrhelperfunctions.h"
+#include "qgsgdalguiutils.h"
 #include "qgsapplication.h"
 #include "qgssettings.h"
 #include "qgsgui.h"
@@ -47,25 +49,32 @@ QgsNewOgrConnection::QgsNewOgrConnection( QWidget *parent, const QString &connTy
   connect( txtDatabase, &QLineEdit::textChanged, this, &QgsNewOgrConnection::updateOkButtonState );
   connect( txtPort, &QLineEdit::textChanged, this, &QgsNewOgrConnection::updateOkButtonState );
 
-  QgsSettings settings;
+  const QgsSettings settings;
 
   //add database drivers
-  QStringList dbDrivers = QgsProviderRegistry::instance()->databaseDrivers().split( ';' );
+  const QStringList dbDrivers = QgsProviderRegistry::instance()->databaseDrivers().split( ';' );
   for ( int i = 0; i < dbDrivers.count(); i++ )
   {
-    QString dbDrive = dbDrivers.at( i );
-    cmbDatabaseTypes->addItem( dbDrive.split( ',' ).at( 0 ) );
+    const QString dbDriver = dbDrivers.at( i );
+    if ( !dbDriver.isEmpty() )
+      cmbDatabaseTypes->addItem( dbDriver.split( ',' ).at( 0 ) );
   }
   txtName->setEnabled( true );
   cmbDatabaseTypes->setEnabled( true );
+
+  if ( !connType.isEmpty() )
+  {
+    cmbDatabaseTypes->setCurrentIndex( cmbDatabaseTypes->findText( connType ) );
+  }
+
   if ( !connName.isEmpty() )
   {
     // populate the dialog with the information stored for the connection
     // populate the fields with the stored setting parameters
-    QString key = '/' + connType + "/connections/" + connName;
+    const QString key = '/' + connType + "/connections/" + connName;
     txtHost->setText( settings.value( key + "/host" ).toString() );
     txtDatabase->setText( settings.value( key + "/database" ).toString() );
-    QString port = settings.value( key + "/port" ).toString();
+    const QString port = settings.value( key + "/port" ).toString();
     txtPort->setText( port );
     if ( settings.value( key + "/store_username" ).toString() == QLatin1String( "true" ) )
     {
@@ -78,31 +87,22 @@ QgsNewOgrConnection::QgsNewOgrConnection( QWidget *parent, const QString &connTy
       mAuthSettingsDatabase->setStorePasswordChecked( true );
     }
     mAuthSettingsDatabase->setConfigId( settings.value( key + "/configid" ).toString() );
-    cmbDatabaseTypes->setCurrentIndex( cmbDatabaseTypes->findText( connType ) );
     txtName->setText( connName );
     txtName->setEnabled( false );
     cmbDatabaseTypes->setEnabled( false );
   }
-  txtName->setValidator( new QRegExpValidator( QRegExp( "[^\\/]+" ), txtName ) );
+  txtName->setValidator( new QRegularExpressionValidator( QRegularExpression( "[^\\/]+" ), txtName ) );
   mAuthSettingsDatabase->setDataprovider( QStringLiteral( "ogr" ) );
   mAuthSettingsDatabase->showStoreCheckboxes( true );
 }
 
 void QgsNewOgrConnection::testConnection()
 {
-  QString uri;
-  uri = createDatabaseURI( cmbDatabaseTypes->currentText(),
-                           txtHost->text(),
-                           txtDatabase->text(),
-                           txtPort->text(),
-                           mAuthSettingsDatabase->configId(),
-                           mAuthSettingsDatabase->username(),
-                           mAuthSettingsDatabase->password(),
-                           true );
-  QgsDebugMsg( "Connecting using uri = " + uri );
+  QString uri = QgsGdalGuiUtils::createDatabaseURI( cmbDatabaseTypes->currentText(), txtHost->text(), txtDatabase->text(), txtPort->text(), mAuthSettingsDatabase->configId(), mAuthSettingsDatabase->username(), mAuthSettingsDatabase->password(), true );
+  QgsDebugMsgLevel( "Connecting using uri = " + uri, 2 );
   OGRRegisterAll();
-  OGRDataSourceH       poDS;
-  OGRSFDriverH         pahDriver;
+  OGRDataSourceH poDS;
+  OGRSFDriverH pahDriver;
   CPLErrorReset();
   poDS = OGROpen( uri.toUtf8().constData(), false, &pahDriver );
   if ( !poDS )
@@ -123,7 +123,7 @@ void QgsNewOgrConnection::showHelp()
 
 void QgsNewOgrConnection::updateOkButtonState()
 {
-  bool enabled = !txtName->text().isEmpty();
+  const bool enabled = !txtName->text().isEmpty();
   buttonBox->button( QDialogButtonBox::Ok )->setEnabled( enabled );
 }
 
@@ -136,12 +136,7 @@ void QgsNewOgrConnection::accept()
   settings.setValue( baseKey + "selected", txtName->text() );
 
   // warn if entry was renamed to an existing connection
-  if ( ( mOriginalConnName.isNull() || mOriginalConnName != txtName->text() ) &&
-       settings.contains( baseKey + txtName->text() + "/host" ) &&
-       QMessageBox::question( this,
-                              tr( "Save Connection" ),
-                              tr( "Should the existing connection %1 be overwritten?" ).arg( txtName->text() ),
-                              QMessageBox::Ok | QMessageBox::Cancel ) == QMessageBox::Cancel )
+  if ( ( mOriginalConnName.isNull() || mOriginalConnName != txtName->text() ) && settings.contains( baseKey + txtName->text() + "/host" ) && QMessageBox::question( this, tr( "Save Connection" ), tr( "Should the existing connection %1 be overwritten?" ).arg( txtName->text() ), QMessageBox::Ok | QMessageBox::Cancel ) == QMessageBox::Cancel )
   {
     return;
   }

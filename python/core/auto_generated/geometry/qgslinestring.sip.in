@@ -3,7 +3,7 @@
  *                                                                      *
  * src/core/geometry/qgslinestring.h                                    *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/
 
 
@@ -17,8 +17,6 @@ class QgsLineString: QgsCurve
 {
 %Docstring(signature="appended")
 Line string geometry type, with support for z-dimension and m-values.
-
-.. versionadded:: 2.10
 %End
 
 %TypeHeaderCode
@@ -31,13 +29,193 @@ Line string geometry type, with support for z-dimension and m-values.
 Constructor for an empty linestring geometry.
 %End
 
-    QgsLineString( const QVector<QgsPoint> &points ) /HoldGIL/;
+    QgsLineString( SIP_PYOBJECT points /TypeHint="Sequence[Union[QgsPoint, QgsPointXY, Sequence[float]]]"/ ) /HoldGIL/ [( const QVector<double> &x, const QVector<double> &y, const QVector<double> &z = QVector<double>(), const QVector<double> &m = QVector<double>(), bool is25DType = false )];
 %Docstring
-Construct a linestring from a vector of points.
-Z and M type will be set based on the type of the first point
-in the vector.
+Construct a linestring from a sequence of points (:py:class:`QgsPoint` objects, :py:class:`QgsPointXY` objects, or sequences of float values).
 
-.. versionadded:: 3.0
+The linestring Z and M type will be set based on the type of the first point in the sequence.
+
+.. versionadded:: 3.20
+%End
+%MethodCode
+    if ( !PySequence_Check( a0 ) )
+    {
+      PyErr_SetString( PyExc_TypeError, QStringLiteral( "A sequence of QgsPoint, QgsPointXY or array of floats is expected" ).toUtf8().constData() );
+      sipIsErr = 1;
+    }
+    else
+    {
+      int state;
+      const int size = PySequence_Size( a0 );
+      QVector< double > xl;
+      QVector< double > yl;
+      bool hasZ = false;
+      QVector< double > zl;
+      bool hasM = false;
+      QVector< double > ml;
+      xl.reserve( size );
+      yl.reserve( size );
+
+      bool is25D = false;
+
+      sipIsErr = 0;
+      for ( int i = 0; i < size; ++i )
+      {
+        PyObject *value = PySequence_GetItem( a0, i );
+        if ( !value )
+        {
+          PyErr_SetString( PyExc_TypeError, QStringLiteral( "Invalid type at index %1." ).arg( i ) .toUtf8().constData() );
+          sipIsErr = 1;
+          break;
+        }
+
+        if ( PySequence_Check( value ) )
+        {
+          const int elementSize = PySequence_Size( value );
+          if ( elementSize < 2 || elementSize > 4 )
+          {
+            sipIsErr = 1;
+            PyErr_SetString( PyExc_TypeError, QStringLiteral( "Invalid sequence size at index %1. Expected an array of 2-4 float values, got %2." ).arg( i ).arg( elementSize ).toUtf8().constData() );
+            Py_DECREF( value );
+            break;
+          }
+          else
+          {
+            sipIsErr = 0;
+            for ( int j = 0; j < elementSize; ++j )
+            {
+              PyObject *element = PySequence_GetItem( value, j );
+              if ( !element )
+              {
+                PyErr_SetString( PyExc_TypeError, QStringLiteral( "Invalid type at index %1." ).arg( i ) .toUtf8().constData() );
+                sipIsErr = 1;
+                break;
+              }
+
+              PyErr_Clear();
+              double d = PyFloat_AsDouble( element );
+              if ( PyErr_Occurred() )
+              {
+                Py_DECREF( value );
+                sipIsErr = 1;
+                break;
+              }
+              if ( j == 0 )
+                xl.append( d );
+              else if ( j == 1 )
+                yl.append( d );
+
+              if ( i == 0 && j == 2 )
+              {
+                hasZ = true;
+                zl.reserve( size );
+                zl.append( d );
+              }
+              else if ( i > 0 && j == 2 && hasZ )
+              {
+                zl.append( d );
+              }
+
+              if ( i == 0 && j == 3 )
+              {
+                hasM = true;
+                ml.reserve( size );
+                ml.append( d );
+              }
+              else if ( i > 0 && j == 3 && hasM )
+              {
+                ml.append( d );
+              }
+
+              Py_DECREF( element );
+            }
+
+            if ( hasZ && elementSize < 3 )
+              zl.append( std::numeric_limits< double >::quiet_NaN() );
+            if ( hasM && elementSize < 4 )
+              ml.append( std::numeric_limits< double >::quiet_NaN() );
+
+            Py_DECREF( value );
+            if ( sipIsErr )
+            {
+              break;
+            }
+          }
+        }
+        else
+        {
+          if ( sipCanConvertToType( value, sipType_QgsPointXY, SIP_NOT_NONE ) )
+          {
+            sipIsErr = 0;
+            QgsPointXY *p = reinterpret_cast<QgsPointXY *>( sipConvertToType( value, sipType_QgsPointXY, 0, SIP_NOT_NONE, &state, &sipIsErr ) );
+            if ( !sipIsErr )
+            {
+              xl.append( p->x() );
+              yl.append( p->y() );
+            }
+            sipReleaseType( p, sipType_QgsPointXY, state );
+          }
+          else if ( sipCanConvertToType( value, sipType_QgsPoint, SIP_NOT_NONE ) )
+          {
+            sipIsErr = 0;
+            QgsPoint *p = reinterpret_cast<QgsPoint *>( sipConvertToType( value, sipType_QgsPoint, 0, SIP_NOT_NONE, &state, &sipIsErr ) );
+            if ( !sipIsErr )
+            {
+              xl.append( p->x() );
+              yl.append( p->y() );
+
+              if ( i == 0 && p->is3D() )
+              {
+                hasZ = true;
+                zl.reserve( size );
+                zl.append( p->z() );
+              }
+              else if ( i > 0 && hasZ )
+              {
+                zl.append( p->z() );
+              }
+
+              if ( i == 0 && p->isMeasure() )
+              {
+                hasM = true;
+                ml.reserve( size );
+                ml.append( p->m() );
+              }
+              else if ( i > 0 && hasM )
+              {
+                ml.append( p->m() );
+              }
+
+              if ( i == 0 && p->wkbType() == Qgis::WkbType::Point25D )
+                is25D = true;
+            }
+            sipReleaseType( p, sipType_QgsPoint, state );
+          }
+          else
+          {
+            sipIsErr = 1;
+          }
+
+          Py_DECREF( value );
+
+          if ( sipIsErr )
+          {
+            // couldn't convert the sequence value to a QgsPoint or QgsPointXY
+            PyErr_SetString( PyExc_TypeError, QStringLiteral( "Invalid type at index %1. Expected QgsPoint, QgsPointXY or array of floats." ).arg( i ) .toUtf8().constData() );
+            break;
+          }
+        }
+      }
+      if ( sipIsErr == 0 )
+        sipCpp = new sipQgsLineString( QgsLineString( xl, yl, zl, ml, is25D ) );
+    }
+%End
+
+    explicit QgsLineString( const QgsLineSegment2D &segment ) /HoldGIL/;
+%Docstring
+Construct a linestring from a single 2d line segment.
+
+.. versionadded:: 3.2
 %End
 
     QgsLineString( const QVector<double> &x, const QVector<double> &y,
@@ -58,8 +236,6 @@ LineString will be LineStringZ (or LineStringZM) type.
 
 If the sizes of ``x`` and ``y`` are non-equal then the resultant linestring
 will be created using the minimum size of these arrays.
-
-.. versionadded:: 3.0
 %End
 
     QgsLineString( const QgsPoint &p1, const QgsPoint &p2 ) /HoldGIL/;
@@ -69,23 +245,7 @@ Constructs a linestring with a single segment from ``p1`` to ``p2``.
 .. versionadded:: 3.2
 %End
 
-    QgsLineString( const QVector<QgsPointXY> &points ) /HoldGIL/;
-%Docstring
-Construct a linestring from list of points.
-This constructor is more efficient then calling :py:func:`~QgsLineString.setPoints`
-or repeatedly calling :py:func:`~QgsLineString.addVertex`
-
-.. versionadded:: 3.0
-%End
-
-    explicit QgsLineString( const QgsLineSegment2D &segment ) /HoldGIL/;
-%Docstring
-Construct a linestring from a single 2d line segment.
-
-.. versionadded:: 3.2
-%End
-
-    static QgsLineString *fromBezierCurve( const QgsPoint &start, const QgsPoint &controlPoint1, const QgsPoint &controlPoint2, const QgsPoint &end, int segments = 30 ) /Factory/;
+    static std::unique_ptr< QgsLineString > fromBezierCurve( const QgsPoint &start, const QgsPoint &controlPoint1, const QgsPoint &controlPoint2, const QgsPoint &end, int segments = 30 );
 %Docstring
 Returns a new linestring created by segmentizing the bezier curve between ``start`` and ``end``, with
 the specified control points.
@@ -97,12 +257,17 @@ Any z or m values present in the input coordinates will be interpolated along wi
 .. versionadded:: 3.10
 %End
 
-    static QgsLineString *fromQPolygonF( const QPolygonF &polygon ) /Factory/;
+    static std::unique_ptr< QgsLineString > fromQPolygonF( const QPolygonF &polygon );
 %Docstring
 Returns a new linestring from a QPolygonF ``polygon`` input.
 
 .. versionadded:: 3.10
 %End
+
+  public:
+    virtual bool fuzzyEqual( const QgsAbstractGeometry &other, double epsilon = 1e-8 ) const /HoldGIL/;
+
+    virtual bool fuzzyDistanceEqual( const QgsAbstractGeometry &other, double epsilon = 1e-8 ) const /HoldGIL/;
 
     virtual bool equals( const QgsCurve &other ) const;
 
@@ -110,10 +275,12 @@ Returns a new linestring from a QPolygonF ``polygon`` input.
 
     SIP_PYOBJECT pointN( int i ) const /TypeHint="QgsPoint"/;
 %Docstring
-Returns the point at the specified index. An IndexError will be raised if no point with the specified index exists.
+Returns the point at the specified index.
 
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 %End
 %MethodCode
     const int count = sipCpp->numPoints();
@@ -139,10 +306,10 @@ corresponds to the last point in the line.
 %Docstring
 Returns the x-coordinate of the specified node in the line string.
 
-An IndexError will be raised if no point with the specified index exists.
-
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 %End
 %MethodCode
     const int count = sipCpp->numPoints();
@@ -166,10 +333,10 @@ corresponds to the last point in the line.
 %Docstring
 Returns the y-coordinate of the specified node in the line string.
 
-An IndexError will be raised if no point with the specified index exists.
-
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 %End
 %MethodCode
     const int count = sipCpp->numPoints();
@@ -192,16 +359,22 @@ corresponds to the last point in the line.
 
 
 
-    double zAt( int index ) const;
+
+
+
+
+
+    virtual double zAt( int index ) const;
+
 %Docstring
 Returns the z-coordinate of the specified node in the line string.
 
-An IndexError will be raised if no point with the specified index exists.
-
-If the LineString does not have a z-dimension then ``nan`` will be returned.
+If the LineString does not have a z-dimension then ``NaN`` will be returned.
 
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 %End
 %MethodCode
     const int count = sipCpp->numPoints();
@@ -220,16 +393,17 @@ corresponds to the last point in the line.
 %End
 
 
-    double mAt( int index ) const;
+    virtual double mAt( int index ) const;
+
 %Docstring
 Returns the m-coordinate of the specified node in the line string.
 
-An IndexError will be raised if no point with the specified index exists.
-
-If the LineString does not have a m-dimension then ``nan`` will be returned.
+If the LineString does not have a m-dimension then ``NaN`` will be returned.
 
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 %End
 %MethodCode
     const int count = sipCpp->numPoints();
@@ -253,10 +427,10 @@ corresponds to the last point in the line.
 Sets the x-coordinate of the specified node in the line string.
 The corresponding node must already exist in line string.
 
-An IndexError will be raised if no point with the specified index exists.
-
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 
 .. seealso:: :py:func:`xAt`
 %End
@@ -282,10 +456,10 @@ corresponds to the last point in the line.
 Sets the y-coordinate of the specified node in the line string.
 The corresponding node must already exist in line string.
 
-An IndexError will be raised if no point with the specified index exists.
-
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 
 .. seealso:: :py:func:`yAt`
 %End
@@ -311,10 +485,10 @@ corresponds to the last point in the line.
 Sets the z-coordinate of the specified node in the line string.
 The corresponding node must already exist in line string and the line string must have z-dimension.
 
-An IndexError will be raised if no point with the specified index exists.
-
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 
 .. seealso:: :py:func:`zAt`
 %End
@@ -340,10 +514,10 @@ corresponds to the last point in the line.
 Sets the m-coordinate of the specified node in the line string.
 The corresponding node must already exist in line string and the line string must have m-dimension.
 
-An IndexError will be raised if no point with the specified index exists.
-
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified index exists.
 
 .. seealso:: :py:func:`mAt`
 %End
@@ -362,6 +536,7 @@ corresponds to the last point in the line.
         sipCpp->setMAt( count + a0, a1 );
     }
 %End
+
 
     void setPoints( const QgsPointSequence &points );
 %Docstring
@@ -403,8 +578,6 @@ Returns the geometry converted to the more generic curve type :py:class:`QgsComp
 Extends the line geometry by extrapolating out the start or end of the line
 by a specified distance. Lines are extended using the bearing of the first or last
 segment in the line.
-
-.. versionadded:: 3.0
 %End
 
 
@@ -419,15 +592,19 @@ segment in the line.
     virtual bool isEmpty() const /HoldGIL/;
 
     int indexOf( const QgsPoint &point ) const final;
-    virtual bool isValid( QString &error /Out/, int flags = 0 ) const;
+    virtual bool isValid( QString &error /Out/, Qgis::GeometryValidityFlags flags = Qgis::GeometryValidityFlags() ) const;
 
-    virtual QgsLineString *snappedToGrid( double hSpacing, double vSpacing, double dSpacing = 0, double mSpacing = 0 ) const /Factory/;
+    virtual QgsLineString *snappedToGrid( double hSpacing, double vSpacing, double dSpacing = 0, double mSpacing = 0, bool removeRedundantPoints = false ) const /Factory/;
 
     virtual bool removeDuplicateNodes( double epsilon = 4 * DBL_EPSILON, bool useZValues = false );
 
     virtual bool isClosed() const /HoldGIL/;
 
+    virtual bool isClosed2D() const /HoldGIL/;
+
     virtual bool boundingBoxIntersects( const QgsRectangle &rectangle ) const /HoldGIL/;
+
+    virtual bool boundingBoxIntersects( const QgsBox3D &box3d ) const /HoldGIL/;
 
 
     QVector< QgsVertexId > collectDuplicateNodes( double epsilon = 4 * DBL_EPSILON, bool useZValues = false ) const;
@@ -441,6 +618,8 @@ If ``useZValues`` is ``True`` then z values will also be considered when testing
 
     virtual QPolygonF asQPolygonF() const;
 
+
+    virtual QgsLineString *simplifyByDistance( double tolerance ) const /Factory/;
 
     virtual bool fromWkb( QgsConstWkbPtr &wkb );
 
@@ -463,6 +642,17 @@ If ``useZValues`` is ``True`` then z values will also be considered when testing
     virtual double length() const /HoldGIL/;
 
 
+
+    QVector<QgsLineString *> splitToDisjointXYParts() const /Factory/;
+%Docstring
+Divides the linestring into parts that don't share any points or lines.
+
+This method throws away Z and M coordinates.
+
+The ownership of returned pointers is transferred to the caller.
+
+.. versionadded:: 3.40
+%End
 
     double length3D() const /HoldGIL/;
 %Docstring
@@ -498,7 +688,7 @@ of the curve.
     virtual void draw( QPainter &p ) const;
 
 
-    virtual void transform( const QgsCoordinateTransform &ct, QgsCoordinateTransform::TransformDirection d = QgsCoordinateTransform::ForwardTransform, bool transformZ = false )  throw( QgsCsException );
+    virtual void transform( const QgsCoordinateTransform &ct, Qgis::TransformDirection d = Qgis::TransformDirection::Forward, bool transformZ = false )  throw( QgsCsException );
 
     virtual void transform( const QTransform &t, double zTranslate = 0.0, double zScale = 1.0, double mTranslate = 0.0, double mScale = 1.0 );
 
@@ -524,13 +714,23 @@ of the curve.
 
     virtual double closestSegment( const QgsPoint &pt, QgsPoint &segmentPt /Out/, QgsVertexId &vertexAfter /Out/, int *leftOf /Out/ = 0, double epsilon = 4 * DBL_EPSILON ) const;
 
-    virtual bool pointAt( int node, QgsPoint &point, QgsVertexId::VertexType &type ) const;
+    virtual bool pointAt( int node, QgsPoint &point, Qgis::VertexType &type ) const;
 
 
     virtual QgsPoint centroid() const;
 
 
     virtual void sumUpArea( double &sum /Out/ ) const;
+
+%Docstring
+Calculates the shoelace/triangle formula sum for the points in the linestring.
+If the linestring is closed (i.e. a polygon) then the polygon area is equal to the absolute value of the sum.
+Please note that the sum will be negative if the points are defined in clockwise order.
+Therefore, if you want to use the sum as an area (as the method name indicates) then you probably should use the absolute value,
+since otherwise a bug can be introduced (such as the bug fixed for github issue 49578)
+
+.. seealso:: https://en.wikipedia.org/wiki/Shoelace_formula#Triangle_formula
+%End
 
     virtual double vertexAngle( QgsVertexId vertex ) const;
 
@@ -548,7 +748,7 @@ of the curve.
     virtual void swapXy();
 
 
-    virtual bool convertTo( QgsWkbTypes::Type type );
+    virtual bool convertTo( Qgis::WkbType type );
 
 
     virtual bool transform( QgsAbstractGeometryTransformer *transformer, QgsFeedback *feedback = 0 );
@@ -570,10 +770,12 @@ of the curve.
 
     SIP_PYOBJECT __getitem__( int index ) /TypeHint="QgsPoint"/;
 %Docstring
-Returns the point at the specified ``index``. An IndexError will be raised if no point with the specified ``index`` exists.
+Returns the point at the specified ``index``.
 
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified ``index`` exists.
 
 .. versionadded:: 3.6
 %End
@@ -597,10 +799,12 @@ corresponds to the last point in the line.
 
     void __setitem__( int index, const QgsPoint &point );
 %Docstring
-Sets the point at the specified ``index``. A point at the ``index`` must already exist or an IndexError will be raised.
+Sets the point at the specified ``index``.
 
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified ``index`` exists.
 
 .. versionadded:: 3.6
 %End
@@ -627,10 +831,12 @@ corresponds to the last point in the line.
 
     void __delitem__( int index );
 %Docstring
-Deletes the vertex at the specified ``index``. A point at the ``index`` must already exist or an IndexError will be raised.
+Deletes the vertex at the specified ``index``.
 
 Indexes can be less than 0, in which case they correspond to positions from the end of the line. E.g. an index of -1
 corresponds to the last point in the line.
+
+:raises IndexError: if no point with the specified ``index`` exists.
 
 .. versionadded:: 3.6
 %End
@@ -648,11 +854,82 @@ corresponds to the last point in the line.
 %End
 
 
+ QgsBox3D calculateBoundingBox3d() const /Deprecated="Since 3.34. use calculateBoundingBox3D() instead"/;
+%Docstring
+Calculates the minimal 3D bounding box for the geometry.
+
+.. seealso:: :py:func:`calculateBoundingBox`
+
+.. versionadded:: 3.26
+
+.. deprecated:: 3.34
+
+   use :py:func:`~QgsLineString.calculateBoundingBox3D` instead
+%End
+
+    virtual QgsBox3D calculateBoundingBox3D() const;
+
+%Docstring
+Calculates the minimal 3D bounding box for the geometry.
+
+.. seealso:: :py:func:`calculateBoundingBox`
+
+.. versionadded:: 3.34
+%End
+
+    std::unique_ptr< QgsLineString > measuredLine( double start, double end ) const;
+%Docstring
+Re-write the measure ordinate (or add one, if it isn't already there) interpolating
+the measure between the supplied ``start`` and ``end`` values.
+
+.. versionadded:: 3.36
+%End
+
+    std::unique_ptr< QgsLineString > interpolateM( bool use3DDistance = true ) const;
+%Docstring
+Returns a copy of this line with all missing (NaN) m values interpolated
+from m values of surrounding vertices.
+
+If the line does not contain m values, ``None`` is returned.
+
+The ``use3DDistance`` controls whether 2D or 3D distances between vertices
+should be used during interpolation. This option is only considered for lines
+with z values.
+
+.. seealso:: :py:func:`lineLocatePointByM`
+
+.. versionadded:: 3.38
+%End
+
+    bool lineLocatePointByM( double m, double &x /Out/, double &y /Out/, double &z /Out/, double &distanceFromStart /Out/, bool use3DDistance = true ) const;
+%Docstring
+Attempts to locate a point on the linestring by m value.
+
+This method will linearly interpolate along line segments to find the point which corresponds to the specified m value.
+
+If the linestring contains sections with constant m values matching ``m``, then the interpolated point will be located
+at the center of these sections.
+
+Any missing (NaN) values in the linestring will be linearly interpolated from the
+m values of surrounding vertices (see :py:func:`~QgsLineString.interpolateM`).
+
+:param m: target m value
+:param use3DDistance: controls whether 2D or 3D distances between vertices should be used during interpolation. This option is only considered for lines with z values.
+
+:return: - ``True`` if a matching point was found, or ``False`` if it could not be found
+         - x: interpolated x coordinate
+         - y: interpolated y coordinate
+         - z: interpolated z coordinate (for 3D lines only)
+         - distanceFromStart: calculated distance from the start of the linestring to the located point
+
+.. seealso:: :py:func:`interpolateM`
+
+.. versionadded:: 3.40
+%End
+
   protected:
 
     int compareToSameClass( const QgsAbstractGeometry *other ) const final;
-    virtual QgsRectangle calculateBoundingBox() const;
-
 
 };
 
@@ -662,5 +939,5 @@ corresponds to the last point in the line.
  *                                                                      *
  * src/core/geometry/qgslinestring.h                                    *
  *                                                                      *
- * Do not edit manually ! Edit header and run scripts/sipify.pl again   *
+ * Do not edit manually ! Edit header and run scripts/sipify.py again   *
  ************************************************************************/

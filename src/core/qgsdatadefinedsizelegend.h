@@ -37,7 +37,6 @@ class QgsLineSymbol;
  * For example: the list of classes (size values), whether the classes should appear in separate
  * legend nodes or whether to collapse them into one legend node.
  *
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsDataDefinedSizeLegend
 {
@@ -50,7 +49,6 @@ class CORE_EXPORT QgsDataDefinedSizeLegend
 
     ~QgsDataDefinedSizeLegend();
 
-    //! Copy constructor
     QgsDataDefinedSizeLegend( const QgsDataDefinedSizeLegend &other );
     QgsDataDefinedSizeLegend &operator=( const QgsDataDefinedSizeLegend &other );
 
@@ -73,8 +71,11 @@ class CORE_EXPORT QgsDataDefinedSizeLegend
     {
       SizeClass( double size, const QString &label ): size( size ), label( label ) {}
 
-      double size;    //!< Marker size in units used by the symbol (usually millimeters). May be further scaled before rendering if size scale transformer is enabled.
-      QString label;  //!< Label to be shown with the particular symbol size
+      //! Marker size in units used by the symbol (usually millimeters). May be further scaled before rendering if size scale transformer is enabled.
+      double size;
+
+      //! Label to be shown with the particular symbol size
+      QString label;
     };
 
     //! Sets how the legend should be rendered

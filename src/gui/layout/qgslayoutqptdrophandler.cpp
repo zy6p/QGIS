@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayoutqptdrophandler.h"
+#include "moc_qgslayoutqptdrophandler.cpp"
 #include "qgslayoutdesignerinterface.h"
 #include "qgslayout.h"
 #include "qgsreadwritecontext.h"
@@ -24,12 +25,11 @@
 QgsLayoutQptDropHandler::QgsLayoutQptDropHandler( QObject *parent )
   : QgsLayoutCustomDropHandler( parent )
 {
-
 }
 
 bool QgsLayoutQptDropHandler::handleFileDrop( QgsLayoutDesignerInterface *iface, QPointF, const QString &file )
 {
-  QFileInfo fi( file );
+  const QFileInfo fi( file );
   if ( fi.suffix().compare( QLatin1String( "qpt" ), Qt::CaseInsensitive ) != 0 )
     return false;
 
@@ -46,7 +46,7 @@ bool QgsLayoutQptDropHandler::handleFileDrop( QgsLayoutDesignerInterface *iface,
   if ( templateDoc.setContent( &templateFile ) )
   {
     bool ok = false;
-    QList< QgsLayoutItem * > items = iface->layout()->loadFromTemplate( templateDoc, context, false, &ok );
+    const QList<QgsLayoutItem *> items = iface->layout()->loadFromTemplate( templateDoc, context, false, &ok );
     if ( !ok )
     {
       QMessageBox::warning( iface->view(), tr( "Load from Template" ), tr( "Could not read template file." ) );

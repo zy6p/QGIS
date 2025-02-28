@@ -27,15 +27,30 @@
  * \ingroup gui
  * \class QgsLUDialog
  */
-class GUI_EXPORT QgsLUDialog: public QDialog, private Ui::QgsLUDialogBase
+class GUI_EXPORT QgsLUDialog : public QDialog, private Ui::QgsLUDialogBase
 {
     Q_OBJECT
   public:
     QgsLUDialog( QWidget *parent SIP_TRANSFERTHIS = nullptr, Qt::WindowFlags fl = QgsGuiUtils::ModalDialogFlags );
     QString lowerValue() const;
+
+    /**
+     * Returns the lower value.
+     * \since QGIS 3.21
+     */
+    double lowerValueDouble() const;
     void setLowerValue( const QString &val );
     QString upperValue() const;
+
+    /**
+     * Returns the upper value.
+     * \since QGIS 3.21
+     */
+    double upperValueDouble() const;
     void setUpperValue( const QString &val );
+
+  private:
+    void setDecimalPlaces( QgsDoubleSpinBox *widget, double value ) const;
 };
 
 #endif

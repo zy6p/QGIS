@@ -20,7 +20,7 @@
 #include "qgsmaptopixel.h"
 #include "qgsrectangle.h"
 
-class TestQgsMapRendererCache: public QObject
+class TestQgsMapRendererCache : public QObject
 {
     Q_OBJECT
 
@@ -28,10 +28,10 @@ class TestQgsMapRendererCache: public QObject
     TestQgsMapRendererCache();
 
   private slots:
-    void initTestCase();// will be called before the first testfunction is executed.
-    void cleanupTestCase();// will be called after the last testfunction was executed.
-    void init(); // will be called before each testfunction is executed.
-    void cleanup(); // will be called after every testfunction.
+    void initTestCase();    // will be called before the first testfunction is executed.
+    void cleanupTestCase(); // will be called after the last testfunction was executed.
+    void init();            // will be called before each testfunction is executed.
+    void cleanup();         // will be called after every testfunction.
 
     void testCache();
 };
@@ -70,8 +70,8 @@ void TestQgsMapRendererCache::testCache()
   const QString imgBlueKey( "blue" );
 
   /* the cache images are same as inserted */
-  QgsRectangle extent1( 0, 0, 100, 200 );
-  QgsMapToPixel mtp1( 1, 50, 50, 100, 100, 0.0 );
+  const QgsRectangle extent1( 0, 0, 100, 200 );
+  const QgsMapToPixel mtp1( 1, 50, 50, 100, 100, 0.0 );
   cache.updateParameters( extent1, mtp1 );
 
   QVERIFY( !cache.hasCacheImage( imgBlueKey ) );
@@ -90,18 +90,18 @@ void TestQgsMapRendererCache::testCache()
   QVERIFY( cache.hasAnyCacheImage( imgRedKey, 0.9, 1.1 ) );
 
   {
-    QImage img = cache.cacheImage( imgBlueKey );
+    const QImage img = cache.cacheImage( imgBlueKey );
     QVERIFY( img.size() == imgBlue.size() );
     QVERIFY( img.pixelColor( 10, 20 ) == Qt::blue );
 
-    QImage transformed = cache.transformedCacheImage( imgBlueKey, mtp1 );
+    const QImage transformed = cache.transformedCacheImage( imgBlueKey, mtp1 );
     QVERIFY( transformed.size() == imgBlue.size() );
     QVERIFY( img.pixelColor( 10, 20 ) == Qt::blue );
   }
 
   /* the cache images are transformed */
-  QgsRectangle extent2( 20, 0, 120, 200 );
-  QgsMapToPixel mtp2( 1, 70, 50, 100, 100, 0.0 ); // move by 20
+  const QgsRectangle extent2( 20, 0, 120, 200 );
+  const QgsMapToPixel mtp2( 1, 70, 50, 100, 100, 0.0 ); // move by 20
   cache.updateParameters( extent2, mtp2 );
   QVERIFY( !cache.hasCacheImage( imgRedKey ) );
   QVERIFY( !cache.hasCacheImage( imgBlueKey ) );
@@ -109,11 +109,11 @@ void TestQgsMapRendererCache::testCache()
   QVERIFY( cache.hasAnyCacheImage( imgBlueKey, 0.9, 1.1 ) );
   QVERIFY( cache.hasAnyCacheImage( imgRedKey, 0.9, 1.1 ) );
 
-  QImage transformed = cache.transformedCacheImage( imgBlueKey, mtp2 );
+  const QImage transformed = cache.transformedCacheImage( imgBlueKey, mtp2 );
   QVERIFY( transformed.pixelColor( 30, 20 ) == Qt::transparent );
   QVERIFY( transformed.pixelColor( 10, 20 ) == Qt::blue );
 
-  QgsMapToPixel mtp3( 2, 70, 50, 100, 100, 0.0 ); // scale by 2
+  const QgsMapToPixel mtp3( 2, 70, 50, 100, 100, 0.0 ); // scale by 2
   cache.updateParameters( extent2, mtp3 );
   QVERIFY( !cache.hasCacheImage( imgRedKey ) );
   QVERIFY( !cache.hasCacheImage( imgBlueKey ) );
@@ -126,7 +126,7 @@ void TestQgsMapRendererCache::testCache()
   QVERIFY( cache.hasAnyCacheImage( imgBlueKey, 0.9, 2.0 ) );
   QVERIFY( cache.hasAnyCacheImage( imgRedKey, 0.9, 2.0 ) );
 
-  QgsMapToPixel mtp4( 0.5, 70, 50, 100, 100, 0.0 ); // scale by 0.5
+  const QgsMapToPixel mtp4( 0.5, 70, 50, 100, 100, 0.0 ); // scale by 0.5
   cache.updateParameters( extent2, mtp4 );
   QVERIFY( !cache.hasCacheImage( imgRedKey ) );
   QVERIFY( !cache.hasCacheImage( imgBlueKey ) );

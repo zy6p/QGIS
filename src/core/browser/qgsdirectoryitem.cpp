@@ -16,13 +16,15 @@
  ***************************************************************************/
 
 #include "qgsdirectoryitem.h"
+#include "moc_qgsdirectoryitem.cpp"
 #include "qgssettings.h"
 #include "qgsapplication.h"
 #include "qgsdataitemprovider.h"
 #include "qgsdataitemproviderregistry.h"
-#include "qgsdataprovider.h"
 #include "qgszipitem.h"
 #include "qgsprojectitem.h"
+#include "qgsfileutils.h"
+#include "qgsgdalutils.h"
 #include <QFileSystemWatcher>
 #include <QDir>
 #include <QMouseEvent>
@@ -37,10 +39,8 @@
 QgsDirectoryItem::QgsDirectoryItem( QgsDataItem *parent, const QString &name, const QString &path )
   : QgsDataCollectionItem( parent, QDir::toNativeSeparators( name ), path )
   , mDirPath( path )
-  , mRefreshLater( false )
 {
-  mType = Directory;
-  init();
+  init( name );
 }
 
 QgsDirectoryItem::QgsDirectoryItem( QgsDataItem *parent, const QString &name,
@@ -48,12 +48,38 @@ QgsDirectoryItem::QgsDirectoryItem( QgsDataItem *parent, const QString &name,
                                     const QString &providerKey )
   : QgsDataCollectionItem( parent, QDir::toNativeSeparators( name ), path, providerKey )
   , mDirPath( dirPath )
-  , mRefreshLater( false )
 {
+  init( name );
+}
+
+void QgsDirectoryItem::init( const QString &dirName )
+{
+  mType = Qgis::BrowserItemType::Directory;
+  setToolTip( QDir::toNativeSeparators( mDirPath ) );
+
   QgsSettings settings;
+
+  const QFileInfo fi { mDirPath };
+  mIsDir = fi.isDir();
+  mIsSymLink = fi.isSymLink();
+
+  mMonitoring = monitoringForPath( mDirPath );
+  switch ( mMonitoring )
+  {
+    case Qgis::BrowserDirectoryMonitoring::Default:
+      mMonitored = pathShouldByMonitoredByDefault( mDirPath );
+      break;
+    case Qgis::BrowserDirectoryMonitoring::NeverMonitor:
+      mMonitored = false;
+      break;
+    case Qgis::BrowserDirectoryMonitoring::AlwaysMonitor:
+      mMonitored = true;
+      break;
+  }
+
   settings.beginGroup( QStringLiteral( "qgis/browserPathColors" ) );
   QString settingKey = mDirPath;
-  settingKey.replace( '/', QStringLiteral( "|||" ) );
+  settingKey.replace( '/', QLatin1String( "|||" ) );
   if ( settings.childKeys().contains( settingKey ) )
   {
     const QString colorString = settings.value( settingKey ).toString();
@@ -61,13 +87,49 @@ QgsDirectoryItem::QgsDirectoryItem( QgsDataItem *parent, const QString &name,
   }
   settings.endGroup();
 
-  mType = Directory;
-  init();
+  // we want directories shown before files
+  setSortKey( QStringLiteral( "  %1" ).arg( dirName ) );
 }
 
-void QgsDirectoryItem::init()
+void QgsDirectoryItem::reevaluateMonitoring()
 {
-  setToolTip( QDir::toNativeSeparators( mDirPath ) );
+  mMonitoring = monitoringForPath( mDirPath );
+  switch ( mMonitoring )
+  {
+    case Qgis::BrowserDirectoryMonitoring::Default:
+      mMonitored = pathShouldByMonitoredByDefault( mDirPath );
+      break;
+    case Qgis::BrowserDirectoryMonitoring::NeverMonitor:
+      mMonitored = false;
+      break;
+    case Qgis::BrowserDirectoryMonitoring::AlwaysMonitor:
+      mMonitored = true;
+      break;
+  }
+
+  const QVector<QgsDataItem *> childItems = children();
+  for ( QgsDataItem *child : childItems )
+  {
+    if ( QgsDirectoryItem *dirItem = qobject_cast< QgsDirectoryItem *>( child ) )
+      dirItem->reevaluateMonitoring();
+  }
+
+  createOrDestroyFileSystemWatcher();
+}
+
+void QgsDirectoryItem::createOrDestroyFileSystemWatcher()
+{
+  if ( !mMonitored && mFileSystemWatcher )
+  {
+    mFileSystemWatcher->deleteLater();
+    mFileSystemWatcher = nullptr;
+  }
+  else if ( mMonitored && state() == Qgis::BrowserItemState::Populated && !mFileSystemWatcher )
+  {
+    mFileSystemWatcher = new QFileSystemWatcher( this );
+    mFileSystemWatcher->addPath( mDirPath );
+    connect( mFileSystemWatcher, &QFileSystemWatcher::directoryChanged, this, &QgsDirectoryItem::directoryChanged );
+  }
 }
 
 QColor QgsDirectoryItem::iconColor() const
@@ -89,7 +151,7 @@ void QgsDirectoryItem::setCustomColor( const QString &directory, const QColor &c
   QgsSettings settings;
   settings.beginGroup( QStringLiteral( "qgis/browserPathColors" ) );
   QString settingKey = directory;
-  settingKey.replace( '/', QStringLiteral( "|||" ) );
+  settingKey.replace( '/', QLatin1String( "|||" ) );
   if ( color.isValid() )
     settings.setValue( settingKey, color.name( QColor::HexArgb ) );
   else
@@ -103,12 +165,11 @@ QIcon QgsDirectoryItem::icon()
     return homeDirIcon( mIconColor, mIconColor.darker() );
 
   // still loading? show the spinner
-  if ( state() == Populating )
+  if ( state() == Qgis::BrowserItemState::Populating )
     return QgsDataItem::icon();
 
   // symbolic link? use link icon
-  QFileInfo fi( mDirPath );
-  if ( fi.isDir() && fi.isSymLink() )
+  if ( mIsDir && mIsSymLink )
   {
     return mIconColor.isValid()
            ? QgsApplication::getThemeIcon( QStringLiteral( "/mIconFolderLinkParams.svg" ), mIconColor, mIconColor.darker() )
@@ -116,24 +177,91 @@ QIcon QgsDirectoryItem::icon()
   }
 
   // loaded? show the open dir icon
-  if ( state() == Populated )
+  if ( state() == Qgis::BrowserItemState::Populated )
     return openDirIcon( mIconColor, mIconColor.darker() );
 
   // show the closed dir icon
   return iconDir( mIconColor, mIconColor.darker() );
 }
 
+Qgis::BrowserDirectoryMonitoring QgsDirectoryItem::monitoring() const
+{
+  return mMonitoring;
+}
+
+void QgsDirectoryItem::setMonitoring( Qgis::BrowserDirectoryMonitoring monitoring )
+{
+  mMonitoring = monitoring;
+
+  QgsSettings settings;
+  QStringList noMonitorDirs = settings.value( QStringLiteral( "qgis/disableMonitorItemUris" ), QStringList() ).toStringList();
+  QStringList alwaysMonitorDirs = settings.value( QStringLiteral( "qgis/alwaysMonitorItemUris" ), QStringList() ).toStringList();
+
+  switch ( mMonitoring )
+  {
+    case Qgis::BrowserDirectoryMonitoring::Default:
+    {
+      // remove disable/always setting for this path, so that default behavior is used
+      noMonitorDirs.removeAll( mDirPath );
+      settings.setValue( QStringLiteral( "qgis/disableMonitorItemUris" ), noMonitorDirs );
+
+      alwaysMonitorDirs.removeAll( mDirPath );
+      settings.setValue( QStringLiteral( "qgis/alwaysMonitorItemUris" ), alwaysMonitorDirs );
+
+      mMonitored = pathShouldByMonitoredByDefault( mDirPath );
+      break;
+    }
+
+    case Qgis::BrowserDirectoryMonitoring::NeverMonitor:
+    {
+      if ( !noMonitorDirs.contains( mDirPath ) )
+      {
+        noMonitorDirs.append( mDirPath );
+        settings.setValue( QStringLiteral( "qgis/disableMonitorItemUris" ), noMonitorDirs );
+      }
+
+      alwaysMonitorDirs.removeAll( mDirPath );
+      settings.setValue( QStringLiteral( "qgis/alwaysMonitorItemUris" ), alwaysMonitorDirs );
+
+      mMonitored = false;
+      break;
+    }
+
+    case Qgis::BrowserDirectoryMonitoring::AlwaysMonitor:
+    {
+      noMonitorDirs.removeAll( mDirPath );
+      settings.setValue( QStringLiteral( "qgis/disableMonitorItemUris" ), noMonitorDirs );
+
+      if ( !alwaysMonitorDirs.contains( mDirPath ) )
+      {
+        alwaysMonitorDirs.append( mDirPath );
+        settings.setValue( QStringLiteral( "qgis/alwaysMonitorItemUris" ), alwaysMonitorDirs );
+      }
+
+      mMonitored = true;
+      break;
+    }
+  }
+
+  const QVector<QgsDataItem *> childItems = children();
+  for ( QgsDataItem *child : childItems )
+  {
+    if ( QgsDirectoryItem *dirItem = qobject_cast< QgsDirectoryItem *>( child ) )
+      dirItem->reevaluateMonitoring();
+  }
+
+  createOrDestroyFileSystemWatcher();
+}
 
 QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
 {
   QVector<QgsDataItem *> children;
-  QDir dir( mDirPath );
+  const QDir dir( mDirPath );
 
   const QList<QgsDataItemProvider *> providers = QgsApplication::dataItemProviderRegistry()->providers();
 
-  QStringList entries = dir.entryList( QDir::AllDirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase );
-  const auto constEntries = entries;
-  for ( const QString &subdir : constEntries )
+  const QStringList entries = dir.entryList( QDir::AllDirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase );
+  for ( const QString &subdir : entries )
   {
     if ( mRefreshLater )
     {
@@ -141,18 +269,18 @@ QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
       return children;
     }
 
-    QString subdirPath = dir.absoluteFilePath( subdir );
+    const QString subdirPath = dir.absoluteFilePath( subdir );
 
     QgsDebugMsgLevel( QStringLiteral( "creating subdir: %1" ).arg( subdirPath ), 2 );
 
-    QString path = mPath + '/' + subdir; // may differ from subdirPath
+    const QString path = mPath + ( mPath.endsWith( '/' ) ? QString() : QStringLiteral( "/" ) ) + subdir; // may differ from subdirPath
     if ( QgsDirectoryItem::hiddenPath( path ) )
       continue;
 
     bool handledByProvider = false;
     for ( QgsDataItemProvider *provider : providers )
     {
-      if ( provider->handlesDirectoryPath( path ) )
+      if ( provider->handlesDirectoryPath( subdirPath ) )
       {
         handledByProvider = true;
         break;
@@ -163,17 +291,13 @@ QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
 
     QgsDirectoryItem *item = new QgsDirectoryItem( this, subdir, subdirPath, path );
 
-    // we want directories shown before files
-    item->setSortKey( QStringLiteral( "  %1" ).arg( subdir ) );
-
     // propagate signals up to top
 
     children.append( item );
   }
 
-  QStringList fileEntries = dir.entryList( QDir::Dirs | QDir::NoDotAndDotDot | QDir::Files, QDir::Name );
-  const auto constFileEntries = fileEntries;
-  for ( const QString &name : constFileEntries )
+  const QStringList fileEntries = dir.entryList( QDir::Dirs | QDir::NoDotAndDotDot | QDir::Files, QDir::Name );
+  for ( const QString &name : fileEntries )
   {
     if ( mRefreshLater )
     {
@@ -181,14 +305,12 @@ QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
       return children;
     }
 
-    QString path = dir.absoluteFilePath( name );
-    QFileInfo fileInfo( path );
+    const QString path = dir.absoluteFilePath( name );
+    const QFileInfo fileInfo( path );
 
-    if ( fileInfo.suffix().compare( QLatin1String( "zip" ), Qt::CaseInsensitive ) == 0 ||
-         fileInfo.suffix().compare( QLatin1String( "tar" ), Qt::CaseInsensitive ) == 0 )
+    if ( QgsGdalUtils::isVsiArchiveFileExtension( fileInfo.suffix() ) )
     {
-      QgsDataItem *item = QgsZipItem::itemFromPath( this, path, name, mPath + '/' + name );
-      if ( item )
+      if ( QgsDataItem *item = QgsZipItem::itemFromPath( this, path, name, path ) )
       {
         children.append( item );
         continue;
@@ -198,10 +320,10 @@ QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
     bool createdItem = false;
     for ( QgsDataItemProvider *provider : providers )
     {
-      int capabilities = provider->capabilities();
+      const Qgis::DataItemProviderCapabilities capabilities = provider->capabilities();
 
-      if ( !( ( fileInfo.isFile() && ( capabilities & QgsDataProvider::File ) ) ||
-              ( fileInfo.isDir() && ( capabilities & QgsDataProvider::Dir ) ) ) )
+      if ( !( ( fileInfo.isFile() && ( capabilities & Qgis::DataItemProviderCapability::Files ) ) ||
+              ( fileInfo.isDir() && ( capabilities & Qgis::DataItemProviderCapability::Directories ) ) ) )
       {
         continue;
       }
@@ -209,6 +331,11 @@ QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
       QgsDataItem *item = provider->createDataItem( path, this );
       if ( item )
       {
+        // 3rd party providers may not correctly set the ItemRepresentsFile capability, so force it here if we
+        // see that the item's path does match the original file path
+        if ( item->path() == path )
+          item->setCapabilities( item->capabilities2() | Qgis::BrowserItemCapability::ItemRepresentsFile );
+
         children.append( item );
         createdItem = true;
       }
@@ -222,6 +349,7 @@ QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
            fileInfo.suffix().compare( QLatin1String( "qgz" ), Qt::CaseInsensitive ) == 0 )
       {
         QgsDataItem *item = new QgsProjectItem( this, fileInfo.completeBaseName(), path );
+        item->setCapabilities( item->capabilities2() | Qgis::BrowserItemCapability::ItemRepresentsFile );
         children.append( item );
         continue;
       }
@@ -231,11 +359,11 @@ QVector<QgsDataItem *> QgsDirectoryItem::createChildren()
   return children;
 }
 
-void QgsDirectoryItem::setState( State state )
+void QgsDirectoryItem::setState( Qgis::BrowserItemState state )
 {
   QgsDataCollectionItem::setState( state );
 
-  if ( state == Populated )
+  if ( state == Qgis::BrowserItemState::Populated && mMonitored )
   {
     if ( !mFileSystemWatcher )
     {
@@ -245,7 +373,7 @@ void QgsDirectoryItem::setState( State state )
     }
     mLastScan = QDateTime::currentDateTime();
   }
-  else if ( state == NotPopulated )
+  else if ( state == Qgis::BrowserItemState::NotPopulated )
   {
     if ( mFileSystemWatcher )
     {
@@ -262,7 +390,7 @@ void QgsDirectoryItem::directoryChanged()
   {
     return;
   }
-  if ( state() == Populating )
+  if ( state() == Qgis::BrowserItemState::Populating )
   {
     // schedule to refresh later, because refresh() simply returns if Populating
     mRefreshLater = true;
@@ -279,17 +407,62 @@ void QgsDirectoryItem::directoryChanged()
     // this happens when a new file appears in the directory and
     // the item's children thread will try to open the file with
     // GDAL or OGR even if it is still being written.
-    QTimer::singleShot( 100, this, [ = ] { refresh(); } );
+    QTimer::singleShot( 100, this, [this] { refresh(); } );
   }
 }
 
 bool QgsDirectoryItem::hiddenPath( const QString &path )
 {
-  QgsSettings settings;
-  QStringList hiddenItems = settings.value( QStringLiteral( "browser/hiddenPaths" ),
-                            QStringList() ).toStringList();
-  int idx = hiddenItems.indexOf( path );
+  const QgsSettings settings;
+  const QStringList hiddenItems = settings.value( QStringLiteral( "browser/hiddenPaths" ),
+                                  QStringList() ).toStringList();
+  const int idx = hiddenItems.indexOf( path );
   return ( idx > -1 );
+}
+
+Qgis::BrowserDirectoryMonitoring QgsDirectoryItem::monitoringForPath( const QString &path )
+{
+  const QgsSettings settings;
+  if ( settings.value( QStringLiteral( "qgis/disableMonitorItemUris" ), QStringList() ).toStringList().contains( path ) )
+    return Qgis::BrowserDirectoryMonitoring::NeverMonitor;
+  else if ( settings.value( QStringLiteral( "qgis/alwaysMonitorItemUris" ), QStringList() ).toStringList().contains( path ) )
+    return Qgis::BrowserDirectoryMonitoring::AlwaysMonitor;
+  return Qgis::BrowserDirectoryMonitoring::Default;
+}
+
+bool QgsDirectoryItem::pathShouldByMonitoredByDefault( const QString &path )
+{
+  // check through path's parent directories, to see if any have an explicit
+  // always/never monitor setting. If so, this path will inherit that setting
+  const QString originalPath = QDir::cleanPath( path );
+  QString currentPath = originalPath;
+  QString prevPath;
+  while ( currentPath != prevPath )
+  {
+    prevPath = currentPath;
+    currentPath = QFileInfo( currentPath ).path();
+
+    switch ( monitoringForPath( currentPath ) )
+    {
+      case Qgis::BrowserDirectoryMonitoring::NeverMonitor:
+        return false;
+      case Qgis::BrowserDirectoryMonitoring::AlwaysMonitor:
+        return true;
+      case Qgis::BrowserDirectoryMonitoring::Default:
+        break;
+    }
+  }
+
+  // else if we know that the path is on a slow device, we don't monitor by default
+  // as this can be very expensive and slow down QGIS
+  // Add trailing slash or windows API functions like GetDriveTypeW won't identify
+  // UNC network drives correctly
+  if ( QgsFileUtils::pathIsSlowDevice( path.endsWith( '/' ) ? path : path + '/' ) )
+    return false;
+
+  // paths are monitored by default if no explicit setting is in place, and the user hasn't
+  // completely opted out of all browser monitoring
+  return QgsSettings().value( QStringLiteral( "/qgis/monitorDirectoriesInBrowser" ), true ).toBool();
 }
 
 void QgsDirectoryItem::childrenCreated()
@@ -298,9 +471,9 @@ void QgsDirectoryItem::childrenCreated()
 
   if ( mRefreshLater )
   {
-    QgsDebugMsgLevel( QStringLiteral( "directory changed during createChidren() -> refresh() again" ), 3 );
+    QgsDebugMsgLevel( QStringLiteral( "directory changed during createChildren() -> refresh() again" ), 3 );
     mRefreshLater = false;
-    setState( Populated );
+    setState( Qgis::BrowserItemState::Populated );
     refresh();
   }
   else
@@ -308,7 +481,8 @@ void QgsDirectoryItem::childrenCreated()
     QgsDataCollectionItem::childrenCreated();
   }
   // Re-connect the file watcher after all children have been created
-  connect( mFileSystemWatcher, &QFileSystemWatcher::directoryChanged, this, &QgsDirectoryItem::directoryChanged );
+  if ( mFileSystemWatcher && mMonitored )
+    connect( mFileSystemWatcher, &QFileSystemWatcher::directoryChanged, this, &QgsDirectoryItem::directoryChanged );
 }
 
 bool QgsDirectoryItem::equal( const QgsDataItem *other )
@@ -318,7 +492,11 @@ bool QgsDirectoryItem::equal( const QgsDataItem *other )
   {
     return false;
   }
-  return ( path() == other->path() );
+  const QgsDirectoryItem *otherDirItem = qobject_cast< const QgsDirectoryItem * >( other );
+  if ( !otherDirItem )
+    return false;
+
+  return dirPath() == otherDirItem->dirPath();
 }
 
 QWidget *QgsDirectoryItem::paramWidget()
@@ -332,6 +510,7 @@ QgsMimeDataUtils::UriList QgsDirectoryItem::mimeUris() const
   u.layerType = QStringLiteral( "directory" );
   u.name = mName;
   u.uri = mDirPath;
+  u.filePath = path();
   return { u };
 }
 
@@ -349,29 +528,28 @@ QgsDirectoryParamWidget::QgsDirectoryParamWidget( const QString &path, QWidget *
   labels << tr( "Name" ) << tr( "Size" ) << tr( "Date" ) << tr( "Permissions" ) << tr( "Owner" ) << tr( "Group" ) << tr( "Type" );
   setHeaderLabels( labels );
 
-  QIcon iconDirectory = QgsApplication::getThemeIcon( QStringLiteral( "mIconFolder.svg" ) );
-  QIcon iconFile = QgsApplication::getThemeIcon( QStringLiteral( "mIconFile.svg" ) );
-  QIcon iconDirLink = QgsApplication::getThemeIcon( QStringLiteral( "mIconFolderLink.svg" ) );
-  QIcon iconFileLink = QgsApplication::getThemeIcon( QStringLiteral( "mIconFileLink.svg" ) );
+  const QIcon iconDirectory = QgsApplication::getThemeIcon( QStringLiteral( "mIconFolder.svg" ) );
+  const QIcon iconFile = QgsApplication::getThemeIcon( QStringLiteral( "mIconFile.svg" ) );
+  const QIcon iconDirLink = QgsApplication::getThemeIcon( QStringLiteral( "mIconFolderLink.svg" ) );
+  const QIcon iconFileLink = QgsApplication::getThemeIcon( QStringLiteral( "mIconFileLink.svg" ) );
 
   QList<QTreeWidgetItem *> items;
 
-  QDir dir( path );
-  QStringList entries = dir.entryList( QDir::AllEntries | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase );
-  const auto constEntries = entries;
-  for ( const QString &name : constEntries )
+  const QDir dir( path );
+  const QStringList entries = dir.entryList( QDir::AllEntries | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase );
+  for ( const QString &name : entries )
   {
-    QFileInfo fi( dir.absoluteFilePath( name ) );
+    const QFileInfo fi( dir.absoluteFilePath( name ) );
     QStringList texts;
     texts << name;
     QString size;
     if ( fi.size() > 1024 )
     {
-      size = QStringLiteral( "%1 KiB" ).arg( QString::number( fi.size() / 1024.0, 'f', 1 ) );
+      size = QStringLiteral( "%1 KiB" ).arg( QLocale().toString( fi.size() / 1024.0, 'f', 1 ) );
     }
     else if ( fi.size() > 1.048576e6 )
     {
-      size = QStringLiteral( "%1 MiB" ).arg( QString::number( fi.size() / 1.048576e6, 'f', 1 ) );
+      size = QStringLiteral( "%1 MiB" ).arg( QLocale().toString( fi.size() / 1.048576e6, 'f', 1 ) );
     }
     else
     {
@@ -428,10 +606,9 @@ QgsDirectoryParamWidget::QgsDirectoryParamWidget( const QString &path, QWidget *
   addTopLevelItems( items );
 
   // hide columns that are not requested
-  QgsSettings settings;
-  QList<QVariant> lst = settings.value( QStringLiteral( "dataitem/directoryHiddenColumns" ) ).toList();
-  const auto constLst = lst;
-  for ( const QVariant &colVariant : constLst )
+  const QgsSettings settings;
+  const QList<QVariant> lst = settings.value( QStringLiteral( "dataitem/directoryHiddenColumns" ) ).toList();
+  for ( const QVariant &colVariant : lst )
   {
     setColumnHidden( colVariant.toInt(), true );
   }
@@ -464,7 +641,7 @@ void QgsDirectoryParamWidget::showHideColumn()
   if ( !action )
     return; // something is wrong
 
-  int columnIndex = action->objectName().toInt();
+  const int columnIndex = action->objectName().toInt();
   setColumnHidden( columnIndex, !isColumnHidden( columnIndex ) );
 
   // save in settings
@@ -489,7 +666,7 @@ QgsProjectHomeItem::QgsProjectHomeItem( QgsDataItem *parent, const QString &name
 
 QIcon QgsProjectHomeItem::icon()
 {
-  if ( state() == Populating )
+  if ( state() == Qgis::BrowserItemState::Populating )
     return QgsDirectoryItem::icon();
   return QgsApplication::getThemeIcon( QStringLiteral( "mIconFolderProject.svg" ) );
 }

@@ -28,6 +28,7 @@
 class QgsDataItem;
 class QgsMessageBar;
 class QgsLayerItem;
+class QgsBrowserTreeView;
 
 /**
  * \class QgsDataItemGuiContext
@@ -40,10 +41,6 @@ class QgsLayerItem;
 class GUI_EXPORT QgsDataItemGuiContext
 {
   public:
-
-    /**
-     * Constructor for QgsDataItemGuiContext.
-     */
     QgsDataItemGuiContext() = default;
 
     /**
@@ -64,9 +61,26 @@ class GUI_EXPORT QgsDataItemGuiContext
      */
     void setMessageBar( QgsMessageBar *bar );
 
-  private:
+    /**
+     * Returns the associated view.
+     *
+     * \see setView()
+     * \since QGIS 3.28
+     */
+    QgsBrowserTreeView *view() const;
 
+    /**
+     * Sets the associated \a view.
+     *
+     * \see view()
+     * \since QGIS 3.28
+     */
+    void setView( QgsBrowserTreeView *view );
+
+  private:
     QgsMessageBar *mMessageBar = nullptr;
+
+    QgsBrowserTreeView *mView = nullptr;
 };
 
 Q_DECLARE_METATYPE( QgsDataItemGuiContext );
@@ -85,7 +99,6 @@ Q_DECLARE_METATYPE( QgsDataItemGuiContext );
 class GUI_EXPORT QgsDataItemGuiProvider
 {
   public:
-
     virtual ~QgsDataItemGuiProvider() = default;
 
     /**
@@ -117,8 +130,20 @@ class GUI_EXPORT QgsDataItemGuiProvider
      *
      * The base class method has no effect.
      */
-    virtual void populateContextMenu( QgsDataItem *item, QMenu *menu,
-                                      const QList<QgsDataItem *> &selectedItems, QgsDataItemGuiContext context );
+    virtual void populateContextMenu( QgsDataItem *item, QMenu *menu, const QList<QgsDataItem *> &selectedItems, QgsDataItemGuiContext context );
+
+    /**
+     * Returns the provider's precedence to use when populating context menus via calls to populateContextMenu().
+     *
+     * Providers which return larger values will be called AFTER other providers when the menu is being populated.
+     * This allows them to nicely insert their corresponding menu items in the desired location with respect to
+     * existing items added by other providers.
+     *
+     * The default implementation returns 0.
+     *
+     * \since QGIS 3.22
+     */
+    virtual int precedenceWhenPopulatingMenus() const;
 
     /**
      * Sets a new \a name for the item, and returns TRUE if the item was successfully renamed.
@@ -187,7 +212,7 @@ class GUI_EXPORT QgsDataItemGuiProvider
      *
      * \since QGIS 3.16
      */
-    static void notify( const QString &title, const QString &message, QgsDataItemGuiContext context, Qgis::MessageLevel level = Qgis::Info, int duration = -1, QWidget *parent = nullptr );
+    static void notify( const QString &title, const QString &message, QgsDataItemGuiContext context, Qgis::MessageLevel level = Qgis::MessageLevel::Info, int duration = -1, QWidget *parent = nullptr );
 };
 
 #endif // QGSDATAITEMGUIPROVIDER_H

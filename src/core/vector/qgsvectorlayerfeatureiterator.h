@@ -22,6 +22,7 @@
 #include "qgscoordinatereferencesystem.h"
 #include "qgsfeaturesource.h"
 #include "qgsexpressioncontextscopegenerator.h"
+#include "qgscoordinatetransform.h"
 
 #include <QPointer>
 #include <QSet>
@@ -58,9 +59,7 @@ class CORE_EXPORT QgsVectorLayerFeatureSource : public QgsAbstractFeatureSource
      */
     explicit QgsVectorLayerFeatureSource( const QgsVectorLayer *layer );
 
-    //! QgsVectorLayerFeatureSource cannot be copied
     QgsVectorLayerFeatureSource( const QgsVectorLayerFeatureSource &other ) = delete;
-    //! QgsVectorLayerFeatureSource cannot be copied
     QgsVectorLayerFeatureSource &operator==( const QgsVectorLayerFeatureSource &other ) = delete;
 
     ~QgsVectorLayerFeatureSource() override;
@@ -73,13 +72,11 @@ class CORE_EXPORT QgsVectorLayerFeatureSource : public QgsAbstractFeatureSource
      * Returns the fields that will be available for features that are retrieved from
      * this source.
      *
-     * \since QGIS 3.0
      */
     QgsFields fields() const;
 
     /**
      * Returns the coordinate reference system for features retrieved from this source.
-     * \since QGIS 3.0
      */
     QgsCoordinateReferenceSystem crs() const;
 
@@ -93,7 +90,35 @@ class CORE_EXPORT QgsVectorLayerFeatureSource : public QgsAbstractFeatureSource
   protected:
 
     std::unique_ptr< QgsAbstractFeatureSource > mProviderFeatureSource;
+
     std::unique_ptr< QgsVectorLayerJoinBuffer > mJoinBuffer;
+
+#ifndef SIP_RUN
+
+    /**
+     * Contains join layer source information prepared in a thread-safe way, ready for vector
+     * layer feature iterators with joins to utilize.
+     *
+     * \since QGIS 3.30
+     */
+    struct JoinLayerSource
+    {
+
+      /**
+       * Feature source for join
+       */
+      std::shared_ptr< QgsVectorLayerFeatureSource > joinSource;
+
+      /**
+       * Fields from joined layer.
+       */
+      QgsFields joinLayerFields;
+    };
+
+    //! Contains prepared join sources by layer ID
+    QMap< QString, JoinLayerSource > mJoinSources;
+#endif
+
     std::unique_ptr< QgsExpressionFieldBuffer > mExpressionFieldBuffer;
 
     QgsFields mFields;
@@ -124,6 +149,7 @@ class CORE_EXPORT QgsVectorLayerFeatureSource : public QgsAbstractFeatureSource
 
 /**
  * \ingroup core
+ * \brief A feature iterator which iterates over features from a QgsVectorLayer.
  */
 class CORE_EXPORT QgsVectorLayerFeatureIterator : public QgsAbstractFeatureIteratorFromSource<QgsVectorLayerFeatureSource>
 {
@@ -146,18 +172,43 @@ class CORE_EXPORT QgsVectorLayerFeatureIterator : public QgsAbstractFeatureItera
      */
     struct CORE_EXPORT FetchJoinInfo
     {
-      const QgsVectorLayerJoinInfo *joinInfo;//!< Canonical source of information about the join
-      QgsAttributeList attributes;      //!< Attributes to fetch
-      QMap<int, int> attributesSourceToDestLayerMap SIP_SKIP; //!< Mapping from original attribute index to the joined layer index
-      int indexOffset;                  //!< At what position the joined fields start
-      QgsVectorLayer *joinLayer;        //!< Resolved pointer to the joined layer
-      int targetField;                  //!< Index of field (of this layer) that drives the join
-      int joinField;                    //!< Index of field (of the joined layer) must have equal value
+      //! Canonical source of information about the join
+      const QgsVectorLayerJoinInfo *joinInfo;
+      //! Attributes to fetch
+      QgsAttributeList attributes;
+      //! Mapping from original attribute index to the joined layer index
+      QMap<int, int> attributesSourceToDestLayerMap SIP_SKIP;
+      //! At what position the joined fields start
+      int indexOffset;
+
+#ifndef SIP_RUN
+
+      /**
+       * Feature source for join
+       *
+       * \note Not available in Python bindings
+       * \since QGIS 3.20
+       */
+      std::shared_ptr< QgsVectorLayerFeatureSource > joinSource;
+
+      /**
+       * Fields from joined layer.
+       *
+       * \note Not available in Python bindings
+       * \since QGIS 3.20
+       */
+      QgsFields joinLayerFields;
+#endif
+
+      //! Index of field (of this layer) that drives the join
+      int targetField;
+
+      //!< Index of field (of the joined layer) must have equal value
+      int joinField;
 
       void addJoinedAttributesCached( QgsFeature &f, const QVariant &joinValue ) const;
       void addJoinedAttributesDirect( QgsFeature &f, const QVariant &joinValue ) const;
     };
-
 
     bool isValid() const override;
 
@@ -221,7 +272,6 @@ class CORE_EXPORT QgsVectorLayerFeatureIterator : public QgsAbstractFeatureItera
      * \param f feature
      * \param attrIndex attribute index
      * \note not available in Python bindings
-     * \since QGIS 2.14
      */
     void addExpressionAttribute( QgsFeature &f, int attrIndex ) SIP_SKIP;
 
@@ -242,8 +292,15 @@ class CORE_EXPORT QgsVectorLayerFeatureIterator : public QgsAbstractFeatureItera
     QgsFeatureRequest mChangedFeaturesRequest;
     QgsFeatureIterator mChangedFeaturesIterator;
 
+    // filter bounding box constraint, in SOURCE CRS
     QgsRectangle mFilterRect;
+    bool mHasValidTransform = false;
     QgsCoordinateTransform mTransform;
+
+    // distance within constraint reference geometry and distance IN DESTINATION CRS
+    QgsGeometry mDistanceWithinGeom;
+    std::shared_ptr< QgsGeometryEngine > mDistanceWithinEngine;
+    double mDistanceWithin = 0;
 
     // only related to editing
     QSet<QgsFeatureId> mFetchConsidered;
@@ -308,7 +365,6 @@ class CORE_EXPORT QgsVectorLayerFeatureIterator : public QgsAbstractFeatureItera
  * \class QgsVectorLayerSelectedFeatureSource
  * \ingroup core
  * \brief QgsFeatureSource subclass for the selected features from a QgsVectorLayer.
- * \since QGIS 3.0
  */
 class CORE_EXPORT QgsVectorLayerSelectedFeatureSource : public QgsFeatureSource, public QgsExpressionContextScopeGenerator
 {
@@ -321,19 +377,17 @@ class CORE_EXPORT QgsVectorLayerSelectedFeatureSource : public QgsFeatureSource,
      */
     QgsVectorLayerSelectedFeatureSource( QgsVectorLayer *layer );
 
-    //! QgsVectorLayerSelectedFeatureSource cannot be copied
     QgsVectorLayerSelectedFeatureSource( const QgsVectorLayerSelectedFeatureSource &other ) = delete;
-    //! QgsVectorLayerSelectedFeatureSource cannot be copied
     QgsVectorLayerSelectedFeatureSource &operator==( const QgsVectorLayerSelectedFeatureSource &other ) = delete;
 
     QgsFeatureIterator getFeatures( const QgsFeatureRequest &request = QgsFeatureRequest() ) const override;
     QgsCoordinateReferenceSystem sourceCrs() const override;
     QgsFields fields() const override;
-    QgsWkbTypes::Type wkbType() const override;
-    long featureCount() const override;
+    Qgis::WkbType wkbType() const override;
+    long long featureCount() const override;
     QString sourceName() const override;
     QgsExpressionContextScope *createExpressionContextScope() const override;
-    SpatialIndexPresence hasSpatialIndex() const override;
+    Qgis::SpatialIndexPresence hasSpatialIndex() const override;
 
   private:
 
@@ -344,7 +398,7 @@ class CORE_EXPORT QgsVectorLayerSelectedFeatureSource : public QgsFeatureSource,
     // ideally this wouldn't be mutable, but QgsVectorLayerFeatureSource has non-const getFeatures()
     mutable QgsVectorLayerFeatureSource mSource;
     QgsFeatureIds mSelectedFeatureIds;
-    QgsWkbTypes::Type mWkbType = QgsWkbTypes::Unknown;
+    Qgis::WkbType mWkbType = Qgis::WkbType::Unknown;
     QString mName;
     QPointer< QgsVectorLayer > mLayer;
 

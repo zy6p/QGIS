@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qgslayoutviewtool.h"
+#include "moc_qgslayoutviewtool.cpp"
 #include "qgslayoutview.h"
 #include "qgslayoutviewmouseevent.h"
 
@@ -22,16 +23,15 @@ QgsLayoutViewTool::QgsLayoutViewTool( QgsLayoutView *view, const QString &name )
   , mView( view )
   , mToolName( name )
 {
-  connect( mView, &QgsLayoutView::willBeDeleted, this, [ = ]
-  {
+  connect( mView, &QgsLayoutView::willBeDeleted, this, [=] {
     mView = nullptr;
   } );
 }
 
 bool QgsLayoutViewTool::isClickAndDrag( QPoint startViewPoint, QPoint endViewPoint ) const
 {
-  int diffX = endViewPoint.x() - startViewPoint.x();
-  int diffY = endViewPoint.y() - startViewPoint.y();
+  const int diffX = endViewPoint.x() - startViewPoint.x();
+  const int diffY = endViewPoint.y() - startViewPoint.y();
   return std::abs( diffX ) >= 2 || std::abs( diffY ) >= 2;
 }
 
@@ -109,7 +109,6 @@ void QgsLayoutViewTool::setAction( QAction *action )
 QAction *QgsLayoutViewTool::action()
 {
   return mAction;
-
 }
 
 void QgsLayoutViewTool::setCursor( const QCursor &cursor )

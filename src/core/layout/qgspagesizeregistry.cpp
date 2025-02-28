@@ -53,9 +53,9 @@ QgsPageSizeRegistry::QgsPageSizeRegistry()
   add( QgsPageSize( QStringLiteral( "Arch E1" ), QgsLayoutSize( 762, 1066.8 ), QObject::tr( "Arch E1" ) ) );
   add( QgsPageSize( QStringLiteral( "Arch E2" ), QgsLayoutSize( 660, 965 ), QObject::tr( "Arch E2" ) ) );
   add( QgsPageSize( QStringLiteral( "Arch E3" ), QgsLayoutSize( 686, 991 ), QObject::tr( "Arch E3" ) ) );
-  add( QgsPageSize( QStringLiteral( "1920x1080" ), QgsLayoutSize( 1080, 1920, QgsUnitTypes::LayoutPixels ), QObject::tr( "1920×1080" ) ) );
-  add( QgsPageSize( QStringLiteral( "1280x800" ), QgsLayoutSize( 800, 1280, QgsUnitTypes::LayoutPixels ), QObject::tr( "1280×800" ) ) );
-  add( QgsPageSize( QStringLiteral( "1024x768" ), QgsLayoutSize( 768, 1024, QgsUnitTypes::LayoutPixels ), QObject::tr( "1024×768" ) ) );
+  add( QgsPageSize( QStringLiteral( "1920x1080" ), QgsLayoutSize( 1080, 1920, Qgis::LayoutUnit::Pixels ), QObject::tr( "1920×1080 (16:9)" ) ) );
+  add( QgsPageSize( QStringLiteral( "1280x800" ), QgsLayoutSize( 800, 1280, Qgis::LayoutUnit::Pixels ), QObject::tr( "1280×800 (16:10)" ) ) );
+  add( QgsPageSize( QStringLiteral( "1024x768" ), QgsLayoutSize( 768, 1024, Qgis::LayoutUnit::Pixels ), QObject::tr( "1024×768 (4:3)" ) ) );
 }
 
 void QgsPageSizeRegistry::add( const QgsPageSize &size )
@@ -91,12 +91,12 @@ QList<QgsPageSize> QgsPageSizeRegistry::find( const QString &name ) const
 QString QgsPageSizeRegistry::find( const QgsLayoutSize &size ) const
 {
   //try to match to existing page size
-  QgsLayoutMeasurementConverter converter;
+  const QgsLayoutMeasurementConverter converter;
   const auto constMPageSizes = mPageSizes;
   for ( const QgsPageSize &pageSize : constMPageSizes )
   {
     // convert passed size to same units
-    QgsLayoutSize xSize = converter.convert( size, pageSize.size.units() );
+    const QgsLayoutSize xSize = converter.convert( size, pageSize.size.units() );
 
     //consider width and height values may be exchanged
     if ( ( qgsDoubleNear( xSize.width(), pageSize.size.width(), 0.01 ) && qgsDoubleNear( xSize.height(), pageSize.size.height(), 0.01 ) )
@@ -108,9 +108,9 @@ QString QgsPageSizeRegistry::find( const QgsLayoutSize &size ) const
   return QString();
 }
 
-bool QgsPageSizeRegistry::decodePageSize( const QString &pageSizeName, QgsPageSize &pageSize )
+bool QgsPageSizeRegistry::decodePageSize( const QString &pageSizeName, QgsPageSize &pageSize ) const
 {
-  QList< QgsPageSize > matches = find( pageSizeName.trimmed() );
+  const QList< QgsPageSize > matches = find( pageSizeName.trimmed() );
   if ( matches.length() > 0 )
   {
     pageSize = matches.at( 0 );
